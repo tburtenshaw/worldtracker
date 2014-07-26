@@ -1,0 +1,12 @@
+#summary How to download your Google Location History data in JSON format
+#labels json,takeout
+
+= Introduction =
+WorldTracker uses the JSON data produced by [https://www.google.com/settings/takeout Google Takeout]
+
+= Details =
+  # Go to https://www.google.com/settings/takeout
+  # Click "Create an archive"
+  # Deselect everything except Location History (under Other)
+  # You will get an email when the file is prepared
+  # Unzip the file into the same folder as WorldTracker
