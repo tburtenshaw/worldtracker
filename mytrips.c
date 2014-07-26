@@ -141,9 +141,6 @@ int main(int argc,char *argv[])
 	char *jsonfilename;
 	char *pngfilename;
 
-	char buffer[256];
-	char *x;
-	char *y;
 	double phi;		//lat
 	double lambda;	//longit
 
@@ -156,6 +153,8 @@ int main(int argc,char *argv[])
 
 	int error;
 	int i;
+	int tempint;
+	int swappedflag;
 	int griddegrees;
 
 	POINT p;
@@ -210,8 +209,6 @@ int main(int argc,char *argv[])
 		bitmapLineDrawWu(mainBM, i,0, i, scale*180,c);
 	}
 
-
-
 	//Set colour
 	c.R=255;	c.G=205; 	c.B=0;	c.A=255;
 
@@ -228,32 +225,33 @@ int main(int argc,char *argv[])
 
 
 		if (oldx>=0)	{	//This will be true except for very first point
-			//Handle wrapping around the map
-			//if we've likely gone the other way around the map (ie xdiff>180)
+			//Handle wrapping around the x-coord of map (we don't worry about the poles)
 			dx=xi-oldx;
 			dy=yi-oldy;
-			if ((abs(dx)>180*scale))	{	//eg from 200 to 10 longitude
-				i=0;
-				if (dx >0)	{	//if it's the other dirrection then we'll swap vars
+			if ((abs(dx)>180*scale))	{	//they've moved over half the map
+				swappedflag=0;	//flag
+				if (dx >0)	{	//if it's the eastward direction then we'll swap vars
 					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", oldx, oldy, xi,yi,dx,dy, 0,yintersect);
-					i=xi;xi=oldx;oldx=i;
-					i=yi;yi=oldy;oldy=i;
+					i=xi;xi=oldx;oldx=i;	//swap x
+					i=yi;yi=oldy;oldy=i;	//swap y
 
 					dx=xi-oldx;	dy=yi-oldy;
-					i=1;	//use as a flag to ensure we swap coords back
+					swappedflag=1;	//flag to ensure we swap coords back
 				}
 
-				dx=xi-(oldx-360*scale);
-				m=dy/dx;
-				yintersect =(360*scale-oldx)*m+oldy;	//still not sure this is correct
-				printf("from %i %i to %i %i, diff:%i %i c: %i %i\r\n", oldx, oldy, xi,yi,dx,dy, 0,yintersect);
+				dx=xi-(oldx-360*scale);	//oldx-360*scale is our new origin
+				m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
+
+				yintersect = oldy + (360*scale-oldx)*m;	//still not sure this is correct
+//				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", oldx, oldy, xi,yi,dx,dy, yintersect,m);
+
+				//We draw two separate lines
 				bitmapLineDrawWu(mainBM, oldx,oldy,360*scale-1, yintersect, c);
 				bitmapLineDrawWu(mainBM, 0, yintersect, xi,yi, c);
 
-				if (i==1)	{	//swap this back if we swapped!
+				if (swappedflag==1)	{	//swap this back if we swapped!
 					i=xi;xi=oldx;oldx=i;
 					i=yi;yi=oldy;oldy=i;
-
 				}
 
 			}
@@ -269,6 +267,7 @@ int main(int argc,char *argv[])
 	fclose(json);
 
 	//Write the PNG file
+	fprintf(stdout, "Writing to %s.", pngfilename);
 	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->xsize, mainBM->ysize);
 	if(error) printf("LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
