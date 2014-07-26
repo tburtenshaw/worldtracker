@@ -1,4 +1,5 @@
-/* --- The following code comes from d:\programming\lcc\lib64\wizard\textmode.tpl. */
+#define VERSION 0.01
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,18 +59,30 @@ double fpart(double x);
 double rfpart(double x);
 int plot(BM* bm, int x, int y, double cdouble, COLOUR c);
 
+void Intro(char *programName);	//blurb
+void Usage(char *programName); 	//called if run without arguments
+//int HandleOptions(int argc,char *argv[]);
+
+void Intro(char *programName)
+{
+	fprintf(stderr, "World Tracker  - Version %2.2f\r\n", VERSION);
+	fprintf(stderr, "Plots out your Google Location history\r\n\r\n");
+    fprintf(stderr, "Copyright © 2014 Tristan Burtenshaw\r\n");
+	fprintf(stderr, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
+	fprintf(stderr, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
+}
+
 void Usage(char *programName)
 {
-	fprintf(stderr, "World Tracker\r\n");
-	fprintf(stderr,"%s usage:\n",programName);
-	/* Modify here to add your usage message when the program is
-	 * called without arguments */
+	fprintf(stderr, "Usage: %s [-s <scale>] [input.json] [output.png]\r\n\r\n", programName);
+	fprintf(stderr, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
+	fprintf(stderr, "Default output: \'trips.png\'.\r\n");
 }
 
 /* returns the index of the first argument that is not an option; i.e.
    does not start with a dash or a slash
 */
-int HandleOptions(int argc,char *argv[])
+int HandleOptions(int argc,char *argv[], double *scale)
 {
 	int i,firstnonoption=0;
 
@@ -91,7 +104,17 @@ int HandleOptions(int argc,char *argv[])
 					 * Note: this falls through to the default
 					 * to print an "unknow option" message
 					*/
-				/* add your option switches here */
+				case 's':
+				case 'S':
+					if (i+1<argc)	{
+						*scale = strtod(argv[i+1], NULL);
+						if (strstr(argv[i+1], ".json"))	{	//if they've got a filename after the scale, then it's a mistake
+							i--;							//so we'll rewind an argument
+						}
+						i++;	//move to the next variable, we've got a scale
+						//fprintf(stderr, "Scale: %f\r\n",*scale);
+					}
+					break;
 				default:
 					fprintf(stderr,"unknown option %s\n",argv[i]);
 					break;
@@ -111,45 +134,71 @@ int main(int argc,char *argv[])
 	double scale;
 	COLOUR c;
 
+	int arg;
+
 	FILE *csv;
 	FILE *json;
+	char *jsonfilename;
+	char *pngfilename;
+
 	char buffer[256];
-char *x;
-char *y;
-double phi;		//lat
-double lambda;	//longit
+	char *x;
+	char *y;
+	double phi;		//lat
+	double lambda;	//longit
 
-int xi;
-int yi;
-int oldx,oldy;
-int dx,dy;
-int yintersect;
-double m;
+	int xi;
+	int yi;
+	int oldx,oldy;
+	int dx,dy;
+	int yintersect;
+	double m;
 
-int i;
-int griddegrees;
+	int i;
+	int griddegrees;
 
-POINT p;
-LOCATION coord;
+	POINT p;
+	LOCATION coord;
 
 
-	if (argc == 1) {
-		/* If no arguments we call the Usage routine and exit */
+	Intro(argv[0]);
+
+	jsonfilename="LocationHistory.json";	//default
+	pngfilename="trips.png";	//default
+	if (argc == 1) {	//if there's no arguments, then we can just use defaults
 		Usage(argv[0]);
+	}
+	else	{			//otherwise better handle the inputs
+		arg = HandleOptions(argc, argv, &scale);
+		fprintf(stderr, "Input file: %s\r\n", argv[arg]);
+		jsonfilename=argv[arg];
+		if (arg<argc+1)	{	//output file
+			fprintf(stderr, "Output file: %s\r\n", argv[arg+1]);
+			pngfilename=argv[arg+1];
+		}
+	}
+
+	//Open the input file
+	json=fopen(jsonfilename,"r");
+	if (json==NULL)	{
+		printf("\r\nUnable to open \'%s\'.\r\n", jsonfilename);
+		perror("Error");
+		fprintf(stderr, "\r\n");
 		return 1;
 	}
-	/* handle the program options */
-	HandleOptions(argc,argv);
-	scale = 30;
+
+
+	if ((scale<0.1) || (scale>50))
+		scale = 15;
+	fprintf(stderr, "Scale: %4.2f\r\n", scale);
+	return 0;
 
 	mainBM = bitmapInit(360*scale,180*scale,4);
 
-	//printf("x %i\r\n",mainBM->xsize);
 
 
+	/* Color wheel test */
 	c.R=255;	c.G=255; 	c.B=255;	c.A=255;
-
-
 	for (i=0;i<360;i+=12)	{
 		if (i<256) c.R=(char)i;
 		else {c.R=255; c.G=255-(360-i);}
@@ -179,8 +228,6 @@ LOCATION coord;
 
 	//bitmapPixelSet(mainBM, 50,50,c);
 
-
-	json=fopen("D:/programming/lcc/projects/mytrips/LocationHistory.json","r");
 
 	oldx=-1;
 	oldy=-1;
