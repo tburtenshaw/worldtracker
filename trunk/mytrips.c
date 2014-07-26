@@ -43,7 +43,7 @@ int ReadLocation(FILE *json, LOCATION *location);
 BM* bitmapInit(int xsize, int ysize, int channels);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
-int bitmapWrite(BM* bm, char *filename);
+int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
@@ -154,6 +154,7 @@ int main(int argc,char *argv[])
 	int yintersect;
 	double m;
 
+	int error;
 	int i;
 	int griddegrees;
 
@@ -187,28 +188,16 @@ int main(int argc,char *argv[])
 		return 1;
 	}
 
-
-	if ((scale<0.1) || (scale>50))
+	//Set the scale
+	if ((scale<0.1) || (scale>55))	{	//have to decide the limit, i've tested to 55
+		if (scale) fprintf(stderr, "Scale must be between 0.1 and 55\r\n");	//if they've entered something silly
 		scale = 15;
-	fprintf(stderr, "Scale: %4.2f\r\n", scale);
-	return 0;
-
-	mainBM = bitmapInit(360*scale,180*scale,4);
-
-
-
-	/* Color wheel test */
-	c.R=255;	c.G=255; 	c.B=255;	c.A=255;
-	for (i=0;i<360;i+=12)	{
-		if (i<256) c.R=(char)i;
-		else {c.R=255; c.G=255-(360-i);}
-		c.B=255-c.R;
-
-		c=HsvToRgb(i,255,255);
-		bitmapLineDrawWu(mainBM, 100,100,100+100*sin(i*PI/180),100+100*cos(i*PI/180),c);
 	}
+	fprintf(stdout, "Scale: %4.2f\r\n", scale);
 
 
+	//Initialise the bitmap
+	mainBM = bitmapInit(360*scale,180*scale,4);
 
 	//Draw grid
 	griddegrees=15;
@@ -217,7 +206,7 @@ int main(int argc,char *argv[])
 		bitmapLineDrawWu(mainBM, 0,i,scale*360,i,c);
 	}
 
-		for (i=griddegrees*scale;i<360*scale;i+=griddegrees*scale)	{	//latitude deg*scale
+		for (i=griddegrees*scale;i<360*scale;i+=griddegrees*scale)	{	//longit deg*scale
 		bitmapLineDrawWu(mainBM, i,0, i, scale*180,c);
 	}
 
@@ -226,31 +215,27 @@ int main(int argc,char *argv[])
 	//Set colour
 	c.R=255;	c.G=205; 	c.B=0;	c.A=255;
 
-	//bitmapPixelSet(mainBM, 50,50,c);
-
-
 	oldx=-1;
 	oldy=-1;
 
 	while (ReadLocation(json, &coord)==1)	{
-		//printf("%f \r\n",coord.latitude);
-		//printf("%f",coord.longitude);
-
+		//Set the colour base on time (hardcoded so far)
 		c=TimestampToRgb(coord.timestampS, 1336886768, 1406220100);
 		LatLongToXY(coord.latitude, coord.longitude, &p, scale);
 
 		xi=p.x;
 		yi=p.y;
 
-//	bitmapPixelSet(mainBM, xi,yi,c);
-		if (oldx>=0)	{
+
+		if (oldx>=0)	{	//This will be true except for very first point
+			//Handle wrapping around the map
 			//if we've likely gone the other way around the map (ie xdiff>180)
 			dx=xi-oldx;
 			dy=yi-oldy;
-			if ( (abs(dx)>180*scale))	{	//eg from 200 to 10 longitude
+			if ((abs(dx)>180*scale))	{	//eg from 200 to 10 longitude
 				i=0;
 				if (dx >0)	{	//if it's the other dirrection then we'll swap vars
-					printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", oldx, oldy, xi,yi,dx,dy, 0,yintersect);
+					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", oldx, oldy, xi,yi,dx,dy, 0,yintersect);
 					i=xi;xi=oldx;oldx=i;
 					i=yi;yi=oldy;oldy=i;
 
@@ -265,15 +250,14 @@ int main(int argc,char *argv[])
 				bitmapLineDrawWu(mainBM, oldx,oldy,360*scale-1, yintersect, c);
 				bitmapLineDrawWu(mainBM, 0, yintersect, xi,yi, c);
 
-				if (i==1)	{	//swap this back!
-										i=xi;xi=oldx;oldx=i;
+				if (i==1)	{	//swap this back if we swapped!
+					i=xi;xi=oldx;oldx=i;
 					i=yi;yi=oldy;oldy=i;
 
 				}
 
 			}
-
-
+			//Here is just the normal line from oldpoint to new one
 			else	{
 				bitmapLineDrawWu(mainBM, oldx,oldy,xi,yi,c);		//the normal case
 			}
@@ -283,9 +267,11 @@ int main(int argc,char *argv[])
 	}
 
 	fclose(json);
-	//bitmapWrite(mainBM,"trips.raw");
 
-	lodepng_encode32_file("trips.png", mainBM->bitmap, mainBM->xsize, mainBM->ysize);
+	//Write the PNG file
+	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->xsize, mainBM->ysize);
+	if(error) printf("LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
 	bitmapDestroy(mainBM);
 	return 0;
 }
@@ -336,7 +322,7 @@ int ReadLocation(FILE *json, LOCATION *location)
 
 
 	}
-	printf ("out");
+	fprintf (stdout, "Finished reading JSON file.\r\n");
 	return 0;
 };
 
