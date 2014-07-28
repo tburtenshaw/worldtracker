@@ -65,18 +65,18 @@ void Usage(char *programName); 	//called if run without arguments
 
 void Intro(char *programName)
 {
-	fprintf(stderr, "World Tracker  - Version %2.2f\r\n", VERSION);
-	fprintf(stderr, "Plots out your Google Location history\r\n\r\n");
-    fprintf(stderr, "Copyright © 2014 Tristan Burtenshaw\r\n");
-	fprintf(stderr, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
-	fprintf(stderr, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
+	fprintf(stdout, "World Tracker  - Version %2.2f\r\n", VERSION);
+	fprintf(stdout, "Plots out your Google Location history\r\n\r\n");
+    fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
+	fprintf(stdout, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
+	fprintf(stdout, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
 }
 
 void Usage(char *programName)
 {
-	fprintf(stderr, "Usage: %s [-s <scale>] [input.json] [output.png]\r\n\r\n", programName);
-	fprintf(stderr, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
-	fprintf(stderr, "Default output: \'trips.png\'.\r\n");
+	fprintf(stdout, "Usage: %s [-s <scale>] [input.json] [output.png]\r\n\r\n", programName);
+	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
+	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
 }
 
 /* returns the index of the first argument that is not an option; i.e.
@@ -170,10 +170,10 @@ int main(int argc,char *argv[])
 	}
 	else	{			//otherwise better handle the inputs
 		arg = HandleOptions(argc, argv, &scale);
-		fprintf(stderr, "Input file: %s\r\n", argv[arg]);
+		fprintf(stdout, "Input file: %s\r\n", argv[arg]);
 		jsonfilename=argv[arg];
 		if (arg<argc+1)	{	//output file
-			fprintf(stderr, "Output file: %s\r\n", argv[arg+1]);
+			fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
 			pngfilename=argv[arg+1];
 		}
 	}
@@ -181,7 +181,7 @@ int main(int argc,char *argv[])
 	//Open the input file
 	json=fopen(jsonfilename,"r");
 	if (json==NULL)	{
-		printf("\r\nUnable to open \'%s\'.\r\n", jsonfilename);
+		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", jsonfilename);
 		perror("Error");
 		fprintf(stderr, "\r\n");
 		return 1;
@@ -210,14 +210,15 @@ int main(int argc,char *argv[])
 	}
 
 	//Set colour
-	c.R=255;	c.G=205; 	c.B=0;	c.A=255;
 
 	oldx=-1;
 	oldy=-1;
 
 	while (ReadLocation(json, &coord)==1)	{
 		//Set the colour base on time (hardcoded so far)
-		c=TimestampToRgb(coord.timestampS, 1336886768, 1406220100);
+		//c=TimestampToRgb(coord.timestampS, 1336886768, 1406220100);
+		//c=TimestampToRgb(coord.timestampS, 1300000000, 1300000000+(60*60*24*183));
+		c.R=128; c.G=200; c.B=20; c.A=255;
 		LatLongToXY(coord.latitude, coord.longitude, &p, scale);
 
 		xi=p.x;
@@ -269,7 +270,7 @@ int main(int argc,char *argv[])
 	//Write the PNG file
 	fprintf(stdout, "Writing to %s.", pngfilename);
 	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->xsize, mainBM->ysize);
-	if(error) printf("LodePNG error %u: %s\n", error, lodepng_error_text(error));
+	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	bitmapDestroy(mainBM);
 	return 0;
@@ -463,12 +464,9 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 
 	double doublec;
 	int step;
-	//first correct it so going small to big
-	//if (x1<x0)	{tempdouble=x0;x0=x1;x1=tempdouble; tempdouble=y0;y0=y1;y1=tempdouble;}
-
 
 	//based on the wikipedia article
-//	printf("Line: %f,%f to %f,%f [R%iG%iB%i]", x0,y0,x1,y1, c.R, c.G, c.B);
+	//printf("Line: %f,%f to %f,%f [R%iG%iB%i]", x0,y0,x1,y1, c.R, c.G, c.B);
 	steep=(abs(y1 - y0) > abs(x1 - x0));
 
 	if (steep)	{
@@ -479,17 +477,13 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	if (x0>x1)	{
 		tempdouble = x1; x1=x0; x0=tempdouble;	//swap x0,x1
 		tempdouble = y1; y1=y0; y0=tempdouble;  //swap y0,y1
-//		printf(" (swapped)");
-
-//		printf("{now %f,%f to %f,%f}", x0,y0,x1,y1);
 	}
 
-//	printf("\r\n");
 	dx=x1-x0;
 	dy=y1-y0;
 
 	gradient = dy/dx;
-
+		 //printf("%f\r\n",gradient);
 
 	     // handle first endpoint
      xend = round(x0);
@@ -529,17 +523,8 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 
 
      // main loop
-
-//	 step=1;
-	 //if (xpxl1>xpxl2)	{
-//		 tempdouble=xpxl1;xpxl1=xpxl2;xpxl2=tempdouble;
-//		}
-	//	 step=-1;
-	if (xpxl1>xpxl2)	{
-		 printf("[%f should be smaller than %f]\r\n",xpxl1,xpxl2);
-		}
 	 for (x = xpxl1 + 1;x<xpxl2;x++)	{
-          if  (steep)	{
+         if  (steep)	{
              plot(bm, ipart(intery)  , x, rfpart(intery), c);
              plot(bm, ipart(intery)+1, x,  fpart(intery), c);
 			 //printf("steep\r\n");
@@ -548,9 +533,9 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
              plot(bm, x, ipart (intery),  rfpart(intery), c);
              plot(bm, x, ipart (intery)+1, fpart(intery), c);
 //			 printf("\r\n");
-	}
+			}
          intery = intery + gradient;
-		}
+	}
 
 
 
@@ -600,6 +585,7 @@ int plot(BM* bm, int x, int y, double doublec, COLOUR c)
 {
 
 		 	c.A=(doublec)*(double)c.A;
+			//printf("c.A %f\t %i\r\n",doublec, c.A);
 		 	bitmapPixelSet(bm, x, y, c);
 
 //printf("x %i y%i c%f \r\n",x,y,doublec);
