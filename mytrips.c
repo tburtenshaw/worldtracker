@@ -1,4 +1,6 @@
-#define VERSION 0.01
+//current version
+
+#define VERSION 0.08
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +27,9 @@ struct sBitmap	{
 	int xsize;
 	int ysize;
 	int channels;	//1, 3 or 4
+
+	double scale;
+
 	char *bitmap;
 	int sizebitmap;
 };
@@ -40,7 +45,7 @@ typedef struct sLocation LOCATION;
 
 int ReadLocation(FILE *json, LOCATION *location);
 
-BM* bitmapInit(int xsize, int ysize, int channels);
+BM* bitmapInit(int xsize, int ysize, int channels, double scale);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
@@ -48,7 +53,11 @@ int bitmapDestroy(BM* bm);
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
-COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v);
+int DrawGrid(BM* bm, int spacing, COLOUR c);
+int ColourWheel(BM* bm, int x, int y, int r, int steps);
+
+
+COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 COLOUR TimestampToRgb(long ts, long min, long max);
 
 int LatLongToXY(double phi, double lambda, POINT *p, double scale);	//lat, long, output point
@@ -196,29 +205,22 @@ int main(int argc,char *argv[])
 
 
 	//Initialise the bitmap
-	mainBM = bitmapInit(360*scale,180*scale,4);
+	mainBM = bitmapInit(360*scale,180*scale,4, scale);
 
 	//Draw grid
 	griddegrees=15;
 	c.R=192;c.G=192;c.B=192;c.A=128;
-	for (i=griddegrees*scale;i<180*scale;i+=griddegrees*scale)	{	//latitude deg*scale
-		bitmapLineDrawWu(mainBM, 0,i,scale*360,i,c);
-	}
-
-		for (i=griddegrees*scale;i<360*scale;i+=griddegrees*scale)	{	//longit deg*scale
-		bitmapLineDrawWu(mainBM, i,0, i, scale*180,c);
-	}
+	DrawGrid(mainBM, griddegrees, c);
+	ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines/antialiasing
 
 	//Set colour
-
+	c.R=255;	c.G=205; 	c.B=0;	c.A=255;
 	oldx=-1;
 	oldy=-1;
 
 	while (ReadLocation(json, &coord)==1)	{
 		//Set the colour base on time (hardcoded so far)
-		//c=TimestampToRgb(coord.timestampS, 1336886768, 1406220100);
-		//c=TimestampToRgb(coord.timestampS, 1300000000, 1300000000+(60*60*24*183));
-		c.R=128; c.G=200; c.B=20; c.A=255;
+		c=TimestampToRgb(coord.timestampS, 1300000000, 1300000000+(60*60*24*183));	//about 6 month cycle
 		LatLongToXY(coord.latitude, coord.longitude, &p, scale);
 
 		xi=p.x;
@@ -327,7 +329,7 @@ int ReadLocation(FILE *json, LOCATION *location)
 };
 
 
-BM* bitmapInit(int xsize, int ysize, int channels)
+BM* bitmapInit(int xsize, int ysize, int channels, double scale)
 {
 	BM *temp;
 	char* bitmap;
@@ -338,6 +340,7 @@ BM* bitmapInit(int xsize, int ysize, int channels)
 	temp->ysize=ysize;
 	temp->channels= channels;
 	temp->sizebitmap=xsize*ysize*channels;
+	temp->scale=scale;
 
 	bitmap=(char*)malloc(temp->sizebitmap);
 	memset(bitmap, 0, temp->sizebitmap);
@@ -463,7 +466,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double x;
 
 	double doublec;
-	int step;
 
 	//based on the wikipedia article
 	//printf("Line: %f,%f to %f,%f [R%iG%iB%i]", x0,y0,x1,y1, c.R, c.G, c.B);
@@ -483,7 +485,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	dy=y1-y0;
 
 	gradient = dy/dx;
-		 //printf("%f\r\n",gradient);
 
 	     // handle first endpoint
      xend = round(x0);
@@ -534,6 +535,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
              plot(bm, x, ipart (intery)+1, fpart(intery), c);
 //			 printf("\r\n");
 			}
+//			printf("i %f  f %f\r\n",ipart(intery), fpart(intery));
          intery = intery + gradient;
 	}
 
@@ -565,7 +567,12 @@ int bitmapWrite(BM* bm, char *filename)
 //for the Wu algorithm in Wikipedia
 double ipart(double x)
 {
-	return floor(x);
+	int xi;
+
+	xi=x;
+	//printf("floor %f %f \r\n",x,floor(x));
+	return (double)xi;
+	//return floor(x);
 }
 double round(double x)
 {
@@ -612,7 +619,7 @@ int LatLongToXY(double phi, double lambda, POINT *p, double scale)
 
 
 
-COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v)
+COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a)
 {
     COLOUR rgb;
     unsigned char region, remainder, p, q, t;
@@ -631,6 +638,8 @@ COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v)
     p = (v * (255 - s)) >> 8;
     q = (v * (255 - ((s * remainder) >> 8))) >> 8;
     t = (v * (255 - ((s * (255 - remainder)) >> 8))) >> 8;
+
+	rgb.A=a;
 
     switch (region)
     {
@@ -671,5 +680,35 @@ COLOUR TimestampToRgb(long ts, long min, long max)
 	hue=hue*255;
 
 //	printf("%i\t%i\t%i\t%f\r\n", ts, diff, ts-min, hue);
-	return HsvToRgb((char)hue,255,255);
+	return HsvToRgb((char)hue,255,255,255);
+}
+
+
+int DrawGrid(BM* bm, int spacing, COLOUR c)
+{
+	int i;
+
+	for (i=spacing*bm->scale;i<180*bm->scale;i+=spacing*bm->scale)	{	//latitude deg*scale
+		bitmapLineDrawWu(bm, 0,i,bm->scale*360,i,c);
+	}
+
+	for (i=spacing*bm->scale;i<360*bm->scale;i+=spacing*bm->scale)	{	//longit deg*scale
+		bitmapLineDrawWu(bm, i,0, i,bm->scale*180,c);
+	}
+
+	return 0;
+}
+
+
+int ColourWheel(BM* bm, int x, int y, int r, int steps)
+{
+	int i;
+	COLOUR c;
+	if (steps<1) return 1;
+ 	for (i=0;i<360;i+=steps) {
+ 		c=HsvToRgb(i*255/360,255,255,255);
+	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),c);
+ 	}
+
+	return 0;
 }
