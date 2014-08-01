@@ -1,6 +1,6 @@
 //current version
 
-#define VERSION 0.08
+#define VERSION 0.09
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,11 +26,10 @@ typedef struct sRGBAColour COLOUR;
 struct sBitmap	{
 	int xsize;
 	int ysize;
-	int channels;	//1, 3 or 4
 
 	double scale;
 
-	char *bitmap;
+	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
 };
 typedef struct sBitmap BM;
@@ -45,9 +44,11 @@ typedef struct sLocation LOCATION;
 
 int ReadLocation(FILE *json, LOCATION *location);
 
-BM* bitmapInit(int xsize, int ysize, int channels, double scale);
+BM* bitmapInit(int xsize, int ysize, double scale);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c);
+
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
 
@@ -60,7 +61,7 @@ int ColourWheel(BM* bm, int x, int y, int r, int steps);
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 COLOUR TimestampToRgb(long ts, long min, long max);
 
-int LatLongToXY(double phi, double lambda, POINT *p, double scale);	//lat, long, output point
+int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y);	//lat, long, output point
 
 double ipart(double x);
 double round(double x);
@@ -68,20 +69,20 @@ double fpart(double x);
 double rfpart(double x);
 int plot(BM* bm, int x, int y, double cdouble, COLOUR c);
 
-void Intro(char *programName);	//blurb
-void Usage(char *programName); 	//called if run without arguments
+void PrintIntro(char *programName);	//blurb
+void PrintUsage(char *programName); 	//called if run without arguments
 //int HandleOptions(int argc,char *argv[]);
 
-void Intro(char *programName)
+void PrintIntro(char *programName)
 {
 	fprintf(stdout, "World Tracker  - Version %2.2f\r\n", VERSION);
 	fprintf(stdout, "Plots out your Google Location history\r\n\r\n");
-    fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
+	fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
 	fprintf(stdout, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
 	fprintf(stdout, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
 }
 
-void Usage(char *programName)
+void PrintUsage(char *programName)
 {
 	fprintf(stdout, "Usage: %s [-s <scale>] [input.json] [output.png]\r\n\r\n", programName);
 	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
@@ -100,12 +101,12 @@ int HandleOptions(int argc,char *argv[], double *scale)
 			switch (argv[i][1]) {
 				/* An argument -? means help is requested */
 				case '?':
-					Usage(argv[0]);
+					PrintUsage(argv[0]);
 					break;
 				case 'h':
 				case 'H':
 					if (!stricmp(argv[i]+1,"help")) {
-						Usage(argv[0]);
+						PrintUsage(argv[0]);
 						break;
 					}
 					/* If the option -h means anything else
@@ -150,40 +151,32 @@ int main(int argc,char *argv[])
 	char *jsonfilename;
 	char *pngfilename;
 
-	double phi;		//lat
-	double lambda;	//longit
-
-	int xi;
-	int yi;
-	int oldx,oldy;
-	int dx,dy;
-	int yintersect;
-	double m;
+	unsigned long countPoints;
+	double oldlat, oldlon;
 
 	int error;
-	int i;
-	int tempint;
-	int swappedflag;
 	int griddegrees;
 
 	POINT p;
 	LOCATION coord;
 
-
-	Intro(argv[0]);
+	//Display introductory text
+	PrintIntro(argv[0]);
 
 	jsonfilename="LocationHistory.json";	//default
 	pngfilename="trips.png";	//default
 	if (argc == 1) {	//if there's no arguments, then we can just use defaults
-		Usage(argv[0]);
+		PrintUsage(argv[0]);
 	}
 	else	{			//otherwise better handle the inputs
 		arg = HandleOptions(argc, argv, &scale);
-		fprintf(stdout, "Input file: %s\r\n", argv[arg]);
-		jsonfilename=argv[arg];
-		if (arg<argc+1)	{	//output file
-			fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
-			pngfilename=argv[arg+1];
+		if (arg>0)	{
+			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
+			jsonfilename=argv[arg];
+			if (arg<argc+1)	{	//output file
+				fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
+				pngfilename=argv[arg+1];
+			}
 		}
 	}
 
@@ -205,69 +198,31 @@ int main(int argc,char *argv[])
 
 
 	//Initialise the bitmap
-	mainBM = bitmapInit(360*scale,180*scale,4, scale);
+	mainBM = bitmapInit(360*scale,180*scale,scale);
 
 	//Draw grid
 	griddegrees=15;
 	c.R=192;c.G=192;c.B=192;c.A=128;
 	DrawGrid(mainBM, griddegrees, c);
-	ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines/antialiasing
+	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
-	//Set colour
-	c.R=255;	c.G=205; 	c.B=0;	c.A=255;
-	oldx=-1;
-	oldy=-1;
-
+	oldlat=0;oldlon=0;
+	countPoints=0;
 	while (ReadLocation(json, &coord)==1)	{
 		//Set the colour base on time (hardcoded so far)
 		c=TimestampToRgb(coord.timestampS, 1300000000, 1300000000+(60*60*24*183));	//about 6 month cycle
-		LatLongToXY(coord.latitude, coord.longitude, &p, scale);
 
-		xi=p.x;
-		yi=p.y;
-
-
-		if (oldx>=0)	{	//This will be true except for very first point
-			//Handle wrapping around the x-coord of map (we don't worry about the poles)
-			dx=xi-oldx;
-			dy=yi-oldy;
-			if ((abs(dx)>180*scale))	{	//they've moved over half the map
-				swappedflag=0;	//flag
-				if (dx >0)	{	//if it's the eastward direction then we'll swap vars
-					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", oldx, oldy, xi,yi,dx,dy, 0,yintersect);
-					i=xi;xi=oldx;oldx=i;	//swap x
-					i=yi;yi=oldy;oldy=i;	//swap y
-
-					dx=xi-oldx;	dy=yi-oldy;
-					swappedflag=1;	//flag to ensure we swap coords back
-				}
-
-				dx=xi-(oldx-360*scale);	//oldx-360*scale is our new origin
-				m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
-
-				yintersect = oldy + (360*scale-oldx)*m;	//still not sure this is correct
-//				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", oldx, oldy, xi,yi,dx,dy, yintersect,m);
-
-				//We draw two separate lines
-				bitmapLineDrawWu(mainBM, oldx,oldy,360*scale-1, yintersect, c);
-				bitmapLineDrawWu(mainBM, 0, yintersect, xi,yi, c);
-
-				if (swappedflag==1)	{	//swap this back if we swapped!
-					i=xi;xi=oldx;oldx=i;
-					i=yi;yi=oldy;oldy=i;
-				}
-
-			}
-			//Here is just the normal line from oldpoint to new one
-			else	{
-				bitmapLineDrawWu(mainBM, oldx,oldy,xi,yi,c);		//the normal case
-			}
+		//draw a line from last point to the current one.
+		if (countPoints>0)	{
+			bitmapCoordLine(mainBM, coord.latitude, coord.longitude, oldlat, oldlon, c);
 		}
-		oldx=xi;oldy=yi;
 
+		oldlat=coord.latitude;oldlon=coord.longitude;
+		countPoints++;
 	}
-
+	fprintf(stdout, "Ploted: %i points\r\n", countPoints);
 	fclose(json);
+
 
 	//Write the PNG file
 	fprintf(stdout, "Writing to %s.", pngfilename);
@@ -329,7 +284,7 @@ int ReadLocation(FILE *json, LOCATION *location)
 };
 
 
-BM* bitmapInit(int xsize, int ysize, int channels, double scale)
+BM* bitmapInit(int xsize, int ysize, double scale)
 {
 	BM *temp;
 	char* bitmap;
@@ -338,14 +293,13 @@ BM* bitmapInit(int xsize, int ysize, int channels, double scale)
 
 	temp->xsize=xsize;
 	temp->ysize=ysize;
-	temp->channels= channels;
-	temp->sizebitmap=xsize*ysize*channels;
+	temp->sizebitmap=xsize*ysize*4;
 	temp->scale=scale;
 
 	bitmap=(char*)malloc(temp->sizebitmap);
 	memset(bitmap, 0, temp->sizebitmap);
 
-	printf("Bitmap at: %i. X: %i, Y: %i, channels:%i\r\n", (long)bitmap, xsize, ysize, channels);
+	printf("New bitmap width: %i, height: %i\r\n", xsize, ysize);
 
 	temp->bitmap=bitmap;
 
@@ -372,40 +326,18 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 	if (x<0)	return 0;
 	if (y<0)	return 0;
 
-	//Greyscale
-	if (bm->channels == 1)	{
-		currentc = bm->bitmap[x+y* bm->xsize *1];	//this'll be between 0 and 255
+	currentC.R = bm->bitmap[(x+y* bm->xsize) *4];
+	currentC.G = bm->bitmap[(x+y* bm->xsize) *4+1];
+	currentC.B = bm->bitmap[(x+y* bm->xsize) *4+2];
+	currentC.A = bm->bitmap[(x+y* bm->xsize) *4+3];
 
-		//printf("currentc %i\r\n", currentc);
-
-		k=(c.R+c.G+c.B)*(c.A)+currentc*3*(255-c.A);
-		k=k/(255*3);
-		currentc=(char)k;
-
-		//printf("currentc %i\r\n", currentc);
-
-		//printf("x %i y %i %i %i %i\r\n",x,y,bm->xsize, bm->channels, c.A);
-		//printf("bm %i", (long)bm->bitmap);
-		memset(bm->bitmap + (x + y * bm->xsize) * 1,currentc,1);	//the *1 is the channels
+	if (mixColours(&currentC, &c))	{
+			memset(bm->bitmap + (x + y * bm->xsize) * 4+0,currentC.R,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->xsize) * 4+1,currentC.G,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->xsize) * 4+2,currentC.B,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->xsize) * 4+3,currentC.A,1);	//the *4 is the channels
 	}
 
-	if (bm->channels >= 3)	{	//3 or 4 channels
-		currentC.R = bm->bitmap[(x+y* bm->xsize) *bm->channels];
-		currentC.G = bm->bitmap[(x+y* bm->xsize) *bm->channels+1];
-		currentC.B = bm->bitmap[(x+y* bm->xsize) *bm->channels+2];
-		if (bm->channels == 4)
-			currentC.A = bm->bitmap[(x+y* bm->xsize) *4+3];
-		else
-			currentC.A=255;
-
-		if (mixColours(&currentC, &c))	{
-			memset(bm->bitmap + (x + y * bm->xsize) * bm->channels+0,currentC.R,1);	//the *4 is the channels
-			memset(bm->bitmap + (x + y * bm->xsize) * bm->channels+1,currentC.G,1);	//the *4 is the channels
-			memset(bm->bitmap + (x + y * bm->xsize) * bm->channels+2,currentC.B,1);	//the *4 is the channels
-			if (bm->channels == 4)
-				memset(bm->bitmap + (x + y * bm->xsize) * 4+3,currentC.A,1);	//the *4 is the channels
-		}
-	}
 
 
 	return 1;
@@ -452,7 +384,6 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c)
 {
 	int steep;
-	int tempint;
 	double tempdouble;
 
 	double dx,dy;
@@ -466,6 +397,13 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double x;
 
 	double doublec;
+
+	//Convert to int for now, until we get the errors sorted
+	x0=(int)x0;
+	y0=(int)y0;
+	x1=(int)x1;
+	y1=(int)y1;
+
 
 	//based on the wikipedia article
 	//printf("Line: %f,%f to %f,%f [R%iG%iB%i]", x0,y0,x1,y1, c.R, c.G, c.B);
@@ -539,13 +477,63 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
          intery = intery + gradient;
 	}
 
+	return 0;
+}
+
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c)
+{
+	double tempdouble;
+	double dx,dy;
+	double yintersect;
+	double m;
+
+	double x1,y1;
+	double x2,y2;
+	int swappedflag;
+
+
+	LatLongToXY(bm, lat1, lon1, &x1,&y1);
+	LatLongToXY(bm, lat2, lon2, &x2,&y2);
+			dx=x1-x2;
+			dy=y1-y2;
+			if ((abs(dx)>180*bm->scale))	{	//they've moved over half the map
+				swappedflag=0;	//flag
+				if (dx >0)	{	//if it's the eastward direction then we'll swap vars
+					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", x2, y2, xi,yi,dx,dy, 0,yintersect);
+					tempdouble=x1;x1=x2;x2=tempdouble;	//swap x
+					tempdouble=y1;y1=y2;y2=tempdouble;	//swap y
+
+					dx=x1-x2;	dy=y1-y2;
+					swappedflag=1;	//flag to ensure we swap coords back
+				}
+
+				dx=x1-(x2-360*bm->scale);	//x2-360*scale is our new origin
+				m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
+
+				yintersect = y2 + (360*bm->scale-x2)*m;
+//				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", x2, y2, xi,yi,dx,dy, yintersect,m);
+
+				//We draw two separate lines
+				bitmapLineDrawWu(bm, x2,y2,360*bm->scale-1, yintersect, c);
+				bitmapLineDrawWu(bm, 0, yintersect, x1,y1, c);
+
+				if (swappedflag==1)	{	//swap this back if we swapped!
+					tempdouble=x1;x1=x2;x2=tempdouble;
+					tempdouble=y1;y1=y2;y2=tempdouble;
+				}
+
+			}
+			//Here is just the normal line from oldpoint to new one
+			else	{
+				bitmapLineDrawWu(bm, x2,y2,x1,y1,c);		//the normal case
+			}
 
 
 
 	return 0;
 }
 
-int bitmapWrite(BM* bm, char *filename)
+int bitmapWrite(BM *bm, char *filename)
 {
 	FILE* outputfile;
 	int i;
@@ -601,18 +589,21 @@ int plot(BM* bm, int x, int y, double doublec, COLOUR c)
 return 0;
 }
 
-int LatLongToXY(double phi, double lambda, POINT *p, double scale)
+int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 {
-	p->y=(90-phi)*scale+0.5;
-	p->x=(lambda+180)*scale+0.5;
+	*y=(90-phi)*bm->scale;
+	*x=(lambda+180)*bm->scale;
 
-	if (p->x >= 360*scale)
-		p->x=0;
+//	*y=floor(*y);
+//	*x=floor(*x);
 
-	if (p->y >= 360*scale)
-		p->y=0;
+	//*x %=360
 
-//	printf("%i %i\r\n",p->x,p->y);
+//	if (*x >= 360*bm->scale)
+//		*x=0;
+
+//	if (*y >= 360*bm->scale)
+//		*y=0;
 
 	return 0;
 }
@@ -686,15 +677,43 @@ COLOUR TimestampToRgb(long ts, long min, long max)
 
 int DrawGrid(BM* bm, int spacing, COLOUR c)
 {
-	int i;
+	//int i;
+	int lat, lon;
+	double x1,y1;
+	double x2,y2;
 
-	for (i=spacing*bm->scale;i<180*bm->scale;i+=spacing*bm->scale)	{	//latitude deg*scale
-		bitmapLineDrawWu(bm, 0,i,bm->scale*360,i,c);
+	for (lat=-90+spacing; lat<90; lat+=spacing)	{
+		LatLongToXY(bm, lat, -180, &x1, &y1);
+		LatLongToXY(bm, lat, 180, &x2, &y2);
+//		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
 	}
 
-	for (i=spacing*bm->scale;i<360*bm->scale;i+=spacing*bm->scale)	{	//longit deg*scale
-		bitmapLineDrawWu(bm, i,0, i,bm->scale*180,c);
+	for (lon=-180+spacing; lon<180; lon+=spacing)	{
+		LatLongToXY(bm, -90, lon, &x1, &y1);
+		LatLongToXY(bm, 90, lon, &x2, &y2);
+//		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
 	}
+
+
+		lat=0;
+		LatLongToXY(bm, lat, -180, &x1, &y1);
+		LatLongToXY(bm, lat, 180, &x2, &y2);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
+		c.A=c.A*0.8;
+		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1, c);
+		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1, c);
+
+
+
+	//for (i=spacing*bm->scale;i<180*bm->scale;i+=spacing*bm->scale)	{	//latitude deg*scale
+//		bitmapLineDrawWu(bm, 0,i,bm->scale*360,i,c);
+//	}
+
+//	for (i=spacing*bm->scale;i<360*bm->scale;i+=spacing*bm->scale)	{	//longit deg*scale
+//		bitmapLineDrawWu(bm, i,0, i,bm->scale*180,c);
+//	}
 
 	return 0;
 }
