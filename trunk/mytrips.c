@@ -1,6 +1,6 @@
 //current version
 
-#define VERSION 0.09
+#define VERSION 0.10
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,10 +24,10 @@ struct sRGBAColour	{
 typedef struct sRGBAColour COLOUR;
 
 struct sBitmap	{
-	int xsize;
-	int ysize;
+	int width;
+	int height;
 
-	double scale;
+	double zoom;
 
 	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
@@ -44,7 +44,7 @@ typedef struct sLocation LOCATION;
 
 int ReadLocation(FILE *json, LOCATION *location);
 
-BM* bitmapInit(int xsize, int ysize, double scale);
+BM* bitmapInit(int xsize, int ysize, double zoom);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c);
@@ -84,7 +84,7 @@ void PrintIntro(char *programName)
 
 void PrintUsage(char *programName)
 {
-	fprintf(stdout, "Usage: %s [-s <scale>] [input.json] [output.png]\r\n\r\n", programName);
+	fprintf(stdout, "Usage: %s [-z <zoom>] [input.json] [output.png]\r\n\r\n", programName);
 	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
 	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
 }
@@ -92,7 +92,7 @@ void PrintUsage(char *programName)
 /* returns the index of the first argument that is not an option; i.e.
    does not start with a dash or a slash
 */
-int HandleOptions(int argc,char *argv[], double *scale)
+int HandleOptions(int argc,char *argv[], double *zoom)
 {
 	int i,firstnonoption=0;
 
@@ -114,15 +114,15 @@ int HandleOptions(int argc,char *argv[], double *scale)
 					 * Note: this falls through to the default
 					 * to print an "unknow option" message
 					*/
-				case 's':
-				case 'S':
+				case 'z':
+				case 'Z':
 					if (i+1<argc)	{
-						*scale = strtod(argv[i+1], NULL);
-						if (strstr(argv[i+1], ".json"))	{	//if they've got a filename after the scale, then it's a mistake
+						*zoom = strtod(argv[i+1], NULL);
+						if (strstr(argv[i+1], ".json"))	{	//if they've got a filename after the zoom, then it's a mistake
 							i--;							//so we'll rewind an argument
 						}
-						i++;	//move to the next variable, we've got a scale
-						//fprintf(stderr, "Scale: %f\r\n",*scale);
+						i++;	//move to the next variable, we've got a zoom
+						//fprintf(stderr, "Zoom: %f\r\n",*zoom);
 					}
 					break;
 				default:
@@ -141,7 +141,7 @@ int HandleOptions(int argc,char *argv[], double *scale)
 int main(int argc,char *argv[])
 {
 	BM*	mainBM;
-	double scale;
+	double zoom;
 	COLOUR c;
 
 	int arg;
@@ -169,7 +169,7 @@ int main(int argc,char *argv[])
 		PrintUsage(argv[0]);
 	}
 	else	{			//otherwise better handle the inputs
-		arg = HandleOptions(argc, argv, &scale);
+		arg = HandleOptions(argc, argv, &zoom);
 		if (arg>0)	{
 			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
 			jsonfilename=argv[arg];
@@ -189,16 +189,16 @@ int main(int argc,char *argv[])
 		return 1;
 	}
 
-	//Set the scale
-	if ((scale<0.1) || (scale>55))	{	//have to decide the limit, i've tested to 55
-		if (scale) fprintf(stderr, "Scale must be between 0.1 and 55\r\n");	//if they've entered something silly
-		scale = 15;
+	//Set the zoom
+	if ((zoom<0.1) || (zoom>55))	{	//have to decide the limit, i've tested to 55
+		if (zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
+		zoom = 15;
 	}
-	fprintf(stdout, "Scale: %4.2f\r\n", scale);
+	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
 
 
 	//Initialise the bitmap
-	mainBM = bitmapInit(360*scale,180*scale,scale);
+	mainBM = bitmapInit(360*zoom,180*zoom,zoom);
 
 	//Draw grid
 	griddegrees=15;
@@ -226,7 +226,7 @@ int main(int argc,char *argv[])
 
 	//Write the PNG file
 	fprintf(stdout, "Writing to %s.", pngfilename);
-	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->xsize, mainBM->ysize);
+	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->width, mainBM->height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	bitmapDestroy(mainBM);
@@ -284,17 +284,17 @@ int ReadLocation(FILE *json, LOCATION *location)
 };
 
 
-BM* bitmapInit(int xsize, int ysize, double scale)
+BM* bitmapInit(int xsize, int ysize, double zoom)
 {
 	BM *temp;
 	char* bitmap;
 
 	temp=(BM*)malloc(sizeof(BM));
 
-	temp->xsize=xsize;
-	temp->ysize=ysize;
+	temp->width=xsize;
+	temp->height=ysize;
 	temp->sizebitmap=xsize*ysize*4;
-	temp->scale=scale;
+	temp->zoom=zoom;
 
 	bitmap=(char*)malloc(temp->sizebitmap);
 	memset(bitmap, 0, temp->sizebitmap);
@@ -321,21 +321,21 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 
 	int k;
 
-	if (x>bm->xsize-1)	return 0;
-	if (y>bm->ysize-1)	return 0;
+	if (x>bm->width-1)	return 0;
+	if (y>bm->height-1)	return 0;
 	if (x<0)	return 0;
 	if (y<0)	return 0;
 
-	currentC.R = bm->bitmap[(x+y* bm->xsize) *4];
-	currentC.G = bm->bitmap[(x+y* bm->xsize) *4+1];
-	currentC.B = bm->bitmap[(x+y* bm->xsize) *4+2];
-	currentC.A = bm->bitmap[(x+y* bm->xsize) *4+3];
+	currentC.R = bm->bitmap[(x+y* bm->width) *4];
+	currentC.G = bm->bitmap[(x+y* bm->width) *4+1];
+	currentC.B = bm->bitmap[(x+y* bm->width) *4+2];
+	currentC.A = bm->bitmap[(x+y* bm->width) *4+3];
 
 	if (mixColours(&currentC, &c))	{
-			memset(bm->bitmap + (x + y * bm->xsize) * 4+0,currentC.R,1);	//the *4 is the channels
-			memset(bm->bitmap + (x + y * bm->xsize) * 4+1,currentC.G,1);	//the *4 is the channels
-			memset(bm->bitmap + (x + y * bm->xsize) * 4+2,currentC.B,1);	//the *4 is the channels
-			memset(bm->bitmap + (x + y * bm->xsize) * 4+3,currentC.A,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->width) * 4+0,currentC.R,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->width) * 4+1,currentC.G,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->width) * 4+2,currentC.B,1);	//the *4 is the channels
+			memset(bm->bitmap + (x + y * bm->width) * 4+3,currentC.A,1);	//the *4 is the channels
 	}
 
 
@@ -496,7 +496,7 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	LatLongToXY(bm, lat2, lon2, &x2,&y2);
 			dx=x1-x2;
 			dy=y1-y2;
-			if ((abs(dx)>180*bm->scale))	{	//they've moved over half the map
+			if ((abs(dx)>180*bm->zoom))	{	//they've moved over half the map
 				swappedflag=0;	//flag
 				if (dx >0)	{	//if it's the eastward direction then we'll swap vars
 					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", x2, y2, xi,yi,dx,dy, 0,yintersect);
@@ -507,14 +507,14 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 					swappedflag=1;	//flag to ensure we swap coords back
 				}
 
-				dx=x1-(x2-360*bm->scale);	//x2-360*scale is our new origin
+				dx=x1-(x2-360*bm->zoom);	//x2-360*zoom is our new origin
 				m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
 
-				yintersect = y2 + (360*bm->scale-x2)*m;
+				yintersect = y2 + (360*bm->zoom-x2)*m;
 //				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", x2, y2, xi,yi,dx,dy, yintersect,m);
 
 				//We draw two separate lines
-				bitmapLineDrawWu(bm, x2,y2,360*bm->scale-1, yintersect, c);
+				bitmapLineDrawWu(bm, x2,y2,360*bm->zoom-1, yintersect, c);
 				bitmapLineDrawWu(bm, 0, yintersect, x1,y1, c);
 
 				if (swappedflag==1)	{	//swap this back if we swapped!
@@ -591,18 +591,37 @@ return 0;
 
 int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 {
-	*y=(90-phi)*bm->scale;
-	*x=(lambda+180)*bm->scale;
+	//phi*=2;
+	//lambda*=2;
+
+	double west=-180;
+	double east=180;
+	double north=90;
+	double south=-90;
+
+//	west=150;
+	east=180;
+//	north = -30;
+//	south = -45;
+
+
+	double width, height;
+	width = bm->width;
+	height = bm->height;
+
+//	*y=(90-phi)*bm->zoom;
+	*y=(north-phi)/(north-south)*height;
+	*x=(lambda-west)/(east-west)*width;
 
 //	*y=floor(*y);
 //	*x=floor(*x);
 
 	//*x %=360
 
-//	if (*x >= 360*bm->scale)
+//	if (*x >= 360*bm->zoom)
 //		*x=0;
 
-//	if (*y >= 360*bm->scale)
+//	if (*y >= 360*bm->zoom)
 //		*y=0;
 
 	return 0;
@@ -697,6 +716,7 @@ int DrawGrid(BM* bm, int spacing, COLOUR c)
 	}
 
 
+		//Equator
 		lat=0;
 		LatLongToXY(bm, lat, -180, &x1, &y1);
 		LatLongToXY(bm, lat, 180, &x2, &y2);
@@ -704,16 +724,6 @@ int DrawGrid(BM* bm, int spacing, COLOUR c)
 		c.A=c.A*0.8;
 		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1, c);
 		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1, c);
-
-
-
-	//for (i=spacing*bm->scale;i<180*bm->scale;i+=spacing*bm->scale)	{	//latitude deg*scale
-//		bitmapLineDrawWu(bm, 0,i,bm->scale*360,i,c);
-//	}
-
-//	for (i=spacing*bm->scale;i<360*bm->scale;i+=spacing*bm->scale)	{	//longit deg*scale
-//		bitmapLineDrawWu(bm, i,0, i,bm->scale*180,c);
-//	}
 
 	return 0;
 }
