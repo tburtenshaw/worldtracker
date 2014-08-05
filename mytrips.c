@@ -1,11 +1,12 @@
 //current version
 
-#define VERSION 0.10
+#define VERSION 0.11
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include "lodepng.h"
 
 #define PI 3.14159265
@@ -27,7 +28,12 @@ struct sBitmap	{
 	int width;
 	int height;
 
-	double zoom;
+	double west;
+	double east;
+	double north;
+	double south;
+
+	double zoom;	//on a full map, this is the number of pixels per degree
 
 	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
@@ -39,12 +45,32 @@ struct sLocation	{
 	double longitude;
 	long timestampS; //we'll use a long instead of the high precision of google
 	int accuracy;
+
+	struct sLocation* next;	//linked list
+	struct sLocation* prev;
+	struct sLocation* next1ppd;
+	struct sLocation* next10ppd;
+	struct sLocation* next100ppd;
 };
 typedef struct sLocation LOCATION;
 
-int ReadLocation(FILE *json, LOCATION *location);
+struct sLocationHistory	{
+	FILE *json;
+	char *jsonfilename;
 
-BM* bitmapInit(int xsize, int ysize, double zoom);
+	unsigned long	numPoints;
+	unsigned long	earliesttimestamp;
+	unsigned long	latesttimestamp;
+	LOCATION * first;
+	LOCATION * last;
+};
+typedef struct sLocationHistory LOCATIONHISTORY;
+
+int LoadLocations(LOCATIONHISTORY *lh);
+int FreeLocations(LOCATIONHISTORY *locationHistory);
+int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
+
+BM* bitmapInit(int width, int height, double zoom, double north, double south, double west, double east);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c);
@@ -141,14 +167,25 @@ int HandleOptions(int argc,char *argv[], double *zoom)
 int main(int argc,char *argv[])
 {
 	BM*	mainBM;
+
+	double west;
+	double east;
+	double north;
+	double south;
+
+	int height, width;
+	int testwidth;
 	double zoom;
 	COLOUR c;
 
 	int arg;
 
-	FILE *csv;
-	FILE *json;
-	char *jsonfilename;
+//	FILE *csv;
+
+	LOCATIONHISTORY locationHistory;
+
+	//FILE *json;
+	//char *jsonfilename;
 	char *pngfilename;
 
 	unsigned long countPoints;
@@ -158,12 +195,12 @@ int main(int argc,char *argv[])
 	int griddegrees;
 
 	POINT p;
-	LOCATION coord;
+	LOCATION *coord;
 
 	//Display introductory text
 	PrintIntro(argv[0]);
 
-	jsonfilename="LocationHistory.json";	//default
+	locationHistory.jsonfilename="LocationHistory.json";	//default
 	pngfilename="trips.png";	//default
 	if (argc == 1) {	//if there's no arguments, then we can just use defaults
 		PrintUsage(argv[0]);
@@ -172,7 +209,7 @@ int main(int argc,char *argv[])
 		arg = HandleOptions(argc, argv, &zoom);
 		if (arg>0)	{
 			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
-			jsonfilename=argv[arg];
+			locationHistory.jsonfilename=argv[arg];
 			if (arg<argc+1)	{	//output file
 				fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
 				pngfilename=argv[arg+1];
@@ -181,9 +218,9 @@ int main(int argc,char *argv[])
 	}
 
 	//Open the input file
-	json=fopen(jsonfilename,"r");
-	if (json==NULL)	{
-		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", jsonfilename);
+	locationHistory.json=fopen(locationHistory.jsonfilename,"r");
+	if (locationHistory.json==NULL)	{
+		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", locationHistory.jsonfilename);
 		perror("Error");
 		fprintf(stderr, "\r\n");
 		return 1;
@@ -192,36 +229,84 @@ int main(int argc,char *argv[])
 	//Set the zoom
 	if ((zoom<0.1) || (zoom>55))	{	//have to decide the limit, i've tested to 55
 		if (zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
-		zoom = 15;
+		zoom = 0;	//set to zero, then we'll calculate.
 	}
+
+	height=0;
+	width =0;
+
+	if ((height==0) && (width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
+		if (zoom==0)	{zoom=15;}	//default zoom
+		width=360*zoom;
+		height= 180*zoom;
+	}	else
+	if (width==0)	{
+
+	}
+
+	west=-180;
+	east=180;
+	north=90;
+	south=-90;
+
+
+	//Auckland
+	west=174.5;
+	east=175;
+	north = -36.7;
+	south = -37.1;
+
+	//if the aspect ratio of coords is different, set the width to be related to the
+	testwidth=height*(east-west)/(north-south);
+	printf("tw: %i, w: %i\r\n", testwidth, width);
+	if (testwidth != width)	{
+		width=testwidth;
+	}
+
+
 	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
 
 
+
 	//Initialise the bitmap
-	mainBM = bitmapInit(360*zoom,180*zoom,zoom);
+	mainBM = bitmapInit(width, height, zoom, north, south, west, east);
 
 	//Draw grid
-	griddegrees=15;
+	griddegrees=1;
 	c.R=192;c.G=192;c.B=192;c.A=128;
 	DrawGrid(mainBM, griddegrees, c);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
 	oldlat=0;oldlon=0;
+	locationHistory.earliesttimestamp=-1;
+	locationHistory.latesttimestamp=0;
 	countPoints=0;
-	while (ReadLocation(json, &coord)==1)	{
-		//Set the colour base on time (hardcoded so far)
-		c=TimestampToRgb(coord.timestampS, 1300000000, 1300000000+(60*60*24*183));	//about 6 month cycle
 
-		//draw a line from last point to the current one.
-		if (countPoints>0)	{
-			bitmapCoordLine(mainBM, coord.latitude, coord.longitude, oldlat, oldlon, c);
+	LoadLocations(&locationHistory);
+
+	coord=locationHistory.first;
+	while (coord)	{
+		c=TimestampToRgb(coord->timestampS, 1300000000, 1300000000+(60*60*24*183));	//about 6 month cycle
+
+		if (coord->accuracy <200000)	{
+			//draw a line from last point to the current one.
+			if (countPoints>0)	{
+				bitmapCoordLine(mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
+			}
+
+			oldlat=coord->latitude;oldlon=coord->longitude;
+			countPoints++;
 		}
-
-		oldlat=coord.latitude;oldlon=coord.longitude;
-		countPoints++;
+		coord=coord->next;
 	}
+
 	fprintf(stdout, "Ploted: %i points\r\n", countPoints);
-	fclose(json);
+	fprintf(stdout, "Earliest: %i\tLastest: %i\r\n", locationHistory.earliesttimestamp, locationHistory.latesttimestamp);
+	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
+	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
+
+	fclose(locationHistory.json);
+	FreeLocations(&locationHistory);
 
 
 	//Write the PNG file
@@ -234,7 +319,55 @@ int main(int argc,char *argv[])
 }
 
 
-int ReadLocation(FILE *json, LOCATION *location)
+int LoadLocations(LOCATIONHISTORY *locationHistory)
+{
+	LOCATION *coord;
+	LOCATION *prevCoord;
+
+	prevCoord=NULL;
+	coord=malloc(sizeof(LOCATION));
+	locationHistory->first = coord;
+	while (ReadLocation(locationHistory, coord)==1)	{
+		if (coord->timestampS > locationHistory->latesttimestamp)
+			locationHistory->latesttimestamp = coord->timestampS;
+		if (coord->timestampS<locationHistory->earliesttimestamp)
+			locationHistory->earliesttimestamp = coord->timestampS;
+		locationHistory->numPoints++;
+
+		coord->prev=prevCoord;
+		coord->next=malloc(sizeof(LOCATION));	//allocation memory for the next in the linked list
+		prevCoord=coord;
+
+		//Advance to the next in the list
+		coord= coord->next;
+		//printf("%i/t",(long)coord);
+	}
+	free(coord);//remove the last allocated
+	if (prevCoord)	{
+		prevCoord->next=NULL;	//close off the linked list
+		locationHistory->last=prevCoord;
+	}
+
+	return 0;
+}
+
+int FreeLocations(LOCATIONHISTORY *locationHistory)
+{
+	LOCATION *loc;
+	LOCATION *locprev;
+
+	loc = locationHistory->last;
+
+	while (loc)	{
+		locprev=loc->prev;
+		free(loc);
+		loc=locprev;
+	}
+
+	return 0;
+}
+
+int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
 {
 	int step;
 	char buffer[256];
@@ -242,7 +375,7 @@ int ReadLocation(FILE *json, LOCATION *location)
 	char *y;
 
 	step=0;
-	while (fgets(buffer, 256, json) != NULL)	{
+	while (fgets(buffer, 256, lh->json) != NULL)	{
 		if (step==0)	{
 			x=strstr(buffer, "timestampMs");
 			if (x)	{
@@ -270,12 +403,20 @@ int ReadLocation(FILE *json, LOCATION *location)
 			x=strstr(buffer, "longitudeE7");
 			if (x)	{
 				x=strchr(x,':')+1;
-				//printf("long %s",x);
-
 				location->longitude=strtod(x, NULL)/10000000;
+				step++;
+			}
+		}
+
+		if (step==3)	{
+			x=strstr(buffer, "accuracy");
+			if (x)	{
+				x=strchr(x,':')+1;
+				location->accuracy=strtol(x, NULL, 10);
 				return 1;
 			}
 		}
+
 
 
 	}
@@ -284,7 +425,7 @@ int ReadLocation(FILE *json, LOCATION *location)
 };
 
 
-BM* bitmapInit(int xsize, int ysize, double zoom)
+BM* bitmapInit(int xsize, int ysize, double zoom, double north, double south, double west, double east)
 {
 	BM *temp;
 	char* bitmap;
@@ -295,9 +436,13 @@ BM* bitmapInit(int xsize, int ysize, double zoom)
 	temp->height=ysize;
 	temp->sizebitmap=xsize*ysize*4;
 	temp->zoom=zoom;
+	temp->north=north;
+	temp->south=south;
+	temp->west=west;
+	temp->east=east;
 
-	bitmap=(char*)malloc(temp->sizebitmap);
-	memset(bitmap, 0, temp->sizebitmap);
+	bitmap=(char*)calloc(temp->sizebitmap, sizeof(char));
+	//memset(bitmap, 0, temp->sizebitmap);
 
 	printf("New bitmap width: %i, height: %i\r\n", xsize, ysize);
 
@@ -591,38 +736,12 @@ return 0;
 
 int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 {
-	//phi*=2;
-	//lambda*=2;
-
-	double west=-180;
-	double east=180;
-	double north=90;
-	double south=-90;
-
-//	west=150;
-	east=180;
-//	north = -30;
-//	south = -45;
-
-
 	double width, height;
 	width = bm->width;
 	height = bm->height;
 
-//	*y=(90-phi)*bm->zoom;
-	*y=(north-phi)/(north-south)*height;
-	*x=(lambda-west)/(east-west)*width;
-
-//	*y=floor(*y);
-//	*x=floor(*x);
-
-	//*x %=360
-
-//	if (*x >= 360*bm->zoom)
-//		*x=0;
-
-//	if (*y >= 360*bm->zoom)
-//		*y=0;
+	*y=(bm->north - phi)/(bm->north-bm->south)*height;
+	*x=(lambda - bm->west)/(bm->east-bm->west)*width;
 
 	return 0;
 }
