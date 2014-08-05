@@ -1,6 +1,6 @@
 //current version
 
-#define VERSION 0.11
+#define VERSION 0.12
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,11 +10,6 @@
 #include "lodepng.h"
 
 #define PI 3.14159265
-struct sPoint	{
-	int x;
-	int y;
-};
-typedef struct sPoint POINT;
 
 struct sRGBAColour	{
 	unsigned char R;
@@ -103,7 +98,7 @@ void PrintIntro(char *programName)
 {
 	fprintf(stdout, "World Tracker  - Version %2.2f\r\n", VERSION);
 	fprintf(stdout, "Plots out your Google Location history\r\n\r\n");
-	fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
+	fprintf(stdout, "Copyright Â© 2014 Tristan Burtenshaw\r\n");
 	fprintf(stdout, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
 	fprintf(stdout, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
 }
