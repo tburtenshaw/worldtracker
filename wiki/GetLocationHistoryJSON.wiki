@@ -2,11 +2,12 @@
 #labels json,takeout
 
 = Introduction =
-WorldTracker uses the JSON data produced by [https://www.google.com/settings/takeout Google Takeout]
+WorldTracker uses the JSON data produced by [https://www.google.com/settings/takeout Google Takeout].
 
-= Details =
+= How to get the data =
   # Go to https://www.google.com/settings/takeout
   # Click "Create an archive"
   # Deselect everything except Location History (under Other)
   # You will get an email when the file is prepared
   # Unzip the file into the same folder as WorldTracker
+  # By default WorldTracker will load this filename
