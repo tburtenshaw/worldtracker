@@ -1,6 +1,5 @@
 //current version
-
-#define VERSION 0.12
+#define VERSION 0.14
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +17,24 @@ struct sRGBAColour	{
 	unsigned char A;
 };
 typedef struct sRGBAColour COLOUR;
+
+struct sOptions	{	//what we can get from the command line
+	char *jsonfilename;
+	char *pngfilename;
+
+	int width;
+	int height;
+
+	double west;
+	double east;
+	double north;
+	double south;
+
+	double zoom;
+
+	int gridsize;
+};
+typedef struct sOptions OPTIONS;
 
 struct sBitmap	{
 	int width;
@@ -65,6 +82,8 @@ int LoadLocations(LOCATIONHISTORY *lh);
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
+int WriteKMLFile(BM* bm);
+
 BM* bitmapInit(int width, int height, double zoom, double north, double south, double west, double east);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
@@ -98,7 +117,7 @@ void PrintIntro(char *programName)
 {
 	fprintf(stdout, "World Tracker  - Version %2.2f\r\n", VERSION);
 	fprintf(stdout, "Plots out your Google Location history\r\n\r\n");
-	fprintf(stdout, "Copyright Â© 2014 Tristan Burtenshaw\r\n");
+	fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
 	fprintf(stdout, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
 	fprintf(stdout, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
 }
@@ -113,7 +132,7 @@ void PrintUsage(char *programName)
 /* returns the index of the first argument that is not an option; i.e.
    does not start with a dash or a slash
 */
-int HandleOptions(int argc,char *argv[], double *zoom)
+int HandleOptions(int argc,char *argv[], OPTIONS *options)
 {
 	int i,firstnonoption=0;
 
@@ -138,7 +157,7 @@ int HandleOptions(int argc,char *argv[], double *zoom)
 				case 'z':
 				case 'Z':
 					if (i+1<argc)	{
-						*zoom = strtod(argv[i+1], NULL);
+						options->zoom = strtod(argv[i+1], NULL);
 						if (strstr(argv[i+1], ".json"))	{	//if they've got a filename after the zoom, then it's a mistake
 							i--;							//so we'll rewind an argument
 						}
@@ -162,25 +181,23 @@ int HandleOptions(int argc,char *argv[], double *zoom)
 int main(int argc,char *argv[])
 {
 	BM*	mainBM;
+	OPTIONS options;
 
 	double west;
 	double east;
 	double north;
 	double south;
+	double tempdouble;
 
 	int height, width;
 	int testwidth;
+	int testheight;
 	double zoom;
 	COLOUR c;
 
 	int arg;
-
-//	FILE *csv;
-
 	LOCATIONHISTORY locationHistory;
 
-	//FILE *json;
-	//char *jsonfilename;
 	char *pngfilename;
 
 	unsigned long countPoints;
@@ -189,7 +206,6 @@ int main(int argc,char *argv[])
 	int error;
 	int griddegrees;
 
-	POINT p;
 	LOCATION *coord;
 
 	//Display introductory text
@@ -201,7 +217,8 @@ int main(int argc,char *argv[])
 		PrintUsage(argv[0]);
 	}
 	else	{			//otherwise better handle the inputs
-		arg = HandleOptions(argc, argv, &zoom);
+		arg = HandleOptions(argc, argv, &options);
+		zoom=options.zoom;
 		if (arg>0)	{
 			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
 			locationHistory.jsonfilename=argv[arg];
@@ -230,26 +247,66 @@ int main(int argc,char *argv[])
 	height=0;
 	width =0;
 
+	//Reset
+	west=east=north = south = 0;
+
+
+	//Auckland
+//	west=174.5;
+//	east=175;
+//	north = -36.7;
+//	south = -37.1;
+
+//america trips
+west=-96;
+east=-70;
+north=46;
+south=21;
+
+//arkansas
+west=-96;
+east=-89;
+north=36.5;
+south=34;
+
+
+
+	//if they're the wrong way around
+	if (east<west)	{tempdouble=east;east=west;west=tempdouble;}
+	if (north<south)	{tempdouble=north;north=south;south=tempdouble;}
+
+	//if they're strange
+	if ((east-west == 0) || (north-south==0) || (east-west>360) || (north-south>360))	{
+		west=-180;
+		east=180;
+		north=90;
+		south=-90;
+	}
+
+
 	if ((height==0) && (width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
 		if (zoom==0)	{zoom=15;}	//default zoom
 		width=360*zoom;
 		height= 180*zoom;
 	}	else
-	if (width==0)	{
+	if (width==0)	{	//the haven't specified a width (but have a height)
+		width=height*(east-west)/(north-south);
+	}	else
+	if (height==0)	{	//the haven't specified a height (but have a width)
+			height=width*(north-south)/(east-west);
+	}	else
 
+
+	//test for strange rounding errors
+	if ((width==0) || (height==0) || (height > 16384) || (width > 16384))	{
+		west=-180;
+		east=180;
+		north=90;
+		south=-90;
+		height=180;
+		width=360;
+		fprintf(stderr, "Problem with dimensions. Loading small default size.\r\n");
 	}
-
-	west=-180;
-	east=180;
-	north=90;
-	south=-90;
-
-
-	//Auckland
-	west=174.5;
-	east=175;
-	north = -36.7;
-	south = -37.1;
 
 	//if the aspect ratio of coords is different, set the width to be related to the
 	testwidth=height*(east-west)/(north-south);
@@ -257,6 +314,9 @@ int main(int argc,char *argv[])
 	if (testwidth != width)	{
 		width=testwidth;
 	}
+
+	//then calculate how many pixels per degree
+	zoom=width/(east-west);
 
 
 	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
@@ -308,6 +368,9 @@ int main(int argc,char *argv[])
 	fprintf(stdout, "Writing to %s.", pngfilename);
 	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->width, mainBM->height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
+	//Write KML file
+	WriteKMLFile(mainBM);
 
 	bitmapDestroy(mainBM);
 	return 0;
@@ -852,6 +915,40 @@ int ColourWheel(BM* bm, int x, int y, int r, int steps)
  		c=HsvToRgb(i*255/360,255,255,255);
 	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),c);
  	}
+
+	return 0;
+}
+
+
+int WriteKMLFile(BM* bm)
+{
+	FILE *kml;
+
+	kml=fopen("demo.kml","w");
+	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
+	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
+
+	fprintf(kml,"\
+    <name>Your paths</name>\r\n\
+    <description>Examples of ground overlays</description>\r\n\
+    <GroundOverlay>\r\n\
+      <name>Google Location tracking</name>\r\n\
+      <description>From my program</description>\r\n\
+      <Icon>\
+        <href>trips.png</href>\
+      </Icon>\r\n\
+      <LatLonBox>\r\n\
+        <north>%f</north>\r\n\
+        <south>%f</south>\r\n\
+        <east>%f</east>\r\n\
+        <west>%f</west>\r\n\
+        <rotation>0</rotation>\r\n\
+      </LatLonBox>\r\n\
+    </GroundOverlay>\r\n\
+</kml>",bm->north, bm->south, bm->east, bm->west);
+
+
+	fclose(kml);
 
 	return 0;
 }
