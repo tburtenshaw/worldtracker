@@ -1,5 +1,6 @@
 //current version
-#define VERSION 0.14
+#define VERSION 0.17
+#define MAX_DIMENSION 4096
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,7 +125,7 @@ void PrintIntro(char *programName)
 
 void PrintUsage(char *programName)
 {
-	fprintf(stdout, "Usage: %s [-z <zoom>] [input.json] [output.png]\r\n\r\n", programName);
+	fprintf(stdout, "Usage: %s [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [input.json] [output.png]\r\n\r\n", programName);
 	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
 	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
 }
@@ -147,24 +148,121 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 				case 'H':
 					if (!stricmp(argv[i]+1,"help")) {
 						PrintUsage(argv[0]);
-						break;
 					}
-					/* If the option -h means anything else
-					 * in your application add code here
-					 * Note: this falls through to the default
-					 * to print an "unknow option" message
-					*/
+
+					if (!stricmp(argv[i]+1,"height")) {	//also might mean height
+						if (i+1<argc)	{
+							options->height = strtol(argv[i+1], NULL, 0);
+							i++;
+							printf("Height %i", options->height);
+						}
+
+					}
+
+					break;
+				case 'n':
+				case 'N':
+					if (!stricmp(argv[i]+1,"north") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
+						if (i+1<argc)	{
+							options->north = strtod(argv[i+1], NULL);
+							i++;
+							printf("North %f", options->north);
+						}
+					}
+					break;
+				case 's':
+				case 'S':
+					if (!stricmp(argv[i]+1,"south") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
+						if (i+1<argc)	{
+							options->south = strtod(argv[i+1], NULL);
+							i++;
+							printf("South %f", options->south);
+						}
+					}
+					break;
+				case 'w':
+				case 'W':
+					if (!stricmp(argv[i]+1,"west") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
+						if (i+1<argc)	{
+							options->west = strtod(argv[i+1], NULL);
+							i++;
+							printf("West %f", options->west);
+						}
+					}
+					if (!stricmp(argv[i]+1,"width")) {	//also might mean height
+						if (i+1<argc)	{
+							options->width = strtol(argv[i+1], NULL, 0);
+							i++;
+							printf("Width %i", options->width);
+						}
+
+					}
+
+					break;
+				case 'e':
+				case 'E':
+					if (!stricmp(argv[i]+1,"east") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
+						if (i+1<argc)	{
+							options->east = strtod(argv[i+1], NULL);
+							i++;
+							printf("East %f", options->east);
+						}
+					}
+					break;
+				case 'x':
+				case 'X':
+					if (i+1<argc)	{
+						options->width = strtol(argv[i+1], NULL, 0);
+						i++;
+						printf("Width %i", options->width);
+					}
+					break;
+				case 'y':
+				case 'Y':
+					if (i+1<argc)	{
+						options->height = strtol(argv[i+1], NULL, 0);
+						i++;
+						printf("Height %i", options->height);
+					}
+					break;
+
+
 				case 'z':
 				case 'Z':
 					if (i+1<argc)	{
 						options->zoom = strtod(argv[i+1], NULL);
-						if (strstr(argv[i+1], ".json"))	{	//if they've got a filename after the zoom, then it's a mistake
-							i--;							//so we'll rewind an argument
-						}
 						i++;	//move to the next variable, we've got a zoom
-						//fprintf(stderr, "Zoom: %f\r\n",*zoom);
 					}
 					break;
+				case 'g':
+				case 'G':
+					if (i+1<argc)	{
+						options->gridsize = strtod(argv[i+1], NULL);
+						i++;	//move to the next variable, we've got a zoom
+					}
+					break;
+
+
+				case 'p':
+				case 'P':
+					if (!stricmp(argv[i]+1,"preset") || *(argv[i]+2)==0)	{	//preset or just p
+						if (i+1<argc)	{
+							if (!stricmp(argv[i+1],"nz"))	{options->north=-34; options->south=-47.5; options->west=166; options->east=178.5;}
+							if (!stricmp(argv[i+1],"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
+							if (!stricmp(argv[i+1],"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
+							if (!stricmp(argv[i+1],"sg"))	{options->west=103.6; options->east=104.1; options->north = 1.51; options->south = 1.15;}
+							if (!stricmp(argv[i+1],"es"))	{options->west=-10.0; options->east=5; options->north = 44; options->south = 35;}
+							if (!stricmp(argv[i+1],"it"))	{options->west=6.6; options->east=19; options->north = 47; options->south = 36.5;}
+							if (!stricmp(argv[i+1],"fr"))	{options->west=-5.5; options->east=8.5; options->north =  51.2; options->south =  42.2;}
+							if (!stricmp(argv[i+1],"uk"))	{options->west=-10.5; options->east=2; options->north =  60; options->south =  50;}
+							if (!stricmp(argv[i+1],"usane"))	{options->west=-82.7; options->east=-67; options->north = 47.5; options->south = 36.5;}
+							i++;
+						}
+
+					}
+					break;
+
+
 				default:
 					fprintf(stderr,"unknown option %s\n",argv[i]);
 					break;
@@ -204,9 +302,15 @@ int main(int argc,char *argv[])
 	double oldlat, oldlon;
 
 	int error;
-	int griddegrees;
 
 	LOCATION *coord;
+
+	//set vars to zero
+	options.zoom=0;
+	options.height=options.width =0;
+	options.west=options.east=options.north = options.south = 0;
+	options.gridsize=0;
+
 
 	//Display introductory text
 	PrintIntro(argv[0]);
@@ -219,6 +323,16 @@ int main(int argc,char *argv[])
 	else	{			//otherwise better handle the inputs
 		arg = HandleOptions(argc, argv, &options);
 		zoom=options.zoom;
+
+		north=options.north;
+		south=options.south;
+		west=options.west;
+		east=options.east;
+
+		width=options.width;
+		height=options.height;
+
+
 		if (arg>0)	{
 			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
 			locationHistory.jsonfilename=argv[arg];
@@ -228,6 +342,7 @@ int main(int argc,char *argv[])
 			}
 		}
 	}
+
 
 	//Open the input file
 	locationHistory.json=fopen(locationHistory.jsonfilename,"r");
@@ -244,30 +359,16 @@ int main(int argc,char *argv[])
 		zoom = 0;	//set to zero, then we'll calculate.
 	}
 
-	height=0;
-	width =0;
-
-	//Reset
-	west=east=north = south = 0;
 
 
 	//Auckland
-//	west=174.5;
-//	east=175;
-//	north = -36.7;
-//	south = -37.1;
 
 //america trips
-west=-96;
-east=-70;
-north=46;
-south=21;
+//west=-96;
+//east=-70;
+//north=46;
+//south=21;
 
-//arkansas
-west=-96;
-east=-89;
-north=36.5;
-south=34;
 
 
 
@@ -294,11 +395,11 @@ south=34;
 	}	else
 	if (height==0)	{	//the haven't specified a height (but have a width)
 			height=width*(north-south)/(east-west);
-	}	else
+	}
 
 
 	//test for strange rounding errors
-	if ((width==0) || (height==0) || (height > 16384) || (width > 16384))	{
+	if ((width==0) || (height==0) || (height > MAX_DIMENSION) || (width > MAX_DIMENSION))	{
 		west=-180;
 		east=180;
 		north=90;
@@ -327,9 +428,8 @@ south=34;
 	mainBM = bitmapInit(width, height, zoom, north, south, west, east);
 
 	//Draw grid
-	griddegrees=1;
 	c.R=192;c.G=192;c.B=192;c.A=128;
-	DrawGrid(mainBM, griddegrees, c);
+	DrawGrid(mainBM, options.gridsize, c);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
 	oldlat=0;oldlon=0;
@@ -518,11 +618,7 @@ int bitmapDestroy(BM *bm)
 
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 {
-	unsigned char currentc;
-
 	COLOUR currentC;
-
-	int k;
 
 	if (x>bm->width-1)	return 0;
 	if (y>bm->height-1)	return 0;
@@ -598,8 +694,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double xpxl2, ypxl2;
 
 	double x;
-
-	double doublec;
 
 	//Convert to int for now, until we get the errors sorted
 	x0=(int)x0;
@@ -877,6 +971,9 @@ int DrawGrid(BM* bm, int spacing, COLOUR c)
 	int lat, lon;
 	double x1,y1;
 	double x2,y2;
+
+	if ((spacing==0) || (spacing>180))
+		return 0;
 
 	for (lat=-90+spacing; lat<90; lat+=spacing)	{
 		LatLongToXY(bm, lat, -180, &x1, &y1);
