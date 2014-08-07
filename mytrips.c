@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.17
+#define VERSION 0.18
 #define MAX_DIMENSION 4096
 
 #include <stdio.h>
@@ -34,6 +34,7 @@ struct sOptions	{	//what we can get from the command line
 	double zoom;
 
 	int gridsize;
+	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
 typedef struct sOptions OPTIONS;
 
@@ -149,16 +150,12 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 					if (!stricmp(argv[i]+1,"help")) {
 						PrintUsage(argv[0]);
 					}
-
 					if (!stricmp(argv[i]+1,"height")) {	//also might mean height
 						if (i+1<argc)	{
 							options->height = strtol(argv[i+1], NULL, 0);
 							i++;
-							printf("Height %i", options->height);
 						}
-
 					}
-
 					break;
 				case 'n':
 				case 'N':
@@ -166,7 +163,6 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						if (i+1<argc)	{
 							options->north = strtod(argv[i+1], NULL);
 							i++;
-							printf("North %f", options->north);
 						}
 					}
 					break;
@@ -176,7 +172,6 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						if (i+1<argc)	{
 							options->south = strtod(argv[i+1], NULL);
 							i++;
-							printf("South %f", options->south);
 						}
 					}
 					break;
@@ -186,14 +181,12 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						if (i+1<argc)	{
 							options->west = strtod(argv[i+1], NULL);
 							i++;
-							printf("West %f", options->west);
 						}
 					}
 					if (!stricmp(argv[i]+1,"width")) {	//also might mean height
 						if (i+1<argc)	{
 							options->width = strtol(argv[i+1], NULL, 0);
 							i++;
-							printf("Width %i", options->width);
 						}
 
 					}
@@ -205,7 +198,6 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						if (i+1<argc)	{
 							options->east = strtod(argv[i+1], NULL);
 							i++;
-							printf("East %f", options->east);
 						}
 					}
 					break;
@@ -214,7 +206,6 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 					if (i+1<argc)	{
 						options->width = strtol(argv[i+1], NULL, 0);
 						i++;
-						printf("Width %i", options->width);
 					}
 					break;
 				case 'y':
@@ -222,7 +213,6 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 					if (i+1<argc)	{
 						options->height = strtol(argv[i+1], NULL, 0);
 						i++;
-						printf("Height %i", options->height);
 					}
 					break;
 
@@ -241,21 +231,49 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						i++;	//move to the next variable, we've got a zoom
 					}
 					break;
+				case 'c':
+				case 'C':
+					if (i+1<argc)	{
+						if (!stricmp(argv[i+1],"day"))	options->colourcycle=60*60*24;
+						else	if (!stricmp(argv[i+1],"week"))	options->colourcycle=60*60*24*7;
+						else	if (!stricmp(argv[i+1],"month"))	options->colourcycle=60*60*24*30.4375;
+						else	if (!stricmp(argv[i+1],"halfyear"))	options->colourcycle=60*60*24*182.625;
+						else	if (!stricmp(argv[i+1],"year"))	options->colourcycle=60*60*24*365.25;
+						else	options->colourcycle = strtol(argv[i+1], NULL, 0);
 
+
+						i++;	//move to the next variable, we've got a zoom
+					}
+					break;
 
 				case 'p':
 				case 'P':
 					if (!stricmp(argv[i]+1,"preset") || *(argv[i]+2)==0)	{	//preset or just p
 						if (i+1<argc)	{
+							//Obviously it'd be better to make this into a table or external file
 							if (!stricmp(argv[i+1],"nz"))	{options->north=-34; options->south=-47.5; options->west=166; options->east=178.5;}
 							if (!stricmp(argv[i+1],"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
-							if (!stricmp(argv[i+1],"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
 							if (!stricmp(argv[i+1],"sg"))	{options->west=103.6; options->east=104.1; options->north = 1.51; options->south = 1.15;}
+							//Europe
+							if (!stricmp(argv[i+1],"europe"))	{options->west=-10; options->east=32; options->north = 55; options->south = 36;}
 							if (!stricmp(argv[i+1],"es"))	{options->west=-10.0; options->east=5; options->north = 44; options->south = 35;}
+							//Italy
 							if (!stricmp(argv[i+1],"it"))	{options->west=6.6; options->east=19; options->north = 47; options->south = 36.5;}
+							if (!stricmp(argv[i+1],"venice"))	{options->north =  45.6; options->south =  45.3; options->west=12.1; options->east=12.6;}
+							//France
 							if (!stricmp(argv[i+1],"fr"))	{options->west=-5.5; options->east=8.5; options->north =  51.2; options->south =  42.2;}
 							if (!stricmp(argv[i+1],"uk"))	{options->west=-10.5; options->east=2; options->north =  60; options->south =  50;}
+							//USA
 							if (!stricmp(argv[i+1],"usane"))	{options->west=-82.7; options->east=-67; options->north = 47.5; options->south = 36.5;}
+							if (!stricmp(argv[i+1],"usa"))	{options->north = 49; options->south = 24; options->west=-125; options->east=-67;}
+							if (!stricmp(argv[i+1],"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
+
+							if (!stricmp(argv[i+1],"istanbul"))	{options->north = 41.3; options->south =  40.7; options->west=28.4; options->east=29.7;}
+
+							if (!stricmp(argv[i+1],"middleeast"))	{options->north = 42; options->south =  12; options->west=25; options->east=69;}
+							if (!stricmp(argv[i+1],"uae"))	{options->north =  26.5; options->south =  22.6; options->west=51.5; options->east=56.6;}
+							if (!stricmp(argv[i+1],"dubai"))	{options->north =  25.7; options->south =  24.2; options->west=54.2; options->east=55.7;}
+							if (!stricmp(argv[i+1],"israeljordan"))	{options->north = 33.4; options->south = 29.1; options->west=34; options->east=39.5;}
 							i++;
 						}
 
@@ -310,6 +328,7 @@ int main(int argc,char *argv[])
 	options.height=options.width =0;
 	options.west=options.east=options.north = options.south = 0;
 	options.gridsize=0;
+	options.colourcycle = 0;
 
 
 	//Display introductory text
@@ -332,6 +351,8 @@ int main(int argc,char *argv[])
 		width=options.width;
 		height=options.height;
 
+		if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
+		//another intersting one is 604800
 
 		if (arg>0)	{
 			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
@@ -441,8 +462,9 @@ int main(int argc,char *argv[])
 
 	coord=locationHistory.first;
 	while (coord)	{
-		c=TimestampToRgb(coord->timestampS, 1300000000, 1300000000+(60*60*24*183));	//about 6 month cycle
 
+		c=TimestampToRgb(coord->timestampS, 0, options.colourcycle);	//about 6 month cycle
+		//c=TimestampToRgb(coord->timestampS, 1300000000, 1300000000+(60*60*24));	//day cycle
 		if (coord->accuracy <200000)	{
 			//draw a line from last point to the current one.
 			if (countPoints>0)	{
@@ -956,9 +978,13 @@ COLOUR TimestampToRgb(long ts, long min, long max)
 	long diff;
 
 	diff=max-min;
-	hue=(ts-min);
-	hue=hue/diff;
-	hue=hue*255;
+	if (diff)	{		//avoid dividing by zero
+		hue=(ts-min);
+		hue=hue/diff;
+		hue=hue*255;
+	}
+	else
+		hue=0;
 
 //	printf("%i\t%i\t%i\t%f\r\n", ts, diff, ts-min, hue);
 	return HsvToRgb((char)hue,255,255,255);
@@ -1024,26 +1050,19 @@ int WriteKMLFile(BM* bm)
 	kml=fopen("demo.kml","w");
 	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
 	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
-
-	fprintf(kml,"\
-    <name>Your paths</name>\r\n\
-    <description>Examples of ground overlays</description>\r\n\
-    <GroundOverlay>\r\n\
-      <name>Google Location tracking</name>\r\n\
-      <description>From my program</description>\r\n\
-      <Icon>\
-        <href>trips.png</href>\
-      </Icon>\r\n\
-      <LatLonBox>\r\n\
-        <north>%f</north>\r\n\
-        <south>%f</south>\r\n\
-        <east>%f</east>\r\n\
-        <west>%f</west>\r\n\
-        <rotation>0</rotation>\r\n\
-      </LatLonBox>\r\n\
-    </GroundOverlay>\r\n\
-</kml>",bm->north, bm->south, bm->east, bm->west);
-
+	fprintf(kml, "<GroundOverlay>\r\n");
+	fprintf(kml, "<name>Your journey</name>\r\n");
+	fprintf(kml, "<description>From %s to %s</description>\r\n", "2012", "2014");
+	fprintf(kml, "<Icon><href>trips.png</href></Icon>\r\n");
+    fprintf(kml, "<LatLonBox>\r\n");
+	fprintf(kml, "<north>%f</north>\r\n",bm->north);
+	fprintf(kml, "<south>%f</south>\r\n",bm->south);
+	fprintf(kml, "<east>%f</east>\r\n",bm->east);
+	fprintf(kml, "<west>%f</west>\r\n",bm->west);
+	fprintf(kml, "<rotation>0</rotation>\r\n");
+	fprintf(kml, "</LatLonBox>\r\n");
+	fprintf(kml, "</GroundOverlay>\r\n");
+	fprintf(kml, "</kml>\r\n");
 
 	fclose(kml);
 
