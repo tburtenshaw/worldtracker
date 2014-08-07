@@ -8,8 +8,10 @@ The PNG file can be loaded into Google Earth (using the generated KML file), or 
 
 
 = Preparation =
-  * You need to have Google Location History enabled. You can check to see this here: https://maps.google.com/locationhistory/b/0/
-  * [GetLocationHistoryJSON Download the JSON file] from Google History
+  * You need to have had Google Location History enabled on your phone.
+   * On Android phones go to `Settings->Location->Google Location Reporting->Location History`.
+   * You can check [https://maps.google.com/locationhistory/b/0/ Google Location History] to see if there is any data.
+  * [GetLocationHistoryJSON Download the JSON file] from Google Takeout
 
 = Using the program =
   # Copy the JSON file (should be `LocationHistory.json`) to the same folder as `mytrips.exe`.
@@ -21,6 +23,6 @@ The PNG file can be loaded into Google Earth (using the generated KML file), or 
 
 = Options to view image =
   * It is helpful to have a map to overlay your PNG file onto.
-  * Download one of the [http://visibleearth.nasa.gov/view.php?id=74518 NASA images of 5400x2700] resolution.
+   * For example, download one of the [http://visibleearth.nasa.gov/view.php?id=74518 NASA images of 5400x2700] resolution.
   * Check if you have software that can paste a transparent PNG over another picture. I use photoshop, and it's just a copy/paste operation.
   * Using Google Earth, you should be able to just open the KML file which should load the PNG image.
