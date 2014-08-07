@@ -1,0 +1,26 @@
+#summary How to use WorldTracker
+
+= Introduction =
+
+This is a command line utility, that reads a JSON file that you have exported from Google, and plots your locations onto a transparent PNG
+
+The PNG file can be loaded into Google Earth (using the generated KML file), or placed on top of any plate carrée world image.
+
+
+= Preparation =
+  * You need to have Google Location History enabled. You can check to see this here: https://maps.google.com/locationhistory/b/0/
+  * [GetLocationHistoryJSON Download the JSON file] from Google History
+
+= Using the program =
+  # Copy the JSON file (should be `LocationHistory.json`) to the same folder as `mytrips.exe`.
+  # Open the command line and go to the appropriate directory.
+  # Try running `mytrips` without any parameters. It will generate a PNG file called `trips.png`.
+
+== Other options ==
+`mytrips.exe [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [input.json] [output.png]`
+
+= Options to view image =
+  * It is helpful to have a map to overlay your PNG file onto.
+  * Download one of the [http://visibleearth.nasa.gov/view.php?id=74518 NASA images of 5400x2700] resolution.
+  * Check if you have software that can paste a transparent PNG over another picture. I use photoshop, and it's just a copy/paste operation.
+  * Using Google Earth, you should be able to just open the KML file which should load the PNG image.
