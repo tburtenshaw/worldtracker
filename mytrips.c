@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.19
+#define VERSION 0.20
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -45,6 +45,7 @@ struct sOptions	{	//what we can get from the command line
 
 
 struct sBitmap	{
+	char pngfilename[256];	//this actually holds the filename we'll use
 	char kmlfilename[256];	//this actually holds the filename we'll use
 
 	int width;
@@ -98,7 +99,7 @@ int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
 
-BM* bitmapInit(int width, int height, double zoom, double north, double south, double west, double east);
+int bitmapInit(BM* bm, int width, int height, double zoom, double north, double south, double west, double east);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c);
@@ -289,7 +290,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 
 int main(int argc,char *argv[])
 {
-	BM*	mainBM;
+	BM	mainBM;
 	OPTIONS options;
 
 	double west;
@@ -317,12 +318,9 @@ int main(int argc,char *argv[])
 	LOCATION *coord;
 
 	//set vars to zero
-	memset(&options, 0, sizeof(options));
-	//options.zoom=0;
-	//options.height=options.width =0;
-	//options.west=options.east=options.north = options.south = 0;
-	//options.gridsize=0;
-	//options.colourcycle = 0;
+	memset(&options, 0, sizeof(options));	//set all the option results to 0
+	memset(&mainBM, 0, sizeof(mainBM));
+	mainBM.lh=&locationHistory;
 
 
 	//Display introductory text
@@ -435,16 +433,17 @@ int main(int argc,char *argv[])
 	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
 
 	//Initialise the bitmap
-	mainBM = bitmapInit(width, height, zoom, north, south, west, east);
+	bitmapInit(&mainBM, width, height, zoom, north, south, west, east);
 
 	//Load appropriate filenames
-	MakeProperFilename(mainBM->kmlfilename, options.kmlfilename, "output.kml", "kml");
-	fprintf(stdout, "KML: %s\r\n",mainBM->kmlfilename);
+	MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "output.kml", "kml");
+	MakeProperFilename(mainBM.pngfilename, pngfilename, "output.png", "png");
+	fprintf(stdout, "KML: %s\r\n",mainBM.kmlfilename);
 
 
 	//Draw grid
 	c.R=192;c.G=192;c.B=192;c.A=128;
-	DrawGrid(mainBM, options.gridsize, c);
+	DrawGrid(&mainBM, options.gridsize, c);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
 	oldlat=0;oldlon=0;
@@ -464,7 +463,7 @@ int main(int argc,char *argv[])
 		if (coord->accuracy <200000)	{
 			//draw a line from last point to the current one.
 			if (countPoints>0)	{
-				bitmapCoordLine(mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
+				bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
 			}
 
 			oldlat=coord->latitude;oldlon=coord->longitude;
@@ -484,13 +483,13 @@ int main(int argc,char *argv[])
 
 	//Write the PNG file
 	fprintf(stdout, "Writing to %s.\r\n", pngfilename);
-	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->width, mainBM->height);
+	error = lodepng_encode32_file(pngfilename, mainBM.bitmap, mainBM.width, mainBM.height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	//Write KML file
-	WriteKMLFile(mainBM);
+	WriteKMLFile(&mainBM);
 
-	bitmapDestroy(mainBM);
+	bitmapDestroy(&mainBM);
 	fprintf(stdout, "Program finished.");
 	return 0;
 }
@@ -602,36 +601,32 @@ int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
 };
 
 
-BM* bitmapInit(int xsize, int ysize, double zoom, double north, double south, double west, double east)
+int bitmapInit(BM *bm, int xsize, int ysize, double zoom, double north, double south, double west, double east)
 {
-	BM *temp;
 	char* bitmap;
 
-	temp=(BM*)malloc(sizeof(BM));
+	bm->width=xsize;
+	bm->height=ysize;
+	bm->sizebitmap=xsize*ysize*4;
+	bm->zoom=zoom;
+	bm->north=north;
+	bm->south=south;
+	bm->west=west;
+	bm->east=east;
 
-	temp->width=xsize;
-	temp->height=ysize;
-	temp->sizebitmap=xsize*ysize*4;
-	temp->zoom=zoom;
-	temp->north=north;
-	temp->south=south;
-	temp->west=west;
-	temp->east=east;
-
-	bitmap=(char*)calloc(temp->sizebitmap, sizeof(char));
-	//memset(bitmap, 0, temp->sizebitmap);
+	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
+	//memset(bitmap, 0, bm->sizebitmap);
 
 	printf("New bitmap width: %i, height: %i\r\n", xsize, ysize);
 
-	temp->bitmap=bitmap;
+	bm->bitmap=bitmap;
 
-	return temp;
+	return 1;
 }
 
 int bitmapDestroy(BM *bm)
 {
 	free(bm->bitmap);
-	free(bm);
 	return 0;
 }
 
@@ -1053,9 +1048,8 @@ int WriteKMLFile(BM* bm)
 	char sStartTime[80];
 	char sEndTime[80];
 
-	sprintf(sStartTime, "start");
-	sprintf(sEndTime, "start");
-	//strftime (sStartTime,80,"%B %Y",localtime(0));
+	strftime (sStartTime,80,"%B %Y",localtime(&bm->lh->earliesttimestamp));
+	strftime (sEndTime,80,"%B %Y",localtime(&bm->lh->latesttimestamp));
 
 	kml=fopen(bm->kmlfilename,"w");
 	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
@@ -1063,7 +1057,7 @@ int WriteKMLFile(BM* bm)
 	fprintf(kml, "<GroundOverlay>\r\n");
 	fprintf(kml, "<name>Your journey</name>\r\n");
 	fprintf(kml, "<description>From %s to %s</description>\r\n", sStartTime, sEndTime);
-	fprintf(kml, "<Icon><href>trips.png</href></Icon>\r\n");
+	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->pngfilename);
     fprintf(kml, "<LatLonBox>\r\n");
 	fprintf(kml, "<north>%f</north>\r\n",bm->north);
 	fprintf(kml, "<south>%f</south>\r\n",bm->south);
