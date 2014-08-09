@@ -1,6 +1,6 @@
 //current version
-#define VERSION 0.18
-#define MAX_DIMENSION 4096
+#define VERSION 0.19
+#define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,17 +11,23 @@
 
 #define PI 3.14159265
 
+typedef struct sRGBAColour COLOUR;
+typedef struct sBitmap BM;
+typedef struct sOptions OPTIONS;
+typedef struct sLocation LOCATION;
+typedef struct sLocationHistory LOCATIONHISTORY;
+
 struct sRGBAColour	{
 	unsigned char R;
 	unsigned char G;
 	unsigned char B;
 	unsigned char A;
 };
-typedef struct sRGBAColour COLOUR;
 
 struct sOptions	{	//what we can get from the command line
-	char *jsonfilename;
+	char *jsonfilename;	//these are just pointers to either the default, or the command line argument
 	char *pngfilename;
+	char *kmlfilename;
 
 	int width;
 	int height;
@@ -36,9 +42,11 @@ struct sOptions	{	//what we can get from the command line
 	int gridsize;
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
-typedef struct sOptions OPTIONS;
+
 
 struct sBitmap	{
+	char kmlfilename[256];	//this actually holds the filename we'll use
+
 	int width;
 	int height;
 
@@ -51,8 +59,10 @@ struct sBitmap	{
 
 	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
+
+	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
 };
-typedef struct sBitmap BM;
+
 
 struct sLocation	{
 	double latitude;
@@ -60,13 +70,12 @@ struct sLocation	{
 	long timestampS; //we'll use a long instead of the high precision of google
 	int accuracy;
 
-	struct sLocation* next;	//linked list
-	struct sLocation* prev;
-	struct sLocation* next1ppd;
-	struct sLocation* next10ppd;
-	struct sLocation* next100ppd;
+	LOCATION* next;	//linked list
+	LOCATION* prev;
+	LOCATION* next1ppd;
+	LOCATION* next10ppd;
+	LOCATION* next100ppd;
 };
-typedef struct sLocation LOCATION;
 
 struct sLocationHistory	{
 	FILE *json;
@@ -78,11 +87,14 @@ struct sLocationHistory	{
 	LOCATION * first;
 	LOCATION * last;
 };
-typedef struct sLocationHistory LOCATIONHISTORY;
+
 
 int LoadLocations(LOCATIONHISTORY *lh);
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
+
+int LoadPreset(OPTIONS *options, char *preset);
+int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
 
@@ -126,7 +138,7 @@ void PrintIntro(char *programName)
 
 void PrintUsage(char *programName)
 {
-	fprintf(stdout, "Usage: %s [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [input.json] [output.png]\r\n\r\n", programName);
+	fprintf(stdout, "Usage: %s [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [-i <input.json>] [[-i] <output.png> [-k <output.kml>]\r\n\r\n", programName);
 	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
 	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
 }
@@ -228,7 +240,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 				case 'G':
 					if (i+1<argc)	{
 						options->gridsize = strtod(argv[i+1], NULL);
-						i++;	//move to the next variable, we've got a zoom
+						i++;
 					}
 					break;
 				case 'c':
@@ -241,8 +253,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						else	if (!stricmp(argv[i+1],"year"))	options->colourcycle=60*60*24*365.25;
 						else	options->colourcycle = strtol(argv[i+1], NULL, 0);
 
-
-						i++;	//move to the next variable, we've got a zoom
+						i++;
 					}
 					break;
 
@@ -250,37 +261,19 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 				case 'P':
 					if (!stricmp(argv[i]+1,"preset") || *(argv[i]+2)==0)	{	//preset or just p
 						if (i+1<argc)	{
-							//Obviously it'd be better to make this into a table or external file
-							if (!stricmp(argv[i+1],"nz"))	{options->north=-34; options->south=-47.5; options->west=166; options->east=178.5;}
-							if (!stricmp(argv[i+1],"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
-							if (!stricmp(argv[i+1],"sg"))	{options->west=103.6; options->east=104.1; options->north = 1.51; options->south = 1.15;}
-							//Europe
-							if (!stricmp(argv[i+1],"europe"))	{options->west=-10; options->east=32; options->north = 55; options->south = 36;}
-							if (!stricmp(argv[i+1],"es"))	{options->west=-10.0; options->east=5; options->north = 44; options->south = 35;}
-							//Italy
-							if (!stricmp(argv[i+1],"it"))	{options->west=6.6; options->east=19; options->north = 47; options->south = 36.5;}
-							if (!stricmp(argv[i+1],"venice"))	{options->north =  45.6; options->south =  45.3; options->west=12.1; options->east=12.6;}
-							//France
-							if (!stricmp(argv[i+1],"fr"))	{options->west=-5.5; options->east=8.5; options->north =  51.2; options->south =  42.2;}
-							if (!stricmp(argv[i+1],"uk"))	{options->west=-10.5; options->east=2; options->north =  60; options->south =  50;}
-							//USA
-							if (!stricmp(argv[i+1],"usane"))	{options->west=-82.7; options->east=-67; options->north = 47.5; options->south = 36.5;}
-							if (!stricmp(argv[i+1],"usa"))	{options->north = 49; options->south = 24; options->west=-125; options->east=-67;}
-							if (!stricmp(argv[i+1],"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
-
-							if (!stricmp(argv[i+1],"istanbul"))	{options->north = 41.3; options->south =  40.7; options->west=28.4; options->east=29.7;}
-
-							if (!stricmp(argv[i+1],"middleeast"))	{options->north = 42; options->south =  12; options->west=25; options->east=69;}
-							if (!stricmp(argv[i+1],"uae"))	{options->north =  26.5; options->south =  22.6; options->west=51.5; options->east=56.6;}
-							if (!stricmp(argv[i+1],"dubai"))	{options->north =  25.7; options->south =  24.2; options->west=54.2; options->east=55.7;}
-							if (!stricmp(argv[i+1],"israeljordan"))	{options->north = 33.4; options->south = 29.1; options->west=34; options->east=39.5;}
+							LoadPreset(options, argv[i+1]);
 							i++;
 						}
 
 					}
 					break;
-
-
+				case 'k':
+				case 'K':
+					if (i+1<argc)	{
+						options->kmlfilename = argv[i+1];
+						i++;
+					}
+					break;
 				default:
 					fprintf(stderr,"unknown option %s\n",argv[i]);
 					break;
@@ -324,11 +317,12 @@ int main(int argc,char *argv[])
 	LOCATION *coord;
 
 	//set vars to zero
-	options.zoom=0;
-	options.height=options.width =0;
-	options.west=options.east=options.north = options.south = 0;
-	options.gridsize=0;
-	options.colourcycle = 0;
+	memset(&options, 0, sizeof(options));
+	//options.zoom=0;
+	//options.height=options.width =0;
+	//options.west=options.east=options.north = options.south = 0;
+	//options.gridsize=0;
+	//options.colourcycle = 0;
 
 
 	//Display introductory text
@@ -336,31 +330,34 @@ int main(int argc,char *argv[])
 
 	locationHistory.jsonfilename="LocationHistory.json";	//default
 	pngfilename="trips.png";	//default
-	if (argc == 1) {	//if there's no arguments, then we can just use defaults
-		PrintUsage(argv[0]);
-	}
-	else	{			//otherwise better handle the inputs
-		arg = HandleOptions(argc, argv, &options);
-		zoom=options.zoom;
 
-		north=options.north;
-		south=options.south;
-		west=options.west;
-		east=options.east;
+	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
+	arg = HandleOptions(argc, argv, &options);
 
-		width=options.width;
-		height=options.height;
+	zoom=options.zoom;
+	north=options.north;
+	south=options.south;
+	west=options.west;
+	east=options.east;
 
-		if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
-		//another intersting one is 604800
+	width=options.width;
+	height=options.height;
 
-		if (arg>0)	{
-			fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
-			locationHistory.jsonfilename=argv[arg];
-			if (arg<argc+1)	{	//output file
-				fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
-				pngfilename=argv[arg+1];
-			}
+	//print some of the options
+	fprintf(stdout, "From the options:\r\n");
+	fprintf(stdout, "N %f, S %f, W %f, E %f\r\n",north,south,west,east);
+	fprintf(stdout, "KML: %s\r\n",options.kmlfilename);
+	fprintf(stdout, "\r\n");
+
+	if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
+	//another intersting one is 604800
+
+	if (arg>0)	{
+		fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
+		locationHistory.jsonfilename=argv[arg];
+		if (arg<argc+1)	{	//output file
+			fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
+			pngfilename=argv[arg+1];
 		}
 	}
 
@@ -379,19 +376,6 @@ int main(int argc,char *argv[])
 		if (zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
 		zoom = 0;	//set to zero, then we'll calculate.
 	}
-
-
-
-	//Auckland
-
-//america trips
-//west=-96;
-//east=-70;
-//north=46;
-//south=21;
-
-
-
 
 	//if they're the wrong way around
 	if (east<west)	{tempdouble=east;east=west;west=tempdouble;}
@@ -413,40 +397,50 @@ int main(int argc,char *argv[])
 	}	else
 	if (width==0)	{	//the haven't specified a width (but have a height)
 		width=height*(east-west)/(north-south);
+		if (width > MAX_DIMENSION)	{	//if we're oversizing it
+			width = MAX_DIMENSION;
+			height = width*(north-south)/(east-west);
+		}
 	}	else
 	if (height==0)	{	//the haven't specified a height (but have a width)
 			height=width*(north-south)/(east-west);
+			if (height > MAX_DIMENSION)	{	//if we're oversizing it
+				height = MAX_DIMENSION;
+				width=height*(east-west)/(north-south);
+			}
 	}
 
 
 	//test for strange rounding errors
 	if ((width==0) || (height==0) || (height > MAX_DIMENSION) || (width > MAX_DIMENSION))	{
+		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", width, height);
 		west=-180;
 		east=180;
 		north=90;
 		south=-90;
 		height=180;
 		width=360;
-		fprintf(stderr, "Problem with dimensions. Loading small default size.\r\n");
+
 	}
 
 	//if the aspect ratio of coords is different, set the width to be related to the
 	testwidth=height*(east-west)/(north-south);
-	printf("tw: %i, w: %i\r\n", testwidth, width);
 	if (testwidth != width)	{
+		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, width);
 		width=testwidth;
 	}
 
 	//then calculate how many pixels per degree
 	zoom=width/(east-west);
-
-
 	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
-
-
 
 	//Initialise the bitmap
 	mainBM = bitmapInit(width, height, zoom, north, south, west, east);
+
+	//Load appropriate filenames
+	MakeProperFilename(mainBM->kmlfilename, options.kmlfilename, "output.kml", "kml");
+	fprintf(stdout, "KML: %s\r\n",mainBM->kmlfilename);
+
 
 	//Draw grid
 	c.R=192;c.G=192;c.B=192;c.A=128;
@@ -458,8 +452,10 @@ int main(int argc,char *argv[])
 	locationHistory.latesttimestamp=0;
 	countPoints=0;
 
+	fprintf(stdout, "Loading Locations.\r\n");
 	LoadLocations(&locationHistory);
 
+	fprintf(stdout, "Plotting paths.\r\n");
 	coord=locationHistory.first;
 	while (coord)	{
 
@@ -487,7 +483,7 @@ int main(int argc,char *argv[])
 
 
 	//Write the PNG file
-	fprintf(stdout, "Writing to %s.", pngfilename);
+	fprintf(stdout, "Writing to %s.\r\n", pngfilename);
 	error = lodepng_encode32_file(pngfilename, mainBM->bitmap, mainBM->width, mainBM->height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
@@ -495,6 +491,7 @@ int main(int argc,char *argv[])
 	WriteKMLFile(mainBM);
 
 	bitmapDestroy(mainBM);
+	fprintf(stdout, "Program finished.");
 	return 0;
 }
 
@@ -811,6 +808,13 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	int swappedflag;
 
 
+	//if the line is obviously out of the bounds of the bitmap then can return
+	if ((lon1 < bm->west) && (lon2 < bm->west))	return 1;
+	if ((lon1 > bm->east) && (lon2 > bm->east))	return 1;
+	if ((lat1 < bm->south) && (lat2 < bm->south))	return 1;
+	if ((lat1 > bm->north) && (lat2 > bm->north))	return 1;
+
+
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
 	LatLongToXY(bm, lat2, lon2, &x2,&y2);
 			dx=x1-x2;
@@ -849,7 +853,7 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 
 
 
-	return 0;
+	return 1;
 }
 
 int bitmapWrite(BM *bm, char *filename)
@@ -1046,13 +1050,19 @@ int ColourWheel(BM* bm, int x, int y, int r, int steps)
 int WriteKMLFile(BM* bm)
 {
 	FILE *kml;
+	char sStartTime[80];
+	char sEndTime[80];
 
-	kml=fopen("demo.kml","w");
+	sprintf(sStartTime, "start");
+	sprintf(sEndTime, "start");
+	//strftime (sStartTime,80,"%B %Y",localtime(0));
+
+	kml=fopen(bm->kmlfilename,"w");
 	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
 	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
 	fprintf(kml, "<GroundOverlay>\r\n");
 	fprintf(kml, "<name>Your journey</name>\r\n");
-	fprintf(kml, "<description>From %s to %s</description>\r\n", "2012", "2014");
+	fprintf(kml, "<description>From %s to %s</description>\r\n", sStartTime, sEndTime);
 	fprintf(kml, "<Icon><href>trips.png</href></Icon>\r\n");
     fprintf(kml, "<LatLonBox>\r\n");
 	fprintf(kml, "<north>%f</north>\r\n",bm->north);
@@ -1066,5 +1076,60 @@ int WriteKMLFile(BM* bm)
 
 	fclose(kml);
 
-	return 0;
+	return 1;
+}
+
+
+int LoadPreset(OPTIONS *options, char *preset)
+{
+	//Obviously it'd be better to make this into a table or external file
+	if (!stricmp(preset,"nz"))	{options->north=-34; options->south=-47.5; options->west=166; options->east=178.5;}
+	if (!stricmp(preset,"northisland"))	{options->north=-34.37; options->south=-41.62; options->west=172.6; options->east=178.6;}
+	if (!stricmp(preset,"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
+	if (!stricmp(preset,"aucklandcentral"))	{options->north=-36.835; options->south=-36.935; options->west=174.69; options->east=174.89;}
+	if (!stricmp(preset,"wellington"))	{options->north=-41.06; options->south=-41.4; options->west=174.6; options->east=175.15;}
+	if (!stricmp(preset,"christchurch"))	{options->north=-43.43; options->south=-43.62; options->west=172.5; options->east=172.81;}
+	if (!stricmp(preset,"queenstown"))	{options->north=-44.5; options->south=-45.6; options->west=168; options->east=169.5;}
+	if (!stricmp(preset,"dunedin"))	{options->north=-45.7; options->south=-45.95; options->west=170.175; options->east=170.755;}
+	if (!stricmp(preset,"au"))	{options->north = -10.5; options->south = -44; options->west=112; options->east=154;}
+	if (!stricmp(preset,"queensland"))	{options->north = -9.5; options->south = -29; options->west=138; options->east=154;}
+	if (!stricmp(preset,"sydney"))	{options->north = -33.57; options->south = -34.14; options->west=150.66; options->east=151.35;}
+	//Asia
+	if (!stricmp(preset,"asia"))	{options->north= 58; options->south=-11; options->west= 67; options->east=155;}
+	if (!stricmp(preset,"hk"))	{options->north= 23.2; options->south=21.8; options->west=112.8; options->east=114.7;}
+	if (!stricmp(preset,"sg"))	{options->west=103.6; options->east=104.1; options->north = 1.51; options->south = 1.15;}
+	if (!stricmp(preset,"in"))	{options->north= 37; options->south=6; options->west=67.65; options->east=92.56;}
+	if (!stricmp(preset,"jp"))	{options->north=45.75; options->south=30.06; options->west=128.35; options->east=149.09;}
+	//Europe
+	if (!stricmp(preset,"europe"))	{options->west=-10; options->east=32; options->north = 55; options->south = 36;}
+	if (!stricmp(preset,"es"))	{options->west=-10.0; options->east=5; options->north = 44; options->south = 35;}
+	if (!stricmp(preset,"it"))	{options->west=6.6; options->east=19; options->north = 47; options->south = 36.5;}
+	if (!stricmp(preset,"venice"))	{options->north =  45.6; options->south =  45.3; options->west=12.1; options->east=12.6;}
+	if (!stricmp(preset,"fr"))	{options->west=-5.5; options->east=8.5; options->north =  51.2; options->south =  42.2;}
+	if (!stricmp(preset,"paris"))	{options->north=49.1; options->south=48.5; options->west = 1.8; options->east = 2.8;}
+	if (!stricmp(preset,"uk"))	{options->west=-10.5; options->east=2; options->north =  60; options->south =  50;}
+	if (!stricmp(preset,"scandinaviabaltic"))	{options->north = 71.5; options->south = 53.5; options->west=4.3; options->east=41.7;}
+	if (!stricmp(preset,"is"))	{options->north = 66.6; options->south = 63.2; options->west=-13.5; options->east=-24.6;}
+	//USA
+	if (!stricmp(preset,"usane"))	{options->west=-82.7; options->east=-67; options->north = 47.5; options->south = 36.5;}
+	if (!stricmp(preset,"usa"))	{options->north = 49; options->south = 24; options->west=-125; options->east=-67;}
+	if (!stricmp(preset,"boston"))	{options->north = 42.9; options->south = 42; options->west=-71.9; options->east=-70.5;}
+	if (!stricmp(preset,"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
+	if (!stricmp(preset,"lasvegas"))	{options->north = 36.35; options->south = 35.9; options->west=-115.35; options->east=-114.7;}
+	if (!stricmp(preset,"istanbul"))	{options->north = 41.3; options->south =  40.7; options->west=28.4; options->east=29.7;}
+	if (!stricmp(preset,"middleeast"))	{options->north = 42; options->south =  12; options->west=25; options->east=69;}
+	if (!stricmp(preset,"uae"))	{options->north =  26.5; options->south =  22.6; options->west=51.5; options->east=56.6;}
+	if (!stricmp(preset,"dubai"))	{options->north =  25.7; options->south =  24.2; options->west=54.2; options->east=55.7;}
+	if (!stricmp(preset,"israeljordan"))	{options->north = 33.4; options->south = 29.1; options->west=34; options->east=39.5;}
+	return 1;
+}
+
+
+int MakeProperFilename(char *targetstring, char *source, char *def, char *ext)
+{
+	if (source)
+		sprintf(targetstring,"%s",source);
+	else
+		sprintf(targetstring,"%s",def);
+	return 1;
 }
