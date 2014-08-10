@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.20
+#define VERSION 0.23
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -39,6 +39,9 @@ struct sOptions	{	//what we can get from the command line
 
 	double zoom;
 
+	unsigned long	fromtimestamp;
+	unsigned long	totimestamp;
+
 	int gridsize;
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
@@ -47,6 +50,7 @@ struct sOptions	{	//what we can get from the command line
 struct sBitmap	{
 	char pngfilename[256];	//this actually holds the filename we'll use
 	char kmlfilename[256];	//this actually holds the filename we'll use
+	char jsonfilename[256];	//this actually holds the filename we'll use
 
 	int width;
 	int height;
@@ -80,7 +84,7 @@ struct sLocation	{
 
 struct sLocationHistory	{
 	FILE *json;
-	char *jsonfilename;
+	//char *jsonfilename;
 
 	unsigned long	numPoints;
 	unsigned long	earliesttimestamp;
@@ -139,14 +143,11 @@ void PrintIntro(char *programName)
 
 void PrintUsage(char *programName)
 {
-	fprintf(stdout, "Usage: %s [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [-i <input.json>] [[-i] <output.png> [-k <output.kml>]\r\n\r\n", programName);
+	fprintf(stdout, "Usage: %s [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [<other options>] [-i <input.json>] [-k <output.kml>] [[-o] <output.png>]\r\n\r\n", programName);
 	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
 	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
 }
 
-/* returns the index of the first argument that is not an option; i.e.
-   does not start with a dash or a slash
-*/
 int HandleOptions(int argc,char *argv[], OPTIONS *options)
 {
 	int i,firstnonoption=0;
@@ -252,6 +253,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						else	if (!stricmp(argv[i+1],"month"))	options->colourcycle=60*60*24*30.4375;
 						else	if (!stricmp(argv[i+1],"halfyear"))	options->colourcycle=60*60*24*182.625;
 						else	if (!stricmp(argv[i+1],"year"))	options->colourcycle=60*60*24*365.25;
+						else	if (!stricmp(argv[i+1],"hour"))	options->colourcycle=60*60;
 						else	options->colourcycle = strtol(argv[i+1], NULL, 0);
 
 						i++;
@@ -268,10 +270,38 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 
 					}
 					break;
+				case 'f':	//from
+				case 'F':
+					if (i+1<argc)	{
+						options->fromtimestamp = strtol(argv[i+1], NULL,0);
+						i++;
+					}
+					break;
+				case 't':	//to
+				case 'T':
+					if (i+1<argc)	{
+						options->totimestamp = strtol(argv[i+1], NULL,0);
+						i++;
+					}
+					break;
 				case 'k':
 				case 'K':
 					if (i+1<argc)	{
 						options->kmlfilename = argv[i+1];
+						i++;
+					}
+					break;
+				case 'i':
+				case 'I':
+					if (i+1<argc)	{
+						options->jsonfilename = argv[i+1];
+						i++;
+					}
+					break;
+				case 'o':
+				case 'O':
+					if (i+1<argc)	{
+						options->pngfilename = argv[i+1];
 						i++;
 					}
 					break;
@@ -281,6 +311,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 			}
 		}
 		else {
+			options->pngfilename = argv[i];
 			firstnonoption = i;
 			break;
 		}
@@ -301,14 +332,11 @@ int main(int argc,char *argv[])
 
 	int height, width;
 	int testwidth;
-	int testheight;
+	//int testheight;
 	double zoom;
 	COLOUR c;
 
-	int arg;
 	LOCATIONHISTORY locationHistory;
-
-	char *pngfilename;
 
 	unsigned long countPoints;
 	double oldlat, oldlon;
@@ -326,11 +354,10 @@ int main(int argc,char *argv[])
 	//Display introductory text
 	PrintIntro(argv[0]);
 
-	locationHistory.jsonfilename="LocationHistory.json";	//default
-	pngfilename="trips.png";	//default
+	//locationHistory.jsonfilename="LocationHistory.json";	//default
 
 	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
-	arg = HandleOptions(argc, argv, &options);
+	HandleOptions(argc, argv, &options);
 
 	zoom=options.zoom;
 	north=options.north;
@@ -343,27 +370,23 @@ int main(int argc,char *argv[])
 
 	//print some of the options
 	fprintf(stdout, "From the options:\r\n");
+	fprintf(stdout, "Input file: %s\r\n", options.jsonfilename);
 	fprintf(stdout, "N %f, S %f, W %f, E %f\r\n",north,south,west,east);
 	fprintf(stdout, "KML: %s\r\n",options.kmlfilename);
 	fprintf(stdout, "\r\n");
 
 	if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
-	//another intersting one is 604800
 
-	if (arg>0)	{
-		fprintf(stdout, "Input file: %i %s\r\n", arg, argv[arg]);
-		locationHistory.jsonfilename=argv[arg];
-		if (arg<argc+1)	{	//output file
-			fprintf(stdout, "Output file: %s\r\n", argv[arg+1]);
-			pngfilename=argv[arg+1];
-		}
-	}
-
+	//Load appropriate filenames
+	MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "output.kml", "kml");
+	MakeProperFilename(mainBM.pngfilename, options.pngfilename, "trips.png", "png");
+	MakeProperFilename(mainBM.jsonfilename, options.jsonfilename, "LocationHistory.json", "json");
+	fprintf(stdout, "KML: %s\r\n",mainBM.kmlfilename);
 
 	//Open the input file
-	locationHistory.json=fopen(locationHistory.jsonfilename,"r");
+	locationHistory.json=fopen(mainBM.jsonfilename,"r");
 	if (locationHistory.json==NULL)	{
-		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", locationHistory.jsonfilename);
+		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", mainBM.jsonfilename);
 		perror("Error");
 		fprintf(stderr, "\r\n");
 		return 1;
@@ -418,7 +441,6 @@ int main(int argc,char *argv[])
 		south=-90;
 		height=180;
 		width=360;
-
 	}
 
 	//if the aspect ratio of coords is different, set the width to be related to the
@@ -432,14 +454,13 @@ int main(int argc,char *argv[])
 	zoom=width/(east-west);
 	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
 
+	//Set the from and to times
+	if (options.totimestamp == 0)
+		options.totimestamp =-1;
+
+
 	//Initialise the bitmap
 	bitmapInit(&mainBM, width, height, zoom, north, south, west, east);
-
-	//Load appropriate filenames
-	MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "output.kml", "kml");
-	MakeProperFilename(mainBM.pngfilename, pngfilename, "output.png", "png");
-	fprintf(stdout, "KML: %s\r\n",mainBM.kmlfilename);
-
 
 	//Draw grid
 	c.R=192;c.G=192;c.B=192;c.A=128;
@@ -451,7 +472,7 @@ int main(int argc,char *argv[])
 	locationHistory.latesttimestamp=0;
 	countPoints=0;
 
-	fprintf(stdout, "Loading Locations.\r\n");
+	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.jsonfilename);
 	LoadLocations(&locationHistory);
 
 	fprintf(stdout, "Plotting paths.\r\n");
@@ -460,7 +481,7 @@ int main(int argc,char *argv[])
 
 		c=TimestampToRgb(coord->timestampS, 0, options.colourcycle);	//about 6 month cycle
 		//c=TimestampToRgb(coord->timestampS, 1300000000, 1300000000+(60*60*24));	//day cycle
-		if (coord->accuracy <200000)	{
+		if (coord->accuracy <200000 && coord->timestampS >= options.fromtimestamp && coord->timestampS <= options.totimestamp)	{
 			//draw a line from last point to the current one.
 			if (countPoints>0)	{
 				bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
@@ -482,8 +503,8 @@ int main(int argc,char *argv[])
 
 
 	//Write the PNG file
-	fprintf(stdout, "Writing to %s.\r\n", pngfilename);
-	error = lodepng_encode32_file(pngfilename, mainBM.bitmap, mainBM.width, mainBM.height);
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.pngfilename);
+	error = lodepng_encode32_file(mainBM.pngfilename, mainBM.bitmap, mainBM.width, mainBM.height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	//Write KML file
@@ -703,7 +724,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double gradient;
 	double xend,yend;
 	double intery;
-	double xgap,ygap;
+	double xgap;
 	double xpxl1, ypxl1;
 	double xpxl2, ypxl2;
 
@@ -812,40 +833,39 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
 	LatLongToXY(bm, lat2, lon2, &x2,&y2);
-			dx=x1-x2;
-			dy=y1-y2;
-			if ((abs(dx)>180*bm->zoom))	{	//they've moved over half the map
-				swappedflag=0;	//flag
-				if (dx >0)	{	//if it's the eastward direction then we'll swap vars
-					//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", x2, y2, xi,yi,dx,dy, 0,yintersect);
-					tempdouble=x1;x1=x2;x2=tempdouble;	//swap x
-					tempdouble=y1;y1=y2;y2=tempdouble;	//swap y
+	dx=x1-x2;
+	dy=y1-y2;
+	if ((abs(dx)>180*bm->zoom))	{	//they've moved over half the map
+		swappedflag=0;	//flag
+		if (dx >0)	{	//if it's the eastward direction then we'll swap vars
+			//printf("Pretransform %i %i to %i %i, diff:%i %i c: %i %i\r\n", x2, y2, xi,yi,dx,dy, 0,yintersect);
+			tempdouble=x1;x1=x2;x2=tempdouble;	//swap x
+			tempdouble=y1;y1=y2;y2=tempdouble;	//swap y
 
-					dx=x1-x2;	dy=y1-y2;
-					swappedflag=1;	//flag to ensure we swap coords back
-				}
+			dx=x1-x2;	dy=y1-y2;
+			swappedflag=1;	//flag to ensure we swap coords back
+		}
 
-				dx=x1-(x2-360*bm->zoom);	//x2-360*zoom is our new origin
-				m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
+		dx=x1-(x2-360*bm->zoom);	//x2-360*zoom is our new origin
+		m=dy;	m/=dx;				//gradient, done this ugly way as doing division on ints
 
-				yintersect = y2 + (360*bm->zoom-x2)*m;
+		yintersect = y2 + (360*bm->zoom-x2)*m;
 //				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", x2, y2, xi,yi,dx,dy, yintersect,m);
 
-				//We draw two separate lines
-				bitmapLineDrawWu(bm, x2,y2,360*bm->zoom-1, yintersect, c);
-				bitmapLineDrawWu(bm, 0, yintersect, x1,y1, c);
+		//We draw two separate lines
+		bitmapLineDrawWu(bm, x2,y2,360*bm->zoom-1, yintersect, c);
+		bitmapLineDrawWu(bm, 0, yintersect, x1,y1, c);
 
-				if (swappedflag==1)	{	//swap this back if we swapped!
-					tempdouble=x1;x1=x2;x2=tempdouble;
-					tempdouble=y1;y1=y2;y2=tempdouble;
-				}
+		if (swappedflag==1)	{	//swap this back if we swapped!
+			tempdouble=x1;x1=x2;x2=tempdouble;
+			tempdouble=y1;y1=y2;y2=tempdouble;
+		}
 
-			}
-			//Here is just the normal line from oldpoint to new one
-			else	{
-				bitmapLineDrawWu(bm, x2,y2,x1,y1,c);		//the normal case
-			}
-
+	}
+	//Here is just the normal line from oldpoint to new one
+	else	{
+		bitmapLineDrawWu(bm, x2,y2,x1,y1,c);		//the normal case
+	}
 
 
 	return 1;
@@ -972,7 +992,6 @@ COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char 
 
 COLOUR TimestampToRgb(long ts, long min, long max)
 {
-	COLOUR rgba;
 	double hue;
 	long diff;
 
@@ -1121,9 +1140,16 @@ int LoadPreset(OPTIONS *options, char *preset)
 
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext)
 {
-	if (source)
-		sprintf(targetstring,"%s",source);
-	else
+	if (!source)	{
 		sprintf(targetstring,"%s",def);
+		return 0;
+	}
+
+	if (strrchr(source, '.'))	{
+		sprintf(targetstring,"%s",source);
+	}
+	else
+		sprintf(targetstring,"%s.%s",source, ext);
+
 	return 1;
 }
