@@ -1,4 +1,5 @@
 #summary How to use WorldTracker
+#labels usage
 
 = Introduction =
 
@@ -18,15 +19,37 @@ The PNG file can be loaded into Google Earth (using the generated KML file), or 
   # Open the command line and go to the appropriate directory.
   # Try running `mytrips` without any parameters. It will generate a PNG file called `trips.png` and a KML file `trips.kml` which can be opened with Google Earth.
 
-== Other options ==
+== General use ==
 `mytrips.exe [<options>] [output.png]`
 
-Common options include:
-  * `-{n|s|w|e} <north|south|west|east>` - use these four parameters to set the bounds of the generated overlay. This is a decimal coordinate of the degree latitude or longitude.
-  * `-{x|y} <width|height>` - set the width or height in pixels.
-  * `[-o] <output.png>` - set the name of the output PNG file. If this is the last or only argument, you can omit the `-o`.
-  * `-k <output.kml>` - set the file name of the KML that is exported.
-  * `-p <preset>` - loads coordinates from a preset list.
+== Options ==
+  * `-{n|s|w|e} <north|south|west|east>`
+   * use these four parameters to set the bounds of the generated overlay. This is a decimal coordinate of the degree latitude or longitude.
+  * `-{x|y} <width|height>`
+   * Sets the width or height in pixels.
+  * `[-o] <output.png>`
+   * Sets the name of the output PNG file. If this is the last or only argument, you can omit the `-o`.
+  * `-k <output.kml>`
+   * Sets the file name of the KML that is exported.
+  * `-p <preset>` 
+   * Loads coordinates from a preset list. Eventually I want to include all the countries by their internet code. (Try `usa`, `europe`, `asia`, `es`, `in`, `venice`, `scandinaviabaltic`.)
+  * `-g <degrees>`
+   * Draws a grid `<degrees>` degrees apart.
+  * `-c <colorcycle>` 
+   * The number of seconds that the plotting colour will cycle through the spectrum. There are some presets (try `-c week` or `-c month`.)
+  * `-f <fromtimestamp>`
+   * The timestamp in seconds to start plotting from. Anything data earlier than this be ignored.
+  * `-t <totimestamp>`
+   * The timestamp in seconds to start plotting until. Anything data later than this be ignored.
+  * `-z <zoom>`
+   * If you leave the coordinates empty, the program will include the entire world. This sets the number of pixels per degree.
+  * `-i <input.json>`
+   * Use this if you are not using the default filename of `LocationHistory.json`/
+== Examples ==
+  * `mytrips -n 46 -s 21 -e -70 -west -96 -y 1080 -o test.png -k test.kml`
+   * this generates an overlay within the bounds listed (in this case the eastern United States). The file should be 1080 pixels in height. The output files are `test.png` and `test.kml`.
+  * `mytrips -preset auckland -k auckland.kml auckland.png`
+   * this creates an overlay centred around Auckland, New Zealand. The generated PNG file will be `auckland.png` and the KML file `auckland.kml`.
 
 
 = Options to view image =
