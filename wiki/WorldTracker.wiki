@@ -16,10 +16,18 @@ The PNG file can be loaded into Google Earth (using the generated KML file), or 
 = Using the program =
   # Copy the JSON file (should be `LocationHistory.json`) to the same folder as `mytrips.exe`.
   # Open the command line and go to the appropriate directory.
-  # Try running `mytrips` without any parameters. It will generate a PNG file called `trips.png`.
+  # Try running `mytrips` without any parameters. It will generate a PNG file called `trips.png` and a KML file `trips.kml` which can be opened with Google Earth.
 
 == Other options ==
-`mytrips.exe [-z <zoom>] [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [input.json] [output.png]`
+`mytrips.exe [<options>] [output.png]`
+
+Common options include:
+  * `-{n|s|w|e} <north|south|west|east>` - use these four parameters to set the bounds of the generated overlay. This is a decimal coordinate of the degree latitude or longitude.
+  * `-{x|y} <width|height>` - set the width or height in pixels.
+  * `[-o] <output.png>` - set the name of the output PNG file. If this is the last or only argument, you can omit the `-o`.
+  * `-k <output.kml>` - set the file name of the KML that is exported.
+  * `-p <preset>` - loads coordinates from a preset list.
+
 
 = Options to view image =
   * It is helpful to have a map to overlay your PNG file onto.
