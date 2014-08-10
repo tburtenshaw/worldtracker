@@ -47,10 +47,11 @@ The PNG file can be loaded into Google Earth (using the generated KML file), or 
    * Use this if you are not using the default filename of `LocationHistory.json`/
 == Examples ==
   * `mytrips -n 46 -s 21 -e -70 -west -96 -y 1080 -o test.png -k test.kml`
-   * this generates an overlay within the bounds listed (in this case the eastern United States). The file should be 1080 pixels in height. The output files are `test.png` and `test.kml`.
+   * Generates an overlay within the bounds listed (in this case the eastern United States). The file should be 1080 pixels in height. The output files are `test.png` and `test.kml`.
   * `mytrips -preset auckland -k auckland.kml auckland.png`
-   * this creates an overlay centred around Auckland, New Zealand. The generated PNG file will be `auckland.png` and the KML file `auckland.kml`.
-
+   * Creates an overlay centred around Auckland, New Zealand. The generated PNG file will be `auckland.png` and the KML file `auckland.kml`.
+  * `mytrips -f 1325329200 -t 1356951600 -preset auckland -k auck2012 -o auck2012.png -c day`
+   * Shows points in Auckland during the year 2012, the the colour cycling through the spectrum in a day.
 
 = Options to view image =
   * It is helpful to have a map to overlay your PNG file onto.
