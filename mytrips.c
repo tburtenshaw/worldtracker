@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.23
+#define VERSION 0.25
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -94,7 +94,7 @@ struct sLocationHistory	{
 };
 
 
-int LoadLocations(LOCATIONHISTORY *lh);
+int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
@@ -378,19 +378,24 @@ int main(int argc,char *argv[])
 	if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
 
 	//Load appropriate filenames
-	MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "output.kml", "kml");
 	MakeProperFilename(mainBM.pngfilename, options.pngfilename, "trips.png", "png");
+		char pngnoext[256];
+		char *period;
+
+
+	if (options.kmlfilename==NULL)	{
+		strcpy(&pngnoext[0], mainBM.pngfilename);	//copy the png filename
+		period=strrchr(pngnoext,'.');			//find the final period
+		*period=0;								//replace it with a null to end it
+		fprintf(stdout, "KML no ext: %s\r\n",pngnoext);
+		MakeProperFilename(mainBM.kmlfilename, pngnoext, "fallback.kml", "kml");
+	} else
+	{
+		MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "fallback.kml", "kml");
+	}
+
 	MakeProperFilename(mainBM.jsonfilename, options.jsonfilename, "LocationHistory.json", "json");
 	fprintf(stdout, "KML: %s\r\n",mainBM.kmlfilename);
-
-	//Open the input file
-	locationHistory.json=fopen(mainBM.jsonfilename,"r");
-	if (locationHistory.json==NULL)	{
-		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", mainBM.jsonfilename);
-		perror("Error");
-		fprintf(stderr, "\r\n");
-		return 1;
-	}
 
 	//Set the zoom
 	if ((zoom<0.1) || (zoom>55))	{	//have to decide the limit, i've tested to 55
@@ -473,7 +478,7 @@ int main(int argc,char *argv[])
 	countPoints=0;
 
 	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.jsonfilename);
-	LoadLocations(&locationHistory);
+	LoadLocations(&locationHistory, &mainBM.jsonfilename[0]);
 
 	fprintf(stdout, "Plotting paths.\r\n");
 	coord=locationHistory.first;
@@ -494,11 +499,10 @@ int main(int argc,char *argv[])
 	}
 
 	fprintf(stdout, "Ploted: %i points\r\n", countPoints);
-	fprintf(stdout, "Earliest: %i\tLastest: %i\r\n", locationHistory.earliesttimestamp, locationHistory.latesttimestamp);
+//	fprintf(stdout, "Earliest: %i\tLastest: %i\r\n", locationHistory.earliesttimestamp, locationHistory.latesttimestamp);
 	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
 	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
 
-	fclose(locationHistory.json);
 	FreeLocations(&locationHistory);
 
 
@@ -508,6 +512,7 @@ int main(int argc,char *argv[])
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	//Write KML file
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.kmlfilename);
 	WriteKMLFile(&mainBM);
 
 	bitmapDestroy(&mainBM);
@@ -516,11 +521,22 @@ int main(int argc,char *argv[])
 }
 
 
-int LoadLocations(LOCATIONHISTORY *locationHistory)
+int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 {
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
+	//Open the input file
+	locationHistory->json=fopen(jsonfilename,"r");
+	if (locationHistory->json==NULL)	{
+		fprintf(stderr, "\r\nUnable to open \'%s\'.\r\n", jsonfilename);
+		perror("Error");
+		fprintf(stderr, "\r\n");
+		return 1;
+	}
+
+
+	//Now read it and load it into a linked list
 	prevCoord=NULL;
 	coord=malloc(sizeof(LOCATION));
 	locationHistory->first = coord;
@@ -545,6 +561,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory)
 		locationHistory->last=prevCoord;
 	}
 
+	fclose(locationHistory->json);
 	return 0;
 }
 
@@ -1100,6 +1117,7 @@ int LoadPreset(OPTIONS *options, char *preset)
 	if (!stricmp(preset,"northisland"))	{options->north=-34.37; options->south=-41.62; options->west=172.6; options->east=178.6;}
 	if (!stricmp(preset,"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
 	if (!stricmp(preset,"aucklandcentral"))	{options->north=-36.835; options->south=-36.935; options->west=174.69; options->east=174.89;}
+	if (!stricmp(preset,"tauranga"))	{options->north=-37.6; options->south=-37.76; options->west=176.07; options->east=176.36;}
 	if (!stricmp(preset,"wellington"))	{options->north=-41.06; options->south=-41.4; options->west=174.6; options->east=175.15;}
 	if (!stricmp(preset,"christchurch"))	{options->north=-43.43; options->south=-43.62; options->west=172.5; options->east=172.81;}
 	if (!stricmp(preset,"queenstown"))	{options->north=-44.5; options->south=-45.6; options->west=168; options->east=169.5;}
