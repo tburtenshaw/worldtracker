@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.25
+#define VERSION 0.26
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -80,6 +80,7 @@ struct sLocation	{
 	LOCATION* next1ppd;
 	LOCATION* next10ppd;
 	LOCATION* next100ppd;
+	LOCATION* next1000ppd;
 };
 
 struct sLocationHistory	{
@@ -417,7 +418,7 @@ int main(int argc,char *argv[])
 
 
 	if ((height==0) && (width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
-		if (zoom==0)	{zoom=15;}	//default zoom
+		if (zoom==0)	{zoom=10;}	//default zoom
 		width=360*zoom;
 		height= 180*zoom;
 	}	else
@@ -526,6 +527,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
+
+
 	//Open the input file
 	locationHistory->json=fopen(jsonfilename,"r");
 	if (locationHistory->json==NULL)	{
@@ -541,11 +544,14 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	coord=malloc(sizeof(LOCATION));
 	locationHistory->first = coord;
 	while (ReadLocation(locationHistory, coord)==1)	{
+		//get the timestamp max and min
 		if (coord->timestampS > locationHistory->latesttimestamp)
 			locationHistory->latesttimestamp = coord->timestampS;
 		if (coord->timestampS<locationHistory->earliesttimestamp)
 			locationHistory->earliesttimestamp = coord->timestampS;
 		locationHistory->numPoints++;
+
+		//set the next of the previous depending on our zoom resolution
 
 		coord->prev=prevCoord;
 		coord->next=malloc(sizeof(LOCATION));	//allocation memory for the next in the linked list
@@ -1112,46 +1118,68 @@ int WriteKMLFile(BM* bm)
 
 int LoadPreset(OPTIONS *options, char *preset)
 {
-	//Obviously it'd be better to make this into a table or external file
-	if (!stricmp(preset,"nz"))	{options->north=-34; options->south=-47.5; options->west=166; options->east=178.5;}
-	if (!stricmp(preset,"northisland"))	{options->north=-34.37; options->south=-41.62; options->west=172.6; options->east=178.6;}
-	if (!stricmp(preset,"auckland"))	{options->west=174.5; options->east=175; options->north = -36.7; options->south = -37.1;}
-	if (!stricmp(preset,"aucklandcentral"))	{options->north=-36.835; options->south=-36.935; options->west=174.69; options->east=174.89;}
-	if (!stricmp(preset,"tauranga"))	{options->north=-37.6; options->south=-37.76; options->west=176.07; options->east=176.36;}
-	if (!stricmp(preset,"wellington"))	{options->north=-41.06; options->south=-41.4; options->west=174.6; options->east=175.15;}
-	if (!stricmp(preset,"christchurch"))	{options->north=-43.43; options->south=-43.62; options->west=172.5; options->east=172.81;}
-	if (!stricmp(preset,"queenstown"))	{options->north=-44.5; options->south=-45.6; options->west=168; options->east=169.5;}
-	if (!stricmp(preset,"dunedin"))	{options->north=-45.7; options->south=-45.95; options->west=170.175; options->east=170.755;}
-	if (!stricmp(preset,"au"))	{options->north = -10.5; options->south = -44; options->west=112; options->east=154;}
-	if (!stricmp(preset,"queensland"))	{options->north = -9.5; options->south = -29; options->west=138; options->east=154;}
-	if (!stricmp(preset,"sydney"))	{options->north = -33.57; options->south = -34.14; options->west=150.66; options->east=151.35;}
-	//Asia
-	if (!stricmp(preset,"asia"))	{options->north= 58; options->south=-11; options->west= 67; options->east=155;}
-	if (!stricmp(preset,"hk"))	{options->north= 23.2; options->south=21.8; options->west=112.8; options->east=114.7;}
-	if (!stricmp(preset,"sg"))	{options->west=103.6; options->east=104.1; options->north = 1.51; options->south = 1.15;}
-	if (!stricmp(preset,"in"))	{options->north= 37; options->south=6; options->west=67.65; options->east=92.56;}
-	if (!stricmp(preset,"jp"))	{options->north=45.75; options->south=30.06; options->west=128.35; options->east=149.09;}
-	//Europe
-	if (!stricmp(preset,"europe"))	{options->west=-10; options->east=32; options->north = 55; options->south = 36;}
-	if (!stricmp(preset,"es"))	{options->west=-10.0; options->east=5; options->north = 44; options->south = 35;}
-	if (!stricmp(preset,"it"))	{options->west=6.6; options->east=19; options->north = 47; options->south = 36.5;}
-	if (!stricmp(preset,"venice"))	{options->north =  45.6; options->south =  45.3; options->west=12.1; options->east=12.6;}
-	if (!stricmp(preset,"fr"))	{options->west=-5.5; options->east=8.5; options->north =  51.2; options->south =  42.2;}
-	if (!stricmp(preset,"paris"))	{options->north=49.1; options->south=48.5; options->west = 1.8; options->east = 2.8;}
-	if (!stricmp(preset,"uk"))	{options->west=-10.5; options->east=2; options->north =  60; options->south =  50;}
-	if (!stricmp(preset,"scandinaviabaltic"))	{options->north = 71.5; options->south = 53.5; options->west=4.3; options->east=41.7;}
-	if (!stricmp(preset,"is"))	{options->north = 66.6; options->south = 63.2; options->west=-13.5; options->east=-24.6;}
-	//USA
-	if (!stricmp(preset,"usane"))	{options->west=-82.7; options->east=-67; options->north = 47.5; options->south = 36.5;}
-	if (!stricmp(preset,"usa"))	{options->north = 49; options->south = 24; options->west=-125; options->east=-67;}
-	if (!stricmp(preset,"boston"))	{options->north = 42.9; options->south = 42; options->west=-71.9; options->east=-70.5;}
-	if (!stricmp(preset,"arkansas"))	{options->west=-94.6; options->east=-89; options->north = 36.5; options->south = 33;}
-	if (!stricmp(preset,"lasvegas"))	{options->north = 36.35; options->south = 35.9; options->west=-115.35; options->east=-114.7;}
-	if (!stricmp(preset,"istanbul"))	{options->north = 41.3; options->south =  40.7; options->west=28.4; options->east=29.7;}
-	if (!stricmp(preset,"middleeast"))	{options->north = 42; options->south =  12; options->west=25; options->east=69;}
-	if (!stricmp(preset,"uae"))	{options->north =  26.5; options->south =  22.6; options->west=51.5; options->east=56.6;}
-	if (!stricmp(preset,"dubai"))	{options->north =  25.7; options->south =  24.2; options->west=54.2; options->east=55.7;}
-	if (!stricmp(preset,"israeljordan"))	{options->north = 33.4; options->south = 29.1; options->west=34; options->east=39.5;}
+	#define PRESET_COUNT 46
+	#define MAX_PRESET_LENGTH 32
+
+	char preset_name[PRESET_COUNT][MAX_PRESET_LENGTH];
+	double preset_north[PRESET_COUNT];
+	double preset_south[PRESET_COUNT];
+	double preset_west[PRESET_COUNT];
+	double preset_east[PRESET_COUNT];
+	int i;
+
+	//This way's going to be easier to convert to an external file
+	strcpy(preset_name[0],"nz"); preset_north[0]=-34;	preset_south[0]=-47.5;	preset_west[0]=166; preset_east[0]=178.5;
+strcpy(preset_name[1],"northisland"); preset_north[1]=-34.37;	preset_south[1]=-41.62;	preset_west[1]=172.6; preset_east[1]=178.6;
+strcpy(preset_name[2],"auckland"); preset_north[2]= -36.7;	preset_south[2]= -37.1;	preset_west[2]=174.5; preset_east[2]=175;
+strcpy(preset_name[3],"aucklandcentral"); preset_north[3]=-36.835;	preset_south[3]=-36.935;	preset_west[3]=174.69; preset_east[3]=174.89;
+strcpy(preset_name[4],"tauranga"); preset_north[4]=-37.6;	preset_south[4]=-37.76;	preset_west[4]=176.07; preset_east[4]=176.36;
+strcpy(preset_name[5],"wellington"); preset_north[5]=-41.06;	preset_south[5]=-41.4;	preset_west[5]=174.6; preset_east[5]=175.15;
+strcpy(preset_name[6],"christchurch"); preset_north[6]=-43.43;	preset_south[6]=-43.62;	preset_west[6]=172.5; preset_east[6]=172.81;
+strcpy(preset_name[7],"queenstown"); preset_north[7]=-44.5;	preset_south[7]=-45.6;	preset_west[7]=168; preset_east[7]=169.5;
+strcpy(preset_name[8],"dunedin"); preset_north[8]=-45.7;	preset_south[8]=-45.95;	preset_west[8]=170.175; preset_east[8]=170.755;
+strcpy(preset_name[9],"au"); preset_north[9]= -10.5;	preset_south[9]= -44;	preset_west[9]=112; preset_east[9]=154;
+strcpy(preset_name[10],"queensland"); preset_north[10]= -9.5;	preset_south[10]= -29;	preset_west[10]=138; preset_east[10]=154;
+strcpy(preset_name[11],"sydney"); preset_north[11]= -33.57;	preset_south[11]= -34.14;	preset_west[11]=150.66; preset_east[11]=151.35;
+strcpy(preset_name[13],"asia"); preset_north[13]= 58;	preset_south[13]=-11;	preset_west[13]= 67; preset_east[13]=155;
+strcpy(preset_name[14],"hk"); preset_north[14]= 23.2;	preset_south[14]=21.8;	preset_west[14]=112.8; preset_east[14]=114.7;
+strcpy(preset_name[15],"sg"); preset_north[15]= 1.51;	preset_south[15]= 1.15;	preset_west[15]=103.6; preset_east[15]=104.1;
+strcpy(preset_name[16],"in"); preset_north[16]= 37;	preset_south[16]=6;	preset_west[16]=67.65; preset_east[16]=92.56;
+strcpy(preset_name[17],"jp"); preset_north[17]=45.75;	preset_south[17]=30.06;	preset_west[17]=128.35; preset_east[17]=149.09;
+strcpy(preset_name[19],"europe"); preset_north[19]= 55;	preset_south[19]= 36;	preset_west[19]=-10; preset_east[19]=32;
+strcpy(preset_name[20],"es"); preset_north[20]= 44;	preset_south[20]= 35;	preset_west[20]=-10.0; preset_east[20]=5;
+strcpy(preset_name[21],"it"); preset_north[21]= 47;	preset_south[21]= 36.5;	preset_west[21]=6.6; preset_east[21]=19;
+strcpy(preset_name[22],"venice"); preset_north[22]=  45.6;	preset_south[22]=  45.3;	preset_west[22]=12.1; preset_east[22]=12.6;
+strcpy(preset_name[23],"fr"); preset_north[23]=  51.2;	preset_south[23]=  42.2;	preset_west[23]=-5.5; preset_east[23]=8.5;
+strcpy(preset_name[24],"paris"); preset_north[24]=49.1;	preset_south[24]=48.5;	preset_west[24]= 1.8; preset_east[24]= 2.8;
+strcpy(preset_name[25],"uk"); preset_north[25]=  60;	preset_south[25]=  50;	preset_west[25]=-10.5; preset_east[25]=2;
+strcpy(preset_name[26],"scandinaviabaltic"); preset_north[26]= 71.5;	preset_south[26]= 53.5;	preset_west[26]=4.3; preset_east[26]=41.7;
+strcpy(preset_name[27],"is"); preset_north[27]= 66.6;	preset_south[27]= 63.2;	preset_west[27]=-13.5; preset_east[27]=-24.6;
+strcpy(preset_name[28],"cz"); preset_north[28]= 51.1;	preset_south[28]= 48.5;	preset_west[28]=12; preset_east[28]=18.9;
+strcpy(preset_name[29],"prague"); preset_north[29]= 50.178;	preset_south[29]= 49.941;	preset_west[29]=14.246; preset_east[29]=14.709;
+strcpy(preset_name[30],"vienna"); preset_north[30]= 48.3;	preset_south[30]= 48.12;	preset_west[30]=16.25; preset_east[30]=16.55;
+strcpy(preset_name[32],"turkeygreece"); preset_north[32]=  42.294;	preset_south[32]= 34.455;	preset_west[32]=19.33; preset_east[32]=45.09;
+strcpy(preset_name[33],"istanbul"); preset_north[33]= 41.3;	preset_south[33]=  40.7;	preset_west[33]=28.4; preset_east[33]=29.7;
+strcpy(preset_name[34],"middleeast"); preset_north[34]= 42;	preset_south[34]=  12;	preset_west[34]=25; preset_east[34]=69;
+strcpy(preset_name[35],"uae"); preset_north[35]=  26.5;	preset_south[35]=  22.6;	preset_west[35]=51.5; preset_east[35]=56.6;
+strcpy(preset_name[36],"dubai"); preset_north[36]=  25.7;	preset_south[36]=  24.2;	preset_west[36]=54.2; preset_east[36]=55.7;
+strcpy(preset_name[37],"israeljordan"); preset_north[37]= 33.4;	preset_south[37]= 29.1;	preset_west[37]=34; preset_east[37]=39.5;
+strcpy(preset_name[41],"usane"); preset_north[41]= 47.5;	preset_south[41]= 36.5;	preset_west[41]=-82.7; preset_east[41]=-67;
+strcpy(preset_name[42],"usa"); preset_north[42]= 49;	preset_south[42]= 24;	preset_west[42]=-125; preset_east[42]=-67;
+strcpy(preset_name[43],"boston"); preset_north[43]= 42.9;	preset_south[43]= 42;	preset_west[43]=-71.9; preset_east[43]=-70.5;
+strcpy(preset_name[44],"arkansas"); preset_north[44]= 36.5;	preset_south[44]= 33;	preset_west[44]=-94.6; preset_east[44]=-89;
+strcpy(preset_name[45],"lasvegas"); preset_north[45]= 36.35;	preset_south[45]= 35.9;	preset_west[45]=-115.35; preset_east[45]=-114.7;
+
+
+	for (i=0;i<PRESET_COUNT;i++)	{
+		if (!stricmp(preset,preset_name[i]))	{
+			options->north=preset_north[i];
+			options->south=preset_south[i];
+			options->west=preset_west[i];
+			options->east=preset_east[i];
+		}
+	}
+
 	return 1;
 }
 
