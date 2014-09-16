@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.26
+#define VERSION 0.28
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -496,7 +496,13 @@ int main(int argc,char *argv[])
 			oldlat=coord->latitude;oldlon=coord->longitude;
 			countPoints++;
 		}
-		coord=coord->next;
+
+		//i'll move this outside the loop for speed reasons
+		if (zoom>1000)	coord=coord->next;
+		else if (zoom>100) coord=coord->next1000ppd;
+		else if (zoom>10) coord=coord->next100ppd;
+		else if (zoom>1) coord=coord->next10ppd;
+		else coord=coord->next1ppd;
 	}
 
 	fprintf(stdout, "Ploted: %i points\r\n", countPoints);
@@ -527,6 +533,10 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
+	LOCATION *waitingFor1;
+	LOCATION *waitingFor10;
+	LOCATION *waitingFor100;
+	LOCATION *waitingFor1000;
 
 
 	//Open the input file
@@ -543,6 +553,11 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	prevCoord=NULL;
 	coord=malloc(sizeof(LOCATION));
 	locationHistory->first = coord;
+	waitingFor1 = coord;
+	waitingFor10 = coord;
+	waitingFor100 = coord;
+	waitingFor1000 = coord;
+
 	while (ReadLocation(locationHistory, coord)==1)	{
 		//get the timestamp max and min
 		if (coord->timestampS > locationHistory->latesttimestamp)
@@ -552,6 +567,26 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 		locationHistory->numPoints++;
 
 		//set the next of the previous depending on our zoom resolution
+		if ((fabs(waitingFor1->latitude - coord->latitude) >1) ||(fabs(waitingFor1->latitude - coord->latitude) >1))	{
+			waitingFor1->next1ppd = coord;
+			waitingFor1=coord;
+		}
+
+		if ((fabs(waitingFor10->latitude - coord->latitude) >0.1) ||(fabs(waitingFor10->latitude - coord->latitude) >0.1))	{
+			waitingFor10->next10ppd = coord;
+			waitingFor10=coord;
+		}
+
+		if ((fabs(waitingFor100->latitude - coord->latitude) >0.01) ||(fabs(waitingFor100->latitude - coord->latitude) >0.01))	{
+			waitingFor100->next100ppd = coord;
+			waitingFor100=coord;
+		}
+
+		if ((fabs(waitingFor1000->latitude - coord->latitude) >0.001) ||(fabs(waitingFor1000->latitude - coord->latitude) >0.001))	{
+			waitingFor1000->next1000ppd = coord;
+			waitingFor1000=coord;
+		}
+
 
 		coord->prev=prevCoord;
 		coord->next=malloc(sizeof(LOCATION));	//allocation memory for the next in the linked list
