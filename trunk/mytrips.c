@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.28
+#define VERSION 0.29
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -473,7 +473,7 @@ int main(int argc,char *argv[])
 	DrawGrid(&mainBM, options.gridsize, c);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
-	oldlat=0;oldlon=0;
+	oldlat=1000;oldlon=1000;
 	locationHistory.earliesttimestamp=-1;
 	locationHistory.latesttimestamp=0;
 	countPoints=0;
@@ -486,15 +486,13 @@ int main(int argc,char *argv[])
 	while (coord)	{
 
 		c=TimestampToRgb(coord->timestampS, 0, options.colourcycle);	//about 6 month cycle
-		//c=TimestampToRgb(coord->timestampS, 1300000000, 1300000000+(60*60*24));	//day cycle
+
 		if (coord->accuracy <200000 && coord->timestampS >= options.fromtimestamp && coord->timestampS <= options.totimestamp)	{
 			//draw a line from last point to the current one.
-			if (countPoints>0)	{
-				bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
-			}
+			countPoints+= bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
 
 			oldlat=coord->latitude;oldlon=coord->longitude;
-			countPoints++;
+
 		}
 
 		//i'll move this outside the loop for speed reasons
@@ -505,7 +503,7 @@ int main(int argc,char *argv[])
 		else coord=coord->next1ppd;
 	}
 
-	fprintf(stdout, "Ploted: %i points\r\n", countPoints);
+	fprintf(stdout, "Ploted lines between: %i points\r\n", countPoints);
 //	fprintf(stdout, "Earliest: %i\tLastest: %i\r\n", locationHistory.earliesttimestamp, locationHistory.latesttimestamp);
 	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
 	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
@@ -783,8 +781,9 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double xend,yend;
 	double intery;
 	double xgap;
-	double xpxl1, ypxl1;
-	double xpxl2, ypxl2;
+	int xpxl1, ypxl1;	//these can be ints, as they're the pixels we go through one by one
+	int xpxl2, ypxl2;
+
 
 	double x;
 
@@ -821,7 +820,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
      xpxl1 = xend;   //this will be used in the main loop
      ypxl1 = ipart(yend);
      if (steep)	{
-
 		 plot(bm, ypxl1,   xpxl1, rfpart(yend) * xgap, c);
 		 plot(bm, ypxl1+1, xpxl1,  fpart(yend) * xgap, c);
 		}
@@ -852,6 +850,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 
 
      // main loop
+	 //printf("x %f to %f\t", xpxl1, xpxl2);
 	 for (x = xpxl1 + 1;x<xpxl2;x++)	{
          if  (steep)	{
              plot(bm, ipart(intery)  , x, rfpart(intery), c);
@@ -882,11 +881,13 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	int swappedflag;
 
 
+	//if it's flagged not to draw then return
+	if (lon2>360 || lon1>360) return 0;
 	//if the line is obviously out of the bounds of the bitmap then can return
-	if ((lon1 < bm->west) && (lon2 < bm->west))	return 1;
-	if ((lon1 > bm->east) && (lon2 > bm->east))	return 1;
-	if ((lat1 < bm->south) && (lat2 < bm->south))	return 1;
-	if ((lat1 > bm->north) && (lat2 > bm->north))	return 1;
+	if ((lon1 < bm->west) && (lon2 < bm->west))	return 0;
+	if ((lon1 > bm->east) && (lon2 > bm->east))	return 0;
+	if ((lat1 < bm->south) && (lat2 < bm->south))	return 0;
+	if ((lat1 > bm->north) && (lat2 > bm->north))	return 0;
 
 
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
