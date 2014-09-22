@@ -1,5 +1,5 @@
 //current version
-#define VERSION 0.29
+#define VERSION 0.30
 #define MAX_DIMENSION 4096*2
 
 #include <stdio.h>
@@ -42,6 +42,7 @@ struct sOptions	{	//what we can get from the command line
 	unsigned long	fromtimestamp;
 	unsigned long	totimestamp;
 
+	int thickness;		//the thickness of the line
 	int gridsize;
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
@@ -81,6 +82,7 @@ struct sLocation	{
 	LOCATION* next10ppd;
 	LOCATION* next100ppd;
 	LOCATION* next1000ppd;
+	LOCATION* next10000ppd;
 };
 
 struct sLocationHistory	{
@@ -106,8 +108,9 @@ int WriteKMLFile(BM* bm);
 
 int bitmapInit(BM* bm, int width, int height, double zoom, double north, double south, double west, double east);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
-int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c);
-int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c);
+int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
+int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c);
 
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
@@ -127,7 +130,7 @@ double ipart(double x);
 double round(double x);
 double fpart(double x);
 double rfpart(double x);
-int plot(BM* bm, int x, int y, double cdouble, COLOUR c);
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
 
 void PrintIntro(char *programName);	//blurb
 void PrintUsage(char *programName); 	//called if run without arguments
@@ -464,6 +467,10 @@ int main(int argc,char *argv[])
 	if (options.totimestamp == 0)
 		options.totimestamp =-1;
 
+	//Set the thickness
+	if (options.thickness == 0) options.thickness = 40;//1+width/1000;
+
+
 
 	//Initialise the bitmap
 	bitmapInit(&mainBM, width, height, zoom, north, south, west, east);
@@ -486,17 +493,20 @@ int main(int argc,char *argv[])
 	while (coord)	{
 
 		c=TimestampToRgb(coord->timestampS, 0, options.colourcycle);	//about 6 month cycle
+		c.A=100;
 
 		if (coord->accuracy <200000 && coord->timestampS >= options.fromtimestamp && coord->timestampS <= options.totimestamp)	{
 			//draw a line from last point to the current one.
-			countPoints+= bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon, c);
+			countPoints+= bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon,options.thickness, c);
 
 			oldlat=coord->latitude;oldlon=coord->longitude;
 
 		}
 
-		//i'll move this outside the loop for speed reasons
-		if (zoom>1000)	coord=coord->next;
+		//Move onto the next appropriate coord
+		//?i'll move this outside the loop for speed reasons
+		if (zoom>10000)	coord=coord->next;
+		else if (zoom>1000) coord=coord->next10000ppd;
 		else if (zoom>100) coord=coord->next1000ppd;
 		else if (zoom>10) coord=coord->next100ppd;
 		else if (zoom>1) coord=coord->next10ppd;
@@ -504,7 +514,6 @@ int main(int argc,char *argv[])
 	}
 
 	fprintf(stdout, "Ploted lines between: %i points\r\n", countPoints);
-//	fprintf(stdout, "Earliest: %i\tLastest: %i\r\n", locationHistory.earliesttimestamp, locationHistory.latesttimestamp);
 	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
 	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
 
@@ -535,6 +544,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	LOCATION *waitingFor10;
 	LOCATION *waitingFor100;
 	LOCATION *waitingFor1000;
+	LOCATION *waitingFor10000;
 
 
 	//Open the input file
@@ -555,6 +565,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	waitingFor10 = coord;
 	waitingFor100 = coord;
 	waitingFor1000 = coord;
+	waitingFor10000 = coord;
 
 	while (ReadLocation(locationHistory, coord)==1)	{
 		//get the timestamp max and min
@@ -584,6 +595,12 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 			waitingFor1000->next1000ppd = coord;
 			waitingFor1000=coord;
 		}
+
+		if ((fabs(waitingFor10000->latitude - coord->latitude) >0.0001) ||(fabs(waitingFor10000->latitude - coord->latitude) >0.0001))	{
+			waitingFor10000->next10000ppd = coord;
+			waitingFor10000=coord;
+		}
+
 
 
 		coord->prev=prevCoord;
@@ -771,7 +788,34 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)
 	return 1;
 }
 
-int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR c)
+int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)
+{
+	int row,col;
+	double distance, diff;
+
+	//roversquared=(radius+1)*(radius+1);
+	//rundersquared=(radius-1)*(radius-1);
+
+	for (row=(int)(y-radius); row<y+radius+1; row++)	{
+		for (col=(int)(x-radius); col<x+radius+1; col++)	{
+			distance = sqrt((x-col) *(x-col) + (y-row)*(y-row));
+			//diff = rsquared-distancesquared;
+			//printf("diff: %.2f\tdist:%.2f\t r%i\tc%i\r\n",diff, distancesquared, row, col);
+			if (distance<=radius-1)
+				plot(bm,row,col,255,c);
+			else if (distance<radius)	{
+				diff=(radius-distance);
+				plot(bm,row,col,diff*256,c);
+			}
+
+
+		}
+	}
+
+	return 1;
+}
+
+int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c)
 {
 	int steep;
 	double tempdouble;
@@ -780,96 +824,162 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, COLOUR 
 	double gradient;
 	double xend,yend;
 	double intery;
-	double xgap;
+	//double xgap;
 	int xpxl1, ypxl1;	//these can be ints, as they're the pixels we go through one by one
 	int xpxl2, ypxl2;
 
-
-	double x;
-
-	//Convert to int for now, until we get the errors sorted
-	x0=(int)x0;
-	y0=(int)y0;
-	x1=(int)x1;
-	y1=(int)y1;
-
+	double hypotenusethickness;
+	int x;
 
 	//based on the wikipedia article
-	//printf("Line: %f,%f to %f,%f [R%iG%iB%i]", x0,y0,x1,y1, c.R, c.G, c.B);
-	steep=(abs(y1 - y0) > abs(x1 - x0));
+//	printf("Line: %f,%f to %f,%f [R%iG%iB%i]\r\n", x0,y0,x1,y1, c.R, c.G, c.B);
+	steep=(abs(y1 - y0) > abs(x1 - x0));	//if it's a steep line, swap the xs with the ys
 
 	if (steep)	{
 		tempdouble = x0; x0=y0; y0=tempdouble;
 		tempdouble = x1; x1=y1; y1=tempdouble;
 	}
 
-	if (x0>x1)	{
+	if (x0>x1)	{							//get things moving from small to big
 		tempdouble = x1; x1=x0; x0=tempdouble;	//swap x0,x1
 		tempdouble = y1; y1=y0; y0=tempdouble;  //swap y0,y1
 	}
 
+
 	dx=x1-x0;
 	dy=y1-y0;
+	if (dx==0)	return 0;
 
 	gradient = dy/dx;
 
-	     // handle first endpoint
-     xend = round(x0);
-     yend = y0 + gradient * (xend - x0);
-     xgap = rfpart(x0 + 0.5);
-     xpxl1 = xend;   //this will be used in the main loop
-     ypxl1 = ipart(yend);
-     if (steep)	{
-		 plot(bm, ypxl1,   xpxl1, rfpart(yend) * xgap, c);
-		 plot(bm, ypxl1+1, xpxl1,  fpart(yend) * xgap, c);
+
+
+	//clip the lines within 0 and width (remember this may be rotated 90 deg if steep)
+	if ((x0<0))	{
+		//printf("Line (%.2f, %.2f) to (%.2f, %.2f) %.4f\r\n",x0,y0,x1,y1,gradient);
+		y0-=gradient*x0; x0=0;
+		//printf("Line (%.2f, %.2f) to (%.2f, %.2f)\r\n",x0,y0,x1,y1);
+	}
+
+	if ((x1>(steep ? bm->height: bm->width)))	{
+		double yatend, yintercept;
+		yintercept = y0-gradient*x0;
+		yatend = gradient*(steep ? bm->height: bm->width)+yintercept;
+		//xintercept = yintercept/gradient*-1;
+		//printf("Far Line: %.1f,%.1f to %.1f,%.1f Grad: %.2f. yi%f\r\n", x0,y0,x1,y1, gradient, yintercept);
+		//printf(" %.1f, %.1f\r\n",(float)(steep ? bm->height: bm->width),yatend);
+		x1=(float)(steep ? bm->height: bm->width);y1=yatend;
+		//printf("Far Line: %.1f,%.1f to %.1f,%.1f Grad: %.2f. yi%f\r\n", x0,y0,x1,y1, gradient, yintercept);
+	}
+
+	if ((y0<0) && (y1<0))
+		return 0;
+
+
+	//these are used to construct thick lines, this is the above and the under part
+	int r,f;
+	hypotenusethickness=thickness*sqrt(gradient*gradient+1);
+	r=0-hypotenusethickness/2;
+	f=(hypotenusethickness+1)/2;
+
+
+
+	//Convert to int and round;
+
+	x0=(int)(x0+0.5);
+	y0=(int)(y0+0.5);
+	x1=(int)(x1+0.5);
+	y1=(int)(y1+0.5);
+
+
+	unsigned char rstrength, fstrength;	//the intensity of the fills
+
+	// handle first endpoint
+
+	bitmapFilledCircle(bm,x0,y0,thickness/2,c);
+	bitmapFilledCircle(bm,x1,y1,thickness/2,c);
+//return 0;
+
+    xend = x0;
+    yend = y0 + gradient * (xend - x0);
+//    xgap = rfpart(x0 + 0.5);
+    xpxl1 = xend;   //this will be used in the main loop
+    ypxl1 = ipart(yend);
+
+/*
+
+//	rstrength = rfpart(yend) * 255;
+	fstrength = fpart(yend) * 255;
+	rstrength= 255^fstrength;
+
+			printf("%i %i\t",rstrength,fstrength);
+	 if (steep)	{
+		 plot(bm, ypxl1,   xpxl1, rstrength, c);
+		 plot(bm, ypxl1+1, xpxl1,  fstrength, c);
 		}
      else	{
-         plot(bm, xpxl1, ypxl1  , rfpart(yend) * xgap, c);
-         plot(bm, xpxl1, ypxl1+1,  fpart(yend) * xgap, c);
+         plot(bm, xpxl1, ypxl1  , rstrength, c);
+         plot(bm, xpxl1, ypxl1+1,  fstrength, c);
 		}
 
+*/
      intery = yend + gradient; // first y-intersection for the main loop
 
 
 	     // handle second endpoint
-	 xend = round(x1);
-     yend = y1 + gradient * (xend - x1);
-     xgap = fpart(x1 + 0.5);
-     xpxl2 = xend; //this will be used in the main loop
-     ypxl2 = ipart(yend);
-     if (steep)	{
-         plot(bm, ypxl2  , xpxl2, rfpart(yend) * xgap, c);
-         plot(bm, ypxl2+1, xpxl2,  fpart(yend) * xgap, c);
+	xend = round(x1);
+    yend = y1 + gradient * (xend - x1);
+//    xgap = fpart(x1 + 0.5);
 
+    xpxl2 = x1; //this will be used in the main loop
+
+
+    ypxl2 = ipart(yend);
+
+	//rstrength = rfpart(yend) * 255;
+	fstrength = fpart(yend) * 255;
+	rstrength= 255^fstrength;
+/*
+    if (steep)	{
+    	plot(bm, ypxl2  , xpxl2, rstrength, c);
+        plot(bm, ypxl2+1, xpxl2, fstrength, c);
+
+	}
+	else	{
+    	plot(bm, xpxl2, ypxl2, rstrength, c);
+        plot(bm, xpxl2, ypxl2+1, fstrength, c);
 		}
-     else	{
-         plot(bm, xpxl2, ypxl2,  rfpart(yend) * xgap, c);
-         plot(bm, xpxl2, ypxl2+1, fpart(yend) * xgap, c);
+*/
 
-		}
+    // main loop
+	//printf("x %i to %i\t", xpxl1, xpxl2);
 
-
-     // main loop
-	 //printf("x %f to %f\t", xpxl1, xpxl2);
-	 for (x = xpxl1 + 1;x<xpxl2;x++)	{
-         if  (steep)	{
-             plot(bm, ipart(intery)  , x, rfpart(intery), c);
-             plot(bm, ipart(intery)+1, x,  fpart(intery), c);
-			 //printf("steep\r\n");
+	xpxl1=x0; xpxl2=x1;
+	for (x = xpxl1 + 0;x<xpxl2+1;x++)	{
+		fstrength =  fpart(intery)*255;
+		rstrength= 255^fstrength; //equiv of subtracting it from 255
+        if  (steep)	{
+            plot(bm, ipart(intery)+r, x, rstrength, c);
+			for (int t=r+1;t<f;t++)	{
+				plot(bm, ipart(intery)+t, x,  255, c);
+			}
+            plot(bm, ipart(intery)+f, x,fstrength , c);
 			}
          else	{
-             plot(bm, x, ipart (intery),  rfpart(intery), c);
-             plot(bm, x, ipart (intery)+1, fpart(intery), c);
-//			 printf("\r\n");
+            plot(bm, x, ipart (intery)+r, rstrength, c);
+			for (int t=r+1;t<f;t++)	{
+				plot(bm, x, ipart(intery)+t, 255, c);
+			}
+            plot(bm, x, ipart (intery)+f, fstrength, c);
 			}
 //			printf("i %f  f %f\r\n",ipart(intery), fpart(intery));
          intery = intery + gradient;
 	}
 
-	return 0;
+	return 1;
 }
 
-int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, COLOUR c)
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c)
 {
 	double tempdouble;
 	double dx,dy;
@@ -912,8 +1022,8 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 //				printf("from %i %i to %i %i, diff:%i %i yint: %i m:%f\r\n", x2, y2, xi,yi,dx,dy, yintersect,m);
 
 		//We draw two separate lines
-		bitmapLineDrawWu(bm, x2,y2,360*bm->zoom-1, yintersect, c);
-		bitmapLineDrawWu(bm, 0, yintersect, x1,y1, c);
+		bitmapLineDrawWu(bm, x2,y2,360*bm->zoom-1, yintersect, thickness, c);
+		bitmapLineDrawWu(bm, 0, yintersect, x1,y1,thickness, c);
 
 		if (swappedflag==1)	{	//swap this back if we swapped!
 			tempdouble=x1;x1=x2;x2=tempdouble;
@@ -923,7 +1033,8 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	}
 	//Here is just the normal line from oldpoint to new one
 	else	{
-		bitmapLineDrawWu(bm, x2,y2,x1,y1,c);		//the normal case
+		//printf("bcl %f, %f to %f %f\r\n",x2,y2,x1,y1);
+		return bitmapLineDrawWu(bm, x2,y2,x1,y1,thickness, c);		//the normal case
 	}
 
 
@@ -952,16 +1063,15 @@ int bitmapWrite(BM *bm, char *filename)
 //for the Wu algorithm in Wikipedia
 double ipart(double x)
 {
-	int xi;
-
-	xi=x;
-	//printf("floor %f %f \r\n",x,floor(x));
+	int xi=x;
 	return (double)xi;
-	//return floor(x);
 }
 double round(double x)
 {
-	return ipart(x+0.5);
+	//return ipart(x+0.5);
+	int xi = x+0.5;
+	return (double)xi;
+
 }
 double fpart(double x)
 {
@@ -973,17 +1083,28 @@ double rfpart(double x)
 }
 
 
-int plot(BM* bm, int x, int y, double doublec, COLOUR c)
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c)
 {
+	if (cchar==0)	{	//don't bother if it's completely transparent
+		return 0;
+	}
+	if (c.A==0)
+		return 0;
 
-		 	c.A=(doublec)*(double)c.A;
+			unsigned int cint;
+			cint = cchar;
+			cint *=c.A;
+			cint /=256;
+			c.A=(char)cint;
+
+		 	//c.A=(doublec*c.A)/256;
 			//printf("c.A %f\t %i\r\n",doublec, c.A);
 		 	bitmapPixelSet(bm, x, y, c);
 
 //printf("x %i y%i c%f \r\n",x,y,doublec);
 
 
-return 0;
+return 1;
 }
 
 int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
@@ -1082,14 +1203,14 @@ int DrawGrid(BM* bm, int spacing, COLOUR c)
 		LatLongToXY(bm, lat, -180, &x1, &y1);
 		LatLongToXY(bm, lat, 180, &x2, &y2);
 //		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
 	}
 
 	for (lon=-180+spacing; lon<180; lon+=spacing)	{
 		LatLongToXY(bm, -90, lon, &x1, &y1);
 		LatLongToXY(bm, 90, lon, &x2, &y2);
 //		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
 	}
 
 
@@ -1097,10 +1218,10 @@ int DrawGrid(BM* bm, int spacing, COLOUR c)
 		lat=0;
 		LatLongToXY(bm, lat, -180, &x1, &y1);
 		LatLongToXY(bm, lat, 180, &x2, &y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
 		c.A=c.A*0.8;
-		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1, c);
-		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1, c);
+		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1,1, c);
+		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1,1, c);
 
 	return 0;
 }
@@ -1113,7 +1234,7 @@ int ColourWheel(BM* bm, int x, int y, int r, int steps)
 	if (steps<1) return 1;
  	for (i=0;i<360;i+=steps) {
  		c=HsvToRgb(i*255/360,255,255,255);
-	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),c);
+	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),1,c);
  	}
 
 	return 0;
