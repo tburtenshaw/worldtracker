@@ -1,5 +1,3 @@
-//current version
-#define VERSION 0.31
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
 
@@ -13,24 +11,6 @@
 #include "lodepng.h"
 #include "mytrips.h"
 
-
-//int HandleOptions(int argc,char *argv[]);
-
-void PrintIntro(char *programName)
-{
-	fprintf(stdout, "World Tracker  - Version %2.2f\r\n", VERSION);
-	fprintf(stdout, "Plots out your Google Location history\r\n\r\n");
-	fprintf(stdout, "Copyright © 2014 Tristan Burtenshaw\r\n");
-	fprintf(stdout, "New BSD Licence (\'%s --copyright' for more information.)\r\n", programName);
-	fprintf(stdout, "Contains LodePNG library by Lode Vandevenne (http://lodev.org/lodepng/)\r\n\r\n");
-}
-
-void PrintUsage(char *programName)
-{
-	fprintf(stdout, "Usage: %s [-n <north>] [-s <south>] [-w <west>] [-e <east>] [-x <width>] [-y <height>] [<other options>] [-i <input.json>] [-k <output.kml>] [[-o] <output.png>]\r\n\r\n", programName);
-	fprintf(stdout, "Default input: \'LocationHistory.json\' from the current folder.\r\n");
-	fprintf(stdout, "Default output: \'trips.png\'.\r\n");
-}
 
 int HandleOptions(int argc,char *argv[], OPTIONS *options)
 {
@@ -222,12 +202,9 @@ int main(int argc,char *argv[])
 
 	LOCATIONHISTORY locationHistory;
 
-	unsigned long countPoints;
-	double oldlat, oldlon;
 
 	int error;
 
-	LOCATION *coord;
 
 	//set vars to zero
 	memset(&options, 0, sizeof(options));	//set all the option results to 0
@@ -360,15 +337,17 @@ int main(int argc,char *argv[])
 	DrawGrid(&mainBM, options.gridsize, c);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
-	oldlat=1000;oldlon=1000;
-	locationHistory.earliesttimestamp=-1;
-	locationHistory.latesttimestamp=0;
-	countPoints=0;
 
 	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.jsonfilename);
+
 	LoadLocations(&locationHistory, &mainBM.jsonfilename[0]);
 
 	fprintf(stdout, "Plotting paths.\r\n");
+
+
+	//separate function now
+	PlotPaths(&mainBM, &locationHistory, &options);
+/*
 	coord=locationHistory.first;
 	while (coord)	{
 
@@ -392,8 +371,8 @@ int main(int argc,char *argv[])
 		else if (zoom>1) coord=coord->next10ppd;
 		else coord=coord->next1ppd;
 	}
-
-	fprintf(stdout, "Ploted lines between: %i points\r\n", countPoints);
+*/
+	fprintf(stdout, "Ploted lines between: %i points\r\n", mainBM.countPoints);
 	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
 	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
 
@@ -414,6 +393,44 @@ int main(int argc,char *argv[])
 	return 0;
 }
 
+int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
+{
+	COLOUR c;
+	double oldlat, oldlon;
+	LOCATION *coord;
+
+	oldlat=1000;oldlon=1000;
+	bm->countPoints=0;
+
+
+
+	coord=locationHistory->first;
+	while (coord)	{
+
+		c=TimestampToRgb(coord->timestampS, 0, options->colourcycle);	//about 6 month cycle
+		c.A=100;
+
+		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
+			//draw a line from last point to the current one.
+			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon,options->thickness, c);
+
+			oldlat=coord->latitude;oldlon=coord->longitude;
+
+		}
+
+		//Move onto the next appropriate coord
+		//?i'll move this outside the loop for speed reasons
+		if (bm->zoom>10000)	coord=coord->next;
+		else if (bm->zoom>1000) coord=coord->next10000ppd;
+		else if (bm->zoom>100) coord=coord->next1000ppd;
+		else if (bm->zoom>10) coord=coord->next100ppd;
+		else if (bm->zoom>1) coord=coord->next10ppd;
+		else coord=coord->next1ppd;
+	}
+	return 0;
+}
+
+
 
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 {
@@ -425,6 +442,11 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	LOCATION *waitingFor100;
 	LOCATION *waitingFor1000;
 	LOCATION *waitingFor10000;
+
+
+	//Initialise some statistics
+	locationHistory->earliesttimestamp=-1;
+	locationHistory->latesttimestamp=0;
 
 
 	//Open the input file

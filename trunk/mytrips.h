@@ -1,3 +1,5 @@
+/* This contains all the functions that are shared between the command line and Windows program */
+
 typedef struct sRGBAColour COLOUR;
 typedef struct sBitmap BM;
 typedef struct sOptions OPTIONS;
@@ -54,6 +56,7 @@ struct sBitmap	{
 	int sizebitmap;
 
 	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
+	unsigned long countPoints;	//the number of points plotted (statistics)
 };
 
 
@@ -106,6 +109,7 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
 int DrawGrid(BM* bm, int spacing, COLOUR c);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
+int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
 
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
