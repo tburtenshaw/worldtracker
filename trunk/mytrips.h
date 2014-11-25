@@ -1,0 +1,123 @@
+typedef struct sRGBAColour COLOUR;
+typedef struct sBitmap BM;
+typedef struct sOptions OPTIONS;
+typedef struct sLocation LOCATION;
+typedef struct sLocationHistory LOCATIONHISTORY;
+
+struct sRGBAColour	{
+	unsigned char R;
+	unsigned char G;
+	unsigned char B;
+	unsigned char A;
+};
+
+struct sOptions	{	//what we can get from the command line
+	char *jsonfilename;	//these are just pointers to either the default, or the command line argument
+	char *pngfilename;
+	char *kmlfilename;
+
+	int width;
+	int height;
+
+	double west;
+	double east;
+	double north;
+	double south;
+
+	double zoom;
+
+	unsigned long	fromtimestamp;
+	unsigned long	totimestamp;
+
+	int thickness;		//the thickness of the line
+	int gridsize;
+	long colourcycle;	//number of seconds before going red to red. Defaults to six months
+};
+
+
+struct sBitmap	{
+	char pngfilename[256];	//this actually holds the filename we'll use
+	char kmlfilename[256];	//this actually holds the filename we'll use
+	char jsonfilename[256];	//this actually holds the filename we'll use
+
+	int width;
+	int height;
+
+	double west;
+	double east;
+	double north;
+	double south;
+
+	double zoom;	//on a full map, this is the number of pixels per degree
+
+	char *bitmap;	//always going to be a four channel RGBA bitmap now
+	int sizebitmap;
+
+	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
+};
+
+
+struct sLocation	{
+	double latitude;
+	double longitude;
+	long timestampS; //we'll use a long instead of the high precision of google
+	int accuracy;
+
+	LOCATION* next;	//linked list
+	LOCATION* prev;
+	LOCATION* next1ppd;
+	LOCATION* next10ppd;
+	LOCATION* next100ppd;
+	LOCATION* next1000ppd;
+	LOCATION* next10000ppd;
+};
+
+struct sLocationHistory	{
+	FILE *json;
+	//char *jsonfilename;
+
+	unsigned long	numPoints;
+	unsigned long	earliesttimestamp;
+	unsigned long	latesttimestamp;
+	LOCATION * first;
+	LOCATION * last;
+};
+
+
+int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
+int FreeLocations(LOCATIONHISTORY *locationHistory);
+int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
+
+int LoadPreset(OPTIONS *options, char *preset);
+int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
+
+int WriteKMLFile(BM* bm);
+
+int bitmapInit(BM* bm, int width, int height, double zoom, double north, double south, double west, double east);
+int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
+int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
+int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c);
+
+int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
+int bitmapDestroy(BM* bm);
+
+int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
+
+int DrawGrid(BM* bm, int spacing, COLOUR c);
+int ColourWheel(BM* bm, int x, int y, int r, int steps);
+
+
+COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
+COLOUR TimestampToRgb(long ts, long min, long max);
+
+int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y);	//lat, long, output point
+
+double ipart(double x);
+double round(double x);
+double fpart(double x);
+double rfpart(double x);
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
+
+void PrintIntro(char *programName);	//blurb
+void PrintUsage(char *programName); 	//called if run without arguments
