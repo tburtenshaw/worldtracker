@@ -1,139 +1,19 @@
 //current version
-#define VERSION 0.30
+#define VERSION 0.31
 #define MAX_DIMENSION 4096*2
+#define PI 3.14159265
+
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
+
 #include "lodepng.h"
-
-#define PI 3.14159265
-
-typedef struct sRGBAColour COLOUR;
-typedef struct sBitmap BM;
-typedef struct sOptions OPTIONS;
-typedef struct sLocation LOCATION;
-typedef struct sLocationHistory LOCATIONHISTORY;
-
-struct sRGBAColour	{
-	unsigned char R;
-	unsigned char G;
-	unsigned char B;
-	unsigned char A;
-};
-
-struct sOptions	{	//what we can get from the command line
-	char *jsonfilename;	//these are just pointers to either the default, or the command line argument
-	char *pngfilename;
-	char *kmlfilename;
-
-	int width;
-	int height;
-
-	double west;
-	double east;
-	double north;
-	double south;
-
-	double zoom;
-
-	unsigned long	fromtimestamp;
-	unsigned long	totimestamp;
-
-	int thickness;		//the thickness of the line
-	int gridsize;
-	long colourcycle;	//number of seconds before going red to red. Defaults to six months
-};
+#include "mytrips.h"
 
 
-struct sBitmap	{
-	char pngfilename[256];	//this actually holds the filename we'll use
-	char kmlfilename[256];	//this actually holds the filename we'll use
-	char jsonfilename[256];	//this actually holds the filename we'll use
-
-	int width;
-	int height;
-
-	double west;
-	double east;
-	double north;
-	double south;
-
-	double zoom;	//on a full map, this is the number of pixels per degree
-
-	char *bitmap;	//always going to be a four channel RGBA bitmap now
-	int sizebitmap;
-
-	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
-};
-
-
-struct sLocation	{
-	double latitude;
-	double longitude;
-	long timestampS; //we'll use a long instead of the high precision of google
-	int accuracy;
-
-	LOCATION* next;	//linked list
-	LOCATION* prev;
-	LOCATION* next1ppd;
-	LOCATION* next10ppd;
-	LOCATION* next100ppd;
-	LOCATION* next1000ppd;
-	LOCATION* next10000ppd;
-};
-
-struct sLocationHistory	{
-	FILE *json;
-	//char *jsonfilename;
-
-	unsigned long	numPoints;
-	unsigned long	earliesttimestamp;
-	unsigned long	latesttimestamp;
-	LOCATION * first;
-	LOCATION * last;
-};
-
-
-int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
-int FreeLocations(LOCATIONHISTORY *locationHistory);
-int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
-
-int LoadPreset(OPTIONS *options, char *preset);
-int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
-
-int WriteKMLFile(BM* bm);
-
-int bitmapInit(BM* bm, int width, int height, double zoom, double north, double south, double west, double east);
-int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
-int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
-int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
-int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c);
-
-int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
-int bitmapDestroy(BM* bm);
-
-int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
-
-int DrawGrid(BM* bm, int spacing, COLOUR c);
-int ColourWheel(BM* bm, int x, int y, int r, int steps);
-
-
-COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
-COLOUR TimestampToRgb(long ts, long min, long max);
-
-int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y);	//lat, long, output point
-
-double ipart(double x);
-double round(double x);
-double fpart(double x);
-double rfpart(double x);
-int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
-
-void PrintIntro(char *programName);	//blurb
-void PrintUsage(char *programName); 	//called if run without arguments
 //int HandleOptions(int argc,char *argv[]);
 
 void PrintIntro(char *programName)
@@ -468,7 +348,7 @@ int main(int argc,char *argv[])
 		options.totimestamp =-1;
 
 	//Set the thickness
-	if (options.thickness == 0) options.thickness = 40;//1+width/1000;
+	if (options.thickness == 0) options.thickness = 1+width/1000;
 
 
 
@@ -793,19 +673,18 @@ int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)
 	int row,col;
 	double distance, diff;
 
-	//roversquared=(radius+1)*(radius+1);
-	//rundersquared=(radius-1)*(radius-1);
 
 	for (row=(int)(y-radius); row<y+radius+1; row++)	{
 		for (col=(int)(x-radius); col<x+radius+1; col++)	{
 			distance = sqrt((x-col) *(x-col) + (y-row)*(y-row));
 			//diff = rsquared-distancesquared;
 			//printf("diff: %.2f\tdist:%.2f\t r%i\tc%i\r\n",diff, distancesquared, row, col);
+			c.R=c.B; c.A=120;
 			if (distance<=radius-1)
-				plot(bm,row,col,255,c);
+				plot(bm,col,row,255,c);
 			else if (distance<radius)	{
 				diff=(radius-distance);
-				plot(bm,row,col,diff*256,c);
+				plot(bm,col,row,diff*256,c);
 			}
 
 
@@ -833,7 +712,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	//based on the wikipedia article
 //	printf("Line: %f,%f to %f,%f [R%iG%iB%i]\r\n", x0,y0,x1,y1, c.R, c.G, c.B);
-	steep=(abs(y1 - y0) > abs(x1 - x0));	//if it's a steep line, swap the xs with the ys
+	steep=(fabs(y1 - y0) > fabs(x1 - x0));	//if it's a steep line, swap the xs with the ys
 
 	if (steep)	{
 		tempdouble = x0; x0=y0; y0=tempdouble;
@@ -851,7 +730,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	if (dx==0)	return 0;
 
 	gradient = dy/dx;
-
 
 
 	//clip the lines within 0 and width (remember this may be rotated 90 deg if steep)
@@ -883,6 +761,9 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	f=(hypotenusethickness+1)/2;
 
 
+	if (abs(gradient)>1)	{
+		printf("(%.1f, %.1f) (%.1f, %.1f) %.2f\t %i\t %.4f \r\n", x0,y0, x1,y1, hypotenusethickness, thickness,gradient);
+	}
 
 	//Convert to int and round;
 
@@ -896,8 +777,13 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	// handle first endpoint
 
-	bitmapFilledCircle(bm,x0,y0,thickness/2,c);
-	bitmapFilledCircle(bm,x1,y1,thickness/2,c);
+	if (steep)	{
+		bitmapFilledCircle(bm,y0,x0,thickness/2,c);
+	}
+	else
+		bitmapFilledCircle(bm,x0,y0,thickness/2,c);
+
+	//bitmapFilledCircle(bm,x1,y1,thickness/2,c);
 //return 0;
 
     xend = x0;
@@ -1275,7 +1161,7 @@ int WriteKMLFile(BM* bm)
 
 int LoadPreset(OPTIONS *options, char *preset)
 {
-	#define PRESET_COUNT 46
+	#define PRESET_COUNT 48
 	#define MAX_PRESET_LENGTH 32
 
 	char preset_name[PRESET_COUNT][MAX_PRESET_LENGTH];
@@ -1326,6 +1212,8 @@ strcpy(preset_name[42],"usa"); preset_north[42]= 49;	preset_south[42]= 24;	prese
 strcpy(preset_name[43],"boston"); preset_north[43]= 42.9;	preset_south[43]= 42;	preset_west[43]=-71.9; preset_east[43]=-70.5;
 strcpy(preset_name[44],"arkansas"); preset_north[44]= 36.5;	preset_south[44]= 33;	preset_west[44]=-94.6; preset_east[44]=-89;
 strcpy(preset_name[45],"lasvegas"); preset_north[45]= 36.35;	preset_south[45]= 35.9;	preset_west[45]=-115.35; preset_east[45]=-114.7;
+strcpy(preset_name[46],"oceania"); preset_north[46]= 35;	preset_south[46]= -50;	preset_west[46]=-220; preset_east[46]=-110;
+strcpy(preset_name[47],"fiji"); preset_north[47]= -15.5;	preset_south[47]= -21.14;	preset_west[47]=176.77; preset_east[47]=182.08;
 
 
 	for (i=0;i<PRESET_COUNT;i++)	{
