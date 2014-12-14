@@ -10,178 +10,9 @@
 
 #include "lodepng.h"
 #include "mytrips.h"
+#include "wtc.h"
 
 
-int HandleOptions(int argc,char *argv[], OPTIONS *options)
-{
-	int i,firstnonoption=0;
-
-	for (i=1; i< argc;i++) {
-		if (argv[i][0] == '/' || argv[i][0] == '-') {
-			switch (argv[i][1]) {
-				/* An argument -? means help is requested */
-				case '?':
-					PrintUsage(argv[0]);
-					break;
-				case 'h':
-				case 'H':
-					if (!stricmp(argv[i]+1,"help")) {
-						PrintUsage(argv[0]);
-					}
-					if (!stricmp(argv[i]+1,"height")) {	//also might mean height
-						if (i+1<argc)	{
-							options->height = strtol(argv[i+1], NULL, 0);
-							i++;
-						}
-					}
-					break;
-				case 'n':
-				case 'N':
-					if (!stricmp(argv[i]+1,"north") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
-						if (i+1<argc)	{
-							options->north = strtod(argv[i+1], NULL);
-							i++;
-						}
-					}
-					break;
-				case 's':
-				case 'S':
-					if (!stricmp(argv[i]+1,"south") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
-						if (i+1<argc)	{
-							options->south = strtod(argv[i+1], NULL);
-							i++;
-						}
-					}
-					break;
-				case 'w':
-				case 'W':
-					if (!stricmp(argv[i]+1,"west") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
-						if (i+1<argc)	{
-							options->west = strtod(argv[i+1], NULL);
-							i++;
-						}
-					}
-					if (!stricmp(argv[i]+1,"width")) {	//also might mean height
-						if (i+1<argc)	{
-							options->width = strtol(argv[i+1], NULL, 0);
-							i++;
-						}
-
-					}
-
-					break;
-				case 'e':
-				case 'E':
-					if (!stricmp(argv[i]+1,"east") || *(argv[i]+2)==0)	{	//if it's north or n (terminated with 0)
-						if (i+1<argc)	{
-							options->east = strtod(argv[i+1], NULL);
-							i++;
-						}
-					}
-					break;
-				case 'x':
-				case 'X':
-					if (i+1<argc)	{
-						options->width = strtol(argv[i+1], NULL, 0);
-						i++;
-					}
-					break;
-				case 'y':
-				case 'Y':
-					if (i+1<argc)	{
-						options->height = strtol(argv[i+1], NULL, 0);
-						i++;
-					}
-					break;
-
-
-				case 'z':
-				case 'Z':
-					if (i+1<argc)	{
-						options->zoom = strtod(argv[i+1], NULL);
-						i++;	//move to the next variable, we've got a zoom
-					}
-					break;
-				case 'g':
-				case 'G':
-					if (i+1<argc)	{
-						options->gridsize = strtod(argv[i+1], NULL);
-						i++;
-					}
-					break;
-				case 'c':
-				case 'C':
-					if (i+1<argc)	{
-						if (!stricmp(argv[i+1],"day"))	options->colourcycle=60*60*24;
-						else	if (!stricmp(argv[i+1],"week"))	options->colourcycle=60*60*24*7;
-						else	if (!stricmp(argv[i+1],"month"))	options->colourcycle=60*60*24*30.4375;
-						else	if (!stricmp(argv[i+1],"halfyear"))	options->colourcycle=60*60*24*182.625;
-						else	if (!stricmp(argv[i+1],"year"))	options->colourcycle=60*60*24*365.25;
-						else	if (!stricmp(argv[i+1],"hour"))	options->colourcycle=60*60;
-						else	options->colourcycle = strtol(argv[i+1], NULL, 0);
-
-						i++;
-					}
-					break;
-
-				case 'p':
-				case 'P':
-					if (!stricmp(argv[i]+1,"preset") || *(argv[i]+2)==0)	{	//preset or just p
-						if (i+1<argc)	{
-							LoadPreset(options, argv[i+1]);
-							i++;
-						}
-
-					}
-					break;
-				case 'f':	//from
-				case 'F':
-					if (i+1<argc)	{
-						options->fromtimestamp = strtol(argv[i+1], NULL,0);
-						i++;
-					}
-					break;
-				case 't':	//to
-				case 'T':
-					if (i+1<argc)	{
-						options->totimestamp = strtol(argv[i+1], NULL,0);
-						i++;
-					}
-					break;
-				case 'k':
-				case 'K':
-					if (i+1<argc)	{
-						options->kmlfilename = argv[i+1];
-						i++;
-					}
-					break;
-				case 'i':
-				case 'I':
-					if (i+1<argc)	{
-						options->jsonfilename = argv[i+1];
-						i++;
-					}
-					break;
-				case 'o':
-				case 'O':
-					if (i+1<argc)	{
-						options->pngfilename = argv[i+1];
-						i++;
-					}
-					break;
-				default:
-					fprintf(stderr,"unknown option %s\n",argv[i]);
-					break;
-			}
-		}
-		else {
-			options->pngfilename = argv[i];
-			firstnonoption = i;
-			break;
-		}
-	}
-	return firstnonoption;
-}
 
 int main(int argc,char *argv[])
 {
@@ -206,6 +37,7 @@ int main(int argc,char *argv[])
 	int error;
 
 
+
 	//set vars to zero
 	memset(&options, 0, sizeof(options));	//set all the option results to 0
 	memset(&mainBM, 0, sizeof(mainBM));
@@ -220,6 +52,7 @@ int main(int argc,char *argv[])
 	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
 	HandleOptions(argc, argv, &options);
 
+
 	zoom=options.zoom;
 	north=options.north;
 	south=options.south;
@@ -229,12 +62,8 @@ int main(int argc,char *argv[])
 	width=options.width;
 	height=options.height;
 
-	//print some of the options
-	fprintf(stdout, "From the options:\r\n");
-	fprintf(stdout, "Input file: %s\r\n", options.jsonfilename);
-	fprintf(stdout, "N %f, S %f, W %f, E %f\r\n",north,south,west,east);
-	fprintf(stdout, "KML: %s\r\n",options.kmlfilename);
-	fprintf(stdout, "\r\n");
+
+	PrintOptions(&options);
 
 	if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
 
@@ -325,6 +154,7 @@ int main(int argc,char *argv[])
 		options.totimestamp =-1;
 
 	//Set the thickness
+	options.thickness=1;
 	if (options.thickness == 0) options.thickness = 1+width/1000;
 
 

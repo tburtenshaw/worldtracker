@@ -123,5 +123,3 @@ double fpart(double x);
 double rfpart(double x);
 int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
 
-void PrintIntro(char *programName);	//blurb
-void PrintUsage(char *programName); 	//called if run without arguments
