@@ -14,10 +14,16 @@ struct sRGBAColour	{
 };
 
 struct sOptions	{	//what we can get from the command line
-	char *jsonfilename;	//these are just pointers to either the default, or the command line argument
-	char *pngfilename;
-	char *kmlfilename;
+	char *jsonfilenameinput;	//these are just pointers to either the default, or the command line argument
+	char *pngfilenameinput;
+	char *kmlfilenameinput;
 
+	char jsonfilenamefinal[256];	//this actually holds the filename we'll use
+	char pngfilenamefinal[256];	//this actually holds the filename we'll use
+	char kmlfilenamefinal[256];	//this actually holds the filename we'll use
+	
+	char title[256];
+		
 	int width;
 	int height;
 
@@ -32,16 +38,13 @@ struct sOptions	{	//what we can get from the command line
 	unsigned long	totimestamp;
 
 	int thickness;		//the thickness of the line
+	COLOUR gridcolour;
 	int gridsize;
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
 
 
 struct sBitmap	{
-	char pngfilename[256];	//this actually holds the filename we'll use
-	char kmlfilename[256];	//this actually holds the filename we'll use
-	char jsonfilename[256];	//this actually holds the filename we'll use
-
 	int width;
 	int height;
 
@@ -52,6 +55,8 @@ struct sBitmap	{
 
 	double zoom;	//on a full map, this is the number of pixels per degree
 
+	OPTIONS *options;
+	
 	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
 
@@ -92,6 +97,7 @@ int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
 int LoadPreset(OPTIONS *options, char *preset);
+int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
@@ -107,7 +113,7 @@ int bitmapDestroy(BM* bm);
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
-int DrawGrid(BM* bm, int spacing, COLOUR c);
+int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
 
