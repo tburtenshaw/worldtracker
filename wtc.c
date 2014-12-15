@@ -1,4 +1,4 @@
-#define VERSION 0.34
+#define VERSION 0.35
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +26,7 @@ void PrintUsage(char *programName)
 }
 
 
-int HandleOptions(int argc,char *argv[], OPTIONS *options)
+int HandleCLIOptions(int argc,char *argv[], OPTIONS *options)
 {
 	int i,firstnonoption=0;
 
@@ -116,7 +116,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 						i++;	//move to the next variable, we've got a zoom
 					}
 					break;
-				case 'g':
+				case 'g':	//the grid
 				case 'G':
 					if (i+1<argc)	{
 						options->gridsize = strtod(argv[i+1], NULL);
@@ -148,14 +148,14 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 
 					}
 					break;
-				case 'f':	//from
+				case 'f':	//from time
 				case 'F':
 					if (i+1<argc)	{
 						options->fromtimestamp = strtol(argv[i+1], NULL,0);
 						i++;
 					}
 					break;
-				case 't':	//to
+				case 't':	//to time
 				case 'T':
 					if (i+1<argc)	{
 						options->totimestamp = strtol(argv[i+1], NULL,0);
@@ -165,21 +165,21 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 				case 'k':
 				case 'K':
 					if (i+1<argc)	{
-						options->kmlfilename = argv[i+1];
+						options->kmlfilenameinput = argv[i+1];
 						i++;
 					}
 					break;
 				case 'i':
 				case 'I':
 					if (i+1<argc)	{
-						options->jsonfilename = argv[i+1];
+						options->jsonfilenameinput = argv[i+1];
 						i++;
 					}
 					break;
 				case 'o':
 				case 'O':
 					if (i+1<argc)	{
-						options->pngfilename = argv[i+1];
+						options->pngfilenameinput = argv[i+1];
 						i++;
 					}
 					break;
@@ -189,7 +189,7 @@ int HandleOptions(int argc,char *argv[], OPTIONS *options)
 			}
 		}
 		else {
-			options->pngfilename = argv[i];
+			options->pngfilenameinput = argv[i];
 			firstnonoption = i;
 			break;
 		}
@@ -202,9 +202,10 @@ void PrintOptions(OPTIONS *options)
 
 	//print some of the options
 	fprintf(stdout, "From the options:\r\n");
-	fprintf(stdout, "Input file: %s\r\n", options->jsonfilename);
+	fprintf(stdout, "Input file: %s\r\n", options->jsonfilenameinput);	//this won't work, as it's a pointer to somewhere in argv
 	fprintf(stdout, "N %f, S %f, W %f, E %f\r\n",options->north,options->south,options->west,options->east);
-	fprintf(stdout, "KML: %s\r\n",options->kmlfilename);
+	fprintf(stdout, "KML: %s\r\n",options->kmlfilenameinput);
+	fprintf(stdout, "Title: %s", options->title);
 	fprintf(stdout, "\r\n");
 	return;
 }
