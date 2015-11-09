@@ -1,4 +1,4 @@
-#define VERSION 0.36
+#define VERSION 0.37
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,65 @@
 
 #include "mytrips.h"
 #include "wtc.h"
+#include "lodepng.h"
+
+int main(int argc,char *argv[])
+{
+	BM	mainBM;
+	OPTIONS options;
+	LOCATIONHISTORY locationHistory;
+
+	int error;
+
+
+	//set vars to zero
+	memset(&options, 0, sizeof(options));	//set all the option results to 0
+	memset(&mainBM, 0, sizeof(mainBM));
+
+	//Display introductory text
+	PrintIntro(argv[0]);
+
+	//locationHistory.jsonfilename="LocationHistory.json";	//default
+
+	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
+	HandleCLIOptions(argc, argv, &options);
+	PrintOptions(&options);
+	RationaliseOptions(&options);
+
+	//Initialise the bitmap
+	bitmapInit(&mainBM, &options, &locationHistory);
+
+	DrawGrid(&mainBM);
+	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
+
+
+	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.options->jsonfilenamefinal);
+	LoadLocations(&locationHistory, &mainBM.options->jsonfilenamefinal[0]);
+
+	fprintf(stdout, "Plotting paths.\r\n");
+	PlotPaths(&mainBM, &locationHistory, &options);
+//	HeatmapPlot(&mainBM, &locationHistory);
+
+	fprintf(stdout, "Ploted lines between: %i points\r\n", mainBM.countPoints);
+	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
+	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
+
+	FreeLocations(&locationHistory);
+
+
+	//Write the PNG file
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->pngfilenamefinal);
+	error = lodepng_encode32_file(mainBM.options->pngfilenamefinal, mainBM.bitmap, mainBM.width, mainBM.height);
+	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
+	//Write KML file
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->kmlfilenamefinal);
+	WriteKMLFile(&mainBM);
+
+	bitmapDestroy(&mainBM);
+	fprintf(stdout, "Program finished.");
+	return 0;
+}
 
 void PrintIntro(char *programName)
 {

@@ -12,75 +12,8 @@
 #include "mytrips.h"
 #include "wtc.h"
 
-
-
-int main(int argc,char *argv[])
-{
-	BM	mainBM;
-	OPTIONS options;
-	LOCATIONHISTORY locationHistory;
-
-	int error;
-
-
-	//set vars to zero
-	memset(&options, 0, sizeof(options));	//set all the option results to 0
-	memset(&mainBM, 0, sizeof(mainBM));
-
-	//Display introductory text
-	PrintIntro(argv[0]);
-
-	//locationHistory.jsonfilename="LocationHistory.json";	//default
-
-	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
-	HandleCLIOptions(argc, argv, &options);
-	PrintOptions(&options);
-	RationaliseOptions(&options);
-
-	//Initialise the bitmap
-	bitmapInit(&mainBM, &options, &locationHistory);
-
-	DrawGrid(&mainBM);
-	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
-
-
-	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.options->jsonfilenamefinal);
-	LoadLocations(&locationHistory, &mainBM.options->jsonfilenamefinal[0]);
-
-	fprintf(stdout, "Plotting paths.\r\n");
-	PlotPaths(&mainBM, &locationHistory, &options);
-//	HeatmapPlot(&mainBM, &locationHistory);
-
-	fprintf(stdout, "Ploted lines between: %i points\r\n", mainBM.countPoints);
-	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
-	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
-
-	FreeLocations(&locationHistory);
-
-
-	//Write the PNG file
-	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->pngfilenamefinal);
-	error = lodepng_encode32_file(mainBM.options->pngfilenamefinal, mainBM.bitmap, mainBM.width, mainBM.height);
-	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
-
-	//Write KML file
-	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->kmlfilenamefinal);
-	WriteKMLFile(&mainBM);
-
-	bitmapDestroy(&mainBM);
-	fprintf(stdout, "Program finished.");
-	return 0;
-}
-
 int RationaliseOptions(OPTIONS *options)
 {
-	//north=options->north;
-	//south=options->south;
-	//west=options->west;
-	//east=options->east;
-
-	//width=options->width;
-	//height=options->height;
 
 	double tempdouble;
 	int testwidth;
@@ -511,15 +444,10 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	double gradient;
 	double xend,yend;
 	double intery;
-	//double xgap;
-	int xpxl1, ypxl1;	//these can be ints, as they're the pixels we go through one by one
-	int xpxl2, ypxl2;
 
 	double hypotenusethickness;
 	int x;
 
-	//based on the wikipedia article
-//	printf("Line: %f,%f to %f,%f [R%iG%iB%i]\r\n", x0,y0,x1,y1, c.R, c.G, c.B);
 	steep=(fabs(y1 - y0) > fabs(x1 - x0));	//if it's a steep line, swap the xs with the ys
 
 	if (steep)	{
@@ -542,25 +470,18 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	//clip the lines within 0 and width (remember this may be rotated 90 deg if steep)
 	if ((x0<0))	{
-		//printf("Line (%.2f, %.2f) to (%.2f, %.2f) %.4f\r\n",x0,y0,x1,y1,gradient);
 		y0-=gradient*x0; x0=0;
-		//printf("Line (%.2f, %.2f) to (%.2f, %.2f)\r\n",x0,y0,x1,y1);
 	}
 
 	if ((x1>(steep ? bm->height: bm->width)))	{
 		double yatend, yintercept;
 		yintercept = y0-gradient*x0;
 		yatend = gradient*(steep ? bm->height: bm->width)+yintercept;
-		//xintercept = yintercept/gradient*-1;
-		//printf("Far Line: %.1f,%.1f to %.1f,%.1f Grad: %.2f. yi%f\r\n", x0,y0,x1,y1, gradient, yintercept);
-		//printf(" %.1f, %.1f\r\n",(float)(steep ? bm->height: bm->width),yatend);
 		x1=(float)(steep ? bm->height: bm->width);y1=yatend;
-		//printf("Far Line: %.1f,%.1f to %.1f,%.1f Grad: %.2f. yi%f\r\n", x0,y0,x1,y1, gradient, yintercept);
 	}
 
 	if ((y0<0) && (y1<0))
 		return 0;
-
 
 	//these are used to construct thick lines, this is the above and the under part
 	int r,f;
@@ -591,62 +512,26 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	else
 		bitmapFilledCircle(bm,x0,y0,thickness/2,c);
 
-	//bitmapFilledCircle(bm,x1,y1,thickness/2,c);
-//return 0;
 
     xend = x0;
     yend = y0 + gradient * (xend - x0);
-//    xgap = rfpart(x0 + 0.5);
-    xpxl1 = xend;   //this will be used in the main loop
-    ypxl1 = ipart(yend);
+    int xpxl1 = xend;   //this will be used in the main loop
+    //int ypxl1 = ipart(yend);
 
-/*
+    intery = yend + gradient; // first y-intersection for the main loop
 
-//	rstrength = rfpart(yend) * 255;
-	fstrength = fpart(yend) * 255;
-	rstrength= 255^fstrength;
-
-			printf("%i %i\t",rstrength,fstrength);
-	 if (steep)	{
-		 plot(bm, ypxl1,   xpxl1, rstrength, c);
-		 plot(bm, ypxl1+1, xpxl1,  fstrength, c);
-		}
-     else	{
-         plot(bm, xpxl1, ypxl1  , rstrength, c);
-         plot(bm, xpxl1, ypxl1+1,  fstrength, c);
-		}
-
-*/
-     intery = yend + gradient; // first y-intersection for the main loop
-
-
-	     // handle second endpoint
+     // handle second endpoint
 	xend = round(x1);
     yend = y1 + gradient * (xend - x1);
-//    xgap = fpart(x1 + 0.5);
 
-    xpxl2 = x1; //this will be used in the main loop
+    int xpxl2 = x1; //this will be used in the main loop
 
 
-    ypxl2 = ipart(yend);
+//    int ypxl2 = ipart(yend);
 
-	//rstrength = rfpart(yend) * 255;
 	fstrength = fpart(yend) * 255;
 	rstrength= 255^fstrength;
-/*
-    if (steep)	{
-    	plot(bm, ypxl2  , xpxl2, rstrength, c);
-        plot(bm, ypxl2+1, xpxl2, fstrength, c);
 
-	}
-	else	{
-    	plot(bm, xpxl2, ypxl2, rstrength, c);
-        plot(bm, xpxl2, ypxl2+1, fstrength, c);
-		}
-*/
-
-    // main loop
-	//printf("x %i to %i\t", xpxl1, xpxl2);
 
 	xpxl1=x0; xpxl2=x1;
 	for (x = xpxl1 + 0;x<xpxl2+1;x++)	{
@@ -666,7 +551,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 			}
             plot(bm, x, ipart (intery)+f, fstrength, c);
 			}
-//			printf("i %f  f %f\r\n",ipart(intery), fpart(intery));
          intery = intery + gradient;
 	}
 
