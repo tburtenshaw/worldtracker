@@ -5,12 +5,21 @@ typedef struct sBitmap BM;
 typedef struct sOptions OPTIONS;
 typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
+typedef struct sHeatmap HEATMAP;
 
 struct sRGBAColour	{
 	unsigned char R;
 	unsigned char G;
 	unsigned char B;
 	unsigned char A;
+};
+
+struct sHeatmap	{
+	unsigned int * heatmappixels;
+	int width;
+	int height;
+	unsigned int maxtemp;
+	unsigned char *radius;
 };
 
 struct sOptions	{	//what we can get from the command line
@@ -48,10 +57,10 @@ struct sBitmap	{
 	int width;
 	int height;
 
-	double west;
-	double east;
-	double north;
-	double south;
+	//double west; //move to options
+	//double east;
+	//double north;
+	//double south;
 
 	double zoom;	//on a full map, this is the number of pixels per degree
 
@@ -61,6 +70,7 @@ struct sBitmap	{
 	int sizebitmap;
 
 	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
+	HEATMAP *heatmap;
 	unsigned long countPoints;	//the number of points plotted (statistics)
 };
 
@@ -102,7 +112,7 @@ int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
 
-int bitmapInit(BM* bm, int width, int height, double zoom, double north, double south, double west, double east);
+int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
 int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
@@ -117,11 +127,19 @@ int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
 
+int CreateHeatmap(BM* bm);
+int HeatmapAddPoint(HEATMAP *hm, int x, int y);
+int HeatmapToBitmap(BM *bm);
+int HeatmapPlot(BM* bm, LOCATIONHISTORY*lh);
+unsigned char HeatmapIntToCharNormalisedLog(unsigned int Temp);
+COLOUR HeatmapColour(unsigned char normalisedtemp);
+
+
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 COLOUR TimestampToRgb(long ts, long min, long max);
 
-int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y);	//lat, long, output point
+int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 
 double ipart(double x);
 double round(double x);

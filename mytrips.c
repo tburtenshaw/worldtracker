@@ -18,31 +18,14 @@ int main(int argc,char *argv[])
 {
 	BM	mainBM;
 	OPTIONS options;
-
-	double west;
-	double east;
-	double north;
-	double south;
-	double tempdouble;
-
-	int height, width;
-	int testwidth;
-	//int testheight;
-	double zoom;
-	COLOUR c;
-
 	LOCATIONHISTORY locationHistory;
 
-
 	int error;
-
 
 
 	//set vars to zero
 	memset(&options, 0, sizeof(options));	//set all the option results to 0
 	memset(&mainBM, 0, sizeof(mainBM));
-	mainBM.lh=&locationHistory;
-
 
 	//Display introductory text
 	PrintIntro(argv[0]);
@@ -50,158 +33,24 @@ int main(int argc,char *argv[])
 	//locationHistory.jsonfilename="LocationHistory.json";	//default
 
 	if (argc == 1)	PrintUsage(argv[0]);	//print usage instructions
-	HandleOptions(argc, argv, &options);
-
-
-	zoom=options.zoom;
-	north=options.north;
-	south=options.south;
-	west=options.west;
-	east=options.east;
-
-	width=options.width;
-	height=options.height;
-
-
+	HandleCLIOptions(argc, argv, &options);
 	PrintOptions(&options);
-
-	if (options.colourcycle==0) options.colourcycle = (60*60*24*183);
-
-	//Load appropriate filenames
-	MakeProperFilename(mainBM.pngfilename, options.pngfilename, "trips.png", "png");
-		char pngnoext[256];
-		char *period;
-
-
-	if (options.kmlfilename==NULL)	{
-		strcpy(&pngnoext[0], mainBM.pngfilename);	//copy the png filename
-		period=strrchr(pngnoext,'.');			//find the final period
-		*period=0;								//replace it with a null to end it
-		fprintf(stdout, "KML no ext: %s\r\n",pngnoext);
-		MakeProperFilename(mainBM.kmlfilename, pngnoext, "fallback.kml", "kml");
-	} else
-	{
-		MakeProperFilename(mainBM.kmlfilename, options.kmlfilename, "fallback.kml", "kml");
-	}
-
-	MakeProperFilename(mainBM.jsonfilename, options.jsonfilename, "LocationHistory.json", "json");
-	fprintf(stdout, "KML: %s\r\n",mainBM.kmlfilename);
-
-	//Set the zoom
-	if ((zoom<0.1) || (zoom>55))	{	//have to decide the limit, i've tested to 55
-		if (zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
-		zoom = 0;	//set to zero, then we'll calculate.
-	}
-
-	//if they're the wrong way around
-	if (east<west)	{tempdouble=east;east=west;west=tempdouble;}
-	if (north<south)	{tempdouble=north;north=south;south=tempdouble;}
-
-	//if they're strange
-	if ((east-west == 0) || (north-south==0) || (east-west>360) || (north-south>360))	{
-		west=-180;
-		east=180;
-		north=90;
-		south=-90;
-	}
-
-
-	if ((height==0) && (width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
-		if (zoom==0)	{zoom=10;}	//default zoom
-		width=360*zoom;
-		height= 180*zoom;
-	}	else
-	if (width==0)	{	//the haven't specified a width (but have a height)
-		width=height*(east-west)/(north-south);
-		if (width > MAX_DIMENSION)	{	//if we're oversizing it
-			width = MAX_DIMENSION;
-			height = width*(north-south)/(east-west);
-		}
-	}	else
-	if (height==0)	{	//the haven't specified a height (but have a width)
-			height=width*(north-south)/(east-west);
-			if (height > MAX_DIMENSION)	{	//if we're oversizing it
-				height = MAX_DIMENSION;
-				width=height*(east-west)/(north-south);
-			}
-	}
-
-
-	//test for strange rounding errors
-	if ((width==0) || (height==0) || (height > MAX_DIMENSION) || (width > MAX_DIMENSION))	{
-		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", width, height);
-		west=-180;
-		east=180;
-		north=90;
-		south=-90;
-		height=180;
-		width=360;
-	}
-
-	//if the aspect ratio of coords is different, set the width to be related to the
-	testwidth=height*(east-west)/(north-south);
-	if (testwidth != width)	{
-		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, width);
-		width=testwidth;
-	}
-
-	//then calculate how many pixels per degree
-	zoom=width/(east-west);
-	fprintf(stdout, "Zoom: %4.2f\r\n", zoom);
-
-	//Set the from and to times
-	if (options.totimestamp == 0)
-		options.totimestamp =-1;
-
-	//Set the thickness
-	options.thickness=1;
-	if (options.thickness == 0) options.thickness = 1+width/1000;
-
-
+	RationaliseOptions(&options);
 
 	//Initialise the bitmap
-	bitmapInit(&mainBM, width, height, zoom, north, south, west, east);
+	bitmapInit(&mainBM, &options, &locationHistory);
 
-	//Draw grid
-	c.R=192;c.G=192;c.B=192;c.A=128;
-	DrawGrid(&mainBM, options.gridsize, c);
+	DrawGrid(&mainBM);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 
 
-	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.jsonfilename);
-
-	LoadLocations(&locationHistory, &mainBM.jsonfilename[0]);
+	fprintf(stdout, "Loading locations from %s.\r\n", mainBM.options->jsonfilenamefinal);
+	LoadLocations(&locationHistory, &mainBM.options->jsonfilenamefinal[0]);
 
 	fprintf(stdout, "Plotting paths.\r\n");
-
-
-	//separate function now
 	PlotPaths(&mainBM, &locationHistory, &options);
-/*
-	coord=locationHistory.first;
-	while (coord)	{
+//	HeatmapPlot(&mainBM, &locationHistory);
 
-		c=TimestampToRgb(coord->timestampS, 0, options.colourcycle);	//about 6 month cycle
-		c.A=100;
-
-		if (coord->accuracy <200000 && coord->timestampS >= options.fromtimestamp && coord->timestampS <= options.totimestamp)	{
-			//draw a line from last point to the current one.
-			countPoints+= bitmapCoordLine(&mainBM, coord->latitude, coord->longitude, oldlat, oldlon,options.thickness, c);
-
-			oldlat=coord->latitude;oldlon=coord->longitude;
-
-		}
-
-		//Move onto the next appropriate coord
-		//?i'll move this outside the loop for speed reasons
-		if (zoom>10000)	coord=coord->next;
-		else if (zoom>1000) coord=coord->next10000ppd;
-		else if (zoom>100) coord=coord->next1000ppd;
-		else if (zoom>10) coord=coord->next100ppd;
-		else if (zoom>1) coord=coord->next10ppd;
-		else coord=coord->next1ppd;
-	}
-*/
 	fprintf(stdout, "Ploted lines between: %i points\r\n", mainBM.countPoints);
 	printf("From:\t%s\r\n", asctime(localtime(&locationHistory.earliesttimestamp)));
 	printf("To:\t%s\r\n", asctime(localtime(&locationHistory.latesttimestamp)));
@@ -210,16 +59,129 @@ int main(int argc,char *argv[])
 
 
 	//Write the PNG file
-	fprintf(stdout, "Writing to %s.\r\n", mainBM.pngfilename);
-	error = lodepng_encode32_file(mainBM.pngfilename, mainBM.bitmap, mainBM.width, mainBM.height);
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->pngfilenamefinal);
+	error = lodepng_encode32_file(mainBM.options->pngfilenamefinal, mainBM.bitmap, mainBM.width, mainBM.height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	//Write KML file
-	fprintf(stdout, "Writing to %s.\r\n", mainBM.kmlfilename);
+	fprintf(stdout, "Writing to %s.\r\n", mainBM.options->kmlfilenamefinal);
 	WriteKMLFile(&mainBM);
 
 	bitmapDestroy(&mainBM);
 	fprintf(stdout, "Program finished.");
+	return 0;
+}
+
+int RationaliseOptions(OPTIONS *options)
+{
+	//north=options->north;
+	//south=options->south;
+	//west=options->west;
+	//east=options->east;
+
+	//width=options->width;
+	//height=options->height;
+
+	double tempdouble;
+	int testwidth;
+
+
+	if (options->colourcycle==0) options->colourcycle = (60*60*24*183);
+
+	//Load appropriate filenames
+	MakeProperFilename(options->pngfilenamefinal, options->pngfilenameinput, "trips.png", "png");
+		char pngnoext[256];
+		char *period;
+
+
+	if (options->kmlfilenameinput==NULL)	{
+		strcpy(&pngnoext[0], options->pngfilenamefinal);	//copy the finalised png filename
+		period=strrchr(pngnoext,'.');			//find the final period
+		*period=0;								//replace it with a null to end it
+		fprintf(stdout, "KML no ext: %s\r\n",pngnoext);
+		MakeProperFilename(options->kmlfilenamefinal, pngnoext, "fallback.kml", "kml");
+	} else
+	{
+		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "fallback.kml", "kml");
+	}
+
+	MakeProperFilename(options->jsonfilenamefinal, options->jsonfilenameinput, "LocationHistory.json", "json");
+	fprintf(stdout, "JSON: %s\r\n",options->jsonfilenamefinal);
+	fprintf(stdout, "KML: %s\r\n",options->kmlfilenamefinal);
+
+	//Set the zoom
+	if ((options->zoom<0.1) || (options->zoom>55))	{	//have to decide the limit, i've tested to 55
+		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
+		options->zoom = 0;	//set to zero, then we'll calculate.
+	}
+
+	//if they're the wrong way around
+	if (options->east<options->west)	{tempdouble=options->east; options->east=options->west; options->west=tempdouble;}
+	if (options->north<options->south)	{tempdouble=options->north; options->north=options->south; options->south=tempdouble;}
+
+	//if they're strange
+	if ((options->east-options->west == 0) || (options->north-options->south==0) || (options->east-options->west>360) || (options->north-options->south>360))	{
+		options->west=-180;
+		options->east=180;
+		options->north=90;
+		options->south=-90;
+	}
+
+
+	if ((options->height==0) && (options->width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
+		if (options->zoom==0)	{options->zoom=10;}	//default zoom
+		options->width=360*options->zoom;
+		options->height= 180*options->zoom;
+	}	else
+	if (options->width==0)	{	//the haven't specified a width (but have a height)
+		options->width=options->height*(options->east-options->west)/(options->north-options->south);
+		if (options->width > MAX_DIMENSION)	{	//if we're oversizing it
+			options->width = MAX_DIMENSION;
+			options->height = options->width*(options->north - options->south)/(options->east - options->west);
+		}
+	}	else
+	if (options->height==0)	{	//the haven't specified a height (but have a width)
+			options->height=options->width*(options->north-options->south)/(options->east-options->west);
+			if (options->height > MAX_DIMENSION)	{	//if we're oversizing it
+				options->height = MAX_DIMENSION;
+				options->width=options->height*(options->east-options->west)/(options->north-options->south);
+			}
+	}
+
+
+	//test for strange rounding errors
+	if ((options->width==0) || (options->height==0) || (options->height > MAX_DIMENSION) || (options->width > MAX_DIMENSION))	{
+		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", options->width, options->height);
+		options->west=-180;
+		options->east=180;
+		options->north=90;
+		options->south=-90;
+		options->height=180;
+		options->width=360;
+	}
+
+	//if the aspect ratio of coords is different, set the width to be related to the
+	testwidth=options->height*(options->east-options->west)/(options->north-options->south);
+	if (testwidth != options->width)	{
+		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, options->width);
+		options->width=testwidth;
+	}
+
+	//then calculate how many pixels per degree
+	options->zoom=options->width/(options->east-options->west);
+	fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
+
+	//Set the from and to times
+	if (options->totimestamp == 0)
+		options->totimestamp =-1;
+
+	//Set the thickness
+	options->thickness=1;
+	if (options->thickness == 0) options->thickness = 1+options->width/1000;
+
+	//Grid colour
+	options->gridcolour.R=192;options->gridcolour.G=192;options->gridcolour.B=192;options->gridcolour.A=128;
+
 	return 0;
 }
 
@@ -233,19 +195,16 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	bm->countPoints=0;
 
 
-
 	coord=locationHistory->first;
 	while (coord)	{
 
-		c=TimestampToRgb(coord->timestampS, 0, options->colourcycle);	//about 6 month cycle
+		c=TimestampToRgb(coord->timestampS, 0, options->colourcycle);
 		c.A=100;
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
 			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon,options->thickness, c);
-
 			oldlat=coord->latitude;oldlon=coord->longitude;
-
 		}
 
 		//Move onto the next appropriate coord
@@ -257,10 +216,9 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		else if (bm->zoom>1) coord=coord->next10ppd;
 		else coord=coord->next1ppd;
 	}
+
 	return 0;
 }
-
-
 
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 {
@@ -427,25 +385,23 @@ int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
 };
 
 
-int bitmapInit(BM *bm, int xsize, int ysize, double zoom, double north, double south, double west, double east)
+int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
 {
 	char* bitmap;
 
-	bm->width=xsize;
-	bm->height=ysize;
-	bm->sizebitmap=xsize*ysize*4;
-	bm->zoom=zoom;
-	bm->north=north;
-	bm->south=south;
-	bm->west=west;
-	bm->east=east;
+	bm->width=options->width;
+	bm->height=options->height;
+	bm->sizebitmap=options->width*options->height*4;
+	bm->zoom=options->zoom;
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
 	//memset(bitmap, 0, bm->sizebitmap);
 
-	printf("New bitmap width: %i, height: %i\r\n", xsize, ysize);
+	printf("New bitmap width: %i, height: %i\r\n", options->width, options->height);
 
 	bm->bitmap=bitmap;
+	bm->options=options;
+	bm->lh=lh;
 
 	return 1;
 }
@@ -732,10 +688,10 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	//if it's flagged not to draw then return
 	if (lon2>360 || lon1>360) return 0;
 	//if the line is obviously out of the bounds of the bitmap then can return
-	if ((lon1 < bm->west) && (lon2 < bm->west))	return 0;
-	if ((lon1 > bm->east) && (lon2 > bm->east))	return 0;
-	if ((lat1 < bm->south) && (lat2 < bm->south))	return 0;
-	if ((lat1 > bm->north) && (lat2 > bm->north))	return 0;
+	if ((lon1 < bm->options->west) && (lon2 < bm->options->west))	return 0;
+	if ((lon1 > bm->options->east) && (lon2 > bm->options->east))	return 0;
+	if ((lat1 < bm->options->south) && (lat2 < bm->options->south))	return 0;
+	if ((lat1 > bm->options->north) && (lat2 > bm->options->north))	return 0;
 
 
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
@@ -851,12 +807,127 @@ int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 	width = bm->width;
 	height = bm->height;
 
-	*y=(bm->north - phi)/(bm->north-bm->south)*height;
-	*x=(lambda - bm->west)/(bm->east-bm->west)*width;
+	*y=(bm->options->north - phi)/(bm->options->north - bm->options->south)*height;
+	*x=(lambda - bm->options->west)/(bm->options->east - bm->options->west)*width;
 
 	return 0;
 }
 
+
+int CreateHeatmap(BM *bm)
+{
+	bm->heatmap = malloc(sizeof(HEATMAP));
+	bm->heatmap->heatmappixels = malloc(sizeof(unsigned int)*bm->width * bm->height);
+	memset(bm->heatmap->heatmappixels, 0,sizeof(unsigned int)*bm->width * bm->height);
+
+	bm->heatmap->maxtemp = 0;
+	bm->heatmap->width = bm->width;
+	bm->heatmap->height = bm->height;
+
+	return 1;
+}
+
+
+int HeatmapAddPoint(HEATMAP *hm, int x, int y)
+{
+	hm->heatmappixels[x+y*hm->width]+=16;
+
+	if (x>0) hm->heatmappixels[x-1+y*hm->width]+=8;
+	if (y>0) hm->heatmappixels[x+(y-1)*hm->width]+=8;
+	if (x<hm->height-1) hm->heatmappixels[x+1*hm->width]+=8;
+	if (y<hm->width-1) hm->heatmappixels[x+(y+1)*hm->width]+=8;
+
+
+
+	if (hm->heatmappixels[x+y*hm->width] > hm->maxtemp)	{
+		hm->maxtemp = hm->heatmappixels[x+y*hm->width];
+		}
+
+	return 1;
+
+}
+
+int HeatmapPlot(BM* bm, LOCATIONHISTORY*lh)
+{
+	LOCATION *coord;
+
+	double x,y;
+
+	CreateHeatmap(bm);
+
+	coord=lh->first;
+	while (coord)	{
+			LatLongToXY(bm,coord->latitude, coord->longitude, &x, &y);
+			//printf("%i %i\r\n", (int)x,(int)y);
+			if ((x>0) && (y>0) &&(x<bm->width) && (y<bm->height))	{
+				HeatmapAddPoint(bm->heatmap,(int)x,(int)y);
+			}
+		coord=coord->next;
+	}
+
+	HeatmapToBitmap(bm);
+	return 0;
+
+}
+
+unsigned char HeatmapIntToCharNormalisedLog(unsigned int Temp)
+{
+
+	if (Temp==0)	return 0;
+	unsigned char logs0to255[256] = {0, 15, 25, 31, 37, 41, 44, 47, 50, 52, 55, 57, 58, 60, 62, 63, 65, 66, 67, 68, 70, 71, 72, 73, 74, 74, 75, 76, 77, 78, 78, 79, 80, 81, 81, 82, 83, 83, 84, 84, 85, 85, 86, 87, 87, 88, 88, 89, 89, 89, 90, 90, 91, 91, 92, 92, 92, 93, 93, 94, 94, 94, 95, 95,
+95, 96, 96, 97, 97, 97, 98, 98, 98, 98, 99, 99, 99, 100, 100, 100, 101, 101, 101, 101, 102, 102, 102, 102, 103, 103, 103, 103, 104, 104, 104, 104, 105, 105, 105, 105, 106, 106, 106, 106, 107, 107, 107, 107, 107, 108, 108, 108, 108, 108, 109, 109, 109, 109, 109, 110, 110, 110, 110, 110, 111, 111, 111, 111, 111,
+121, 121, 121, 121, 121, 121, 121, 121, 121, 122, 122, 122, 122, 122, 122, 122, 122, 122, 123, 123, 123, 123, 123, 123, 123, 123, 123, 124, 124, 124, 124, 124, 124, 124, 124, 124, 124, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 127, 127, 127, 127, 127, 127};
+	printf("t: %i ", Temp);
+
+	if (Temp<256)
+		return logs0to255[Temp];
+
+
+			return 0;
+}
+
+
+
+int HeatmapToBitmap(BM *bm)
+{
+	HEATMAP *hm;
+	hm=bm->heatmap;
+	unsigned char hue;
+	double huecalc;
+	double logmaxtemp;
+
+	if (!hm->maxtemp)
+		return 0;
+
+	//logmaxtemp=		log((double)hm->maxtemp);
+
+	hm->maxtemp = 500;
+	printf(	"mt: %i", hm->maxtemp);
+
+	for (int y=0; y<bm->height; y++)	{
+		for (int x=0; x<bm->width; x++)	{
+			if (hm->heatmappixels[x+y* hm->width] > 0)	{
+				//huecalc = log((double)hm->heatmappixels[x+y* hm->width]) * 166.0 / logmaxtemp;
+				//hue=(unsigned char)huecalc;
+//				printf("%4.2f %4.2f %i\r\n", log((double)hm->heatmappixels[x+y* hm->width]), log((double)hm->maxtemp), hue);
+
+				bitmapPixelSet(bm, x, y, HeatmapColour(
+					HeatmapIntToCharNormalisedLog(hm->heatmappixels[x + y*hm->width] * (2^16-1)/hm->maxtemp)
+					));
+			}
+		}
+	}
+
+	return 1;
+}
+
+
+COLOUR HeatmapColour(unsigned char normalisedtemp)	{
+	COLOUR rgb;
+	rgb	= HsvToRgb(normalisedtemp*166/255, 255 ,255, 255);
+
+	return rgb;
+}
 
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a)
@@ -927,12 +998,17 @@ COLOUR TimestampToRgb(long ts, long min, long max)
 }
 
 
-int DrawGrid(BM* bm, int spacing, COLOUR c)
+int DrawGrid(BM* bm)
 {
 	//int i;
 	int lat, lon;
 	double x1,y1;
 	double x2,y2;
+
+	int spacing;
+	COLOUR c;
+	spacing=bm->options->gridsize;
+	c=bm->options->gridcolour;
 
 	if ((spacing==0) || (spacing>180))
 		return 0;
@@ -988,18 +1064,18 @@ int WriteKMLFile(BM* bm)
 	strftime (sStartTime,80,"%B %Y",localtime(&bm->lh->earliesttimestamp));
 	strftime (sEndTime,80,"%B %Y",localtime(&bm->lh->latesttimestamp));
 
-	kml=fopen(bm->kmlfilename,"w");
+	kml=fopen(bm->options->kmlfilenamefinal,"w");
 	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
 	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
 	fprintf(kml, "<GroundOverlay>\r\n");
-	fprintf(kml, "<name>Your journey</name>\r\n");
+	fprintf(kml, "<name>Your journey - %s</name>\r\n",bm->options->title);
 	fprintf(kml, "<description>From %s to %s</description>\r\n", sStartTime, sEndTime);
-	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->pngfilename);
+	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->options->pngfilenamefinal);
     fprintf(kml, "<LatLonBox>\r\n");
-	fprintf(kml, "<north>%f</north>\r\n",bm->north);
-	fprintf(kml, "<south>%f</south>\r\n",bm->south);
-	fprintf(kml, "<east>%f</east>\r\n",bm->east);
-	fprintf(kml, "<west>%f</west>\r\n",bm->west);
+	fprintf(kml, "<north>%f</north>\r\n",bm->options->north);
+	fprintf(kml, "<south>%f</south>\r\n",bm->options->south);
+	fprintf(kml, "<east>%f</east>\r\n",bm->options->east);
+	fprintf(kml, "<west>%f</west>\r\n",bm->options->west);
 	fprintf(kml, "<rotation>0</rotation>\r\n");
 	fprintf(kml, "</LatLonBox>\r\n");
 	fprintf(kml, "</GroundOverlay>\r\n");
@@ -1013,7 +1089,7 @@ int WriteKMLFile(BM* bm)
 
 int LoadPreset(OPTIONS *options, char *preset)
 {
-	#define PRESET_COUNT 48
+	#define PRESET_COUNT 52
 	#define MAX_PRESET_LENGTH 32
 
 	char preset_name[PRESET_COUNT][MAX_PRESET_LENGTH];
@@ -1022,6 +1098,9 @@ int LoadPreset(OPTIONS *options, char *preset)
 	double preset_west[PRESET_COUNT];
 	double preset_east[PRESET_COUNT];
 	int i;
+
+	sprintf(options->title, "%s", preset);
+	fprintf(stdout, "Preset: %s\r\n", options->title);
 
 	//This way's going to be easier to convert to an external file
 	strcpy(preset_name[0],"nz"); preset_north[0]=-34;	preset_south[0]=-47.5;	preset_west[0]=166; preset_east[0]=178.5;
@@ -1066,7 +1145,10 @@ strcpy(preset_name[44],"arkansas"); preset_north[44]= 36.5;	preset_south[44]= 33
 strcpy(preset_name[45],"lasvegas"); preset_north[45]= 36.35;	preset_south[45]= 35.9;	preset_west[45]=-115.35; preset_east[45]=-114.7;
 strcpy(preset_name[46],"oceania"); preset_north[46]= 35;	preset_south[46]= -50;	preset_west[46]=-220; preset_east[46]=-110;
 strcpy(preset_name[47],"fiji"); preset_north[47]= -15.5;	preset_south[47]= -21.14;	preset_west[47]=176.77; preset_east[47]=182.08;
-
+strcpy(preset_name[48],"montreal"); preset_north[48]=  45.711;	preset_south[48]=  45.373;	preset_west[48]=-73.99; preset_east[48]=-73.374;
+strcpy(preset_name[49],"southeastasia"); preset_north[49]= 29;	preset_south[49]= -11;	preset_west[49]=91; preset_east[49]=128;
+strcpy(preset_name[50],"th"); preset_north[50]= 20.5;	preset_south[50]= 5.5;	preset_west[50]=97; preset_east[50]=106;
+strcpy(preset_name[51],"florida"); preset_north[51]= 31;	preset_south[51]= 24.4;	preset_west[51]=-87.65; preset_east[51]=-80;
 
 	for (i=0;i<PRESET_COUNT;i++)	{
 		if (!stricmp(preset,preset_name[i]))	{
