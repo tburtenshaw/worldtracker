@@ -345,6 +345,18 @@ int bitmapDestroy(BM *bm)
 	return 0;
 }
 
+COLOUR bitmapPixelGet(BM* bm, int x, int y)
+{
+	COLOUR c;
+
+	c.R = bm->bitmap[(x+y* bm->width) *4];
+	c.G = bm->bitmap[(x+y* bm->width) *4+1];
+	c.B = bm->bitmap[(x+y* bm->width) *4+2];
+	c.A = bm->bitmap[(x+y* bm->width) *4+3];
+
+	return c;
+}
+
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 {
 	COLOUR currentC;
@@ -371,7 +383,7 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 	return 1;
 }
 
-int mixColours(COLOUR *cCanvas, COLOUR *cBrush)
+int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 {
 
 	int r,g,b,a;

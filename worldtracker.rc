@@ -1,0 +1,45 @@
+/* Wedit generated resource file */
+#ifdef __LCC__
+#include <windows.h>
+#endif
+#include "worldtrackerres.h"
+
+IDB_OVERVIEW BITMAP "world.topo.200412.3x360x180.bmp"
+
+IDD_ABOUT DIALOG 6, 18, 180, 180
+STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "About your application"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "Close", IDOK, 129, 156, 40, 14
+END
+IDMAINMENU MENU
+BEGIN
+    POPUP "&File"
+        BEGIN
+        MENUITEM "&New", IDM_NEW
+        MENUITEM "&Open", IDM_OPEN
+        MENUITEM "&Export", IDM_SAVE
+        MENUITEM "E&xit", IDM_EXIT
+        END
+    POPUP "&Help"
+        BEGIN
+        MENUITEM "&About", IDM_ABOUT
+        END
+END
+300 ACCELERATORS
+BEGIN
+    81, 300, VIRTKEY, CONTROL 
+END
+STRINGTABLE
+BEGIN
+    200, "Creates a new document"
+    210, "Opens an existing document"
+    220, "Saves the active document"
+    230, "Saves the active document under a different name"
+    240, "Closes the active document"
+    300, "Quits this application"
+    500, "Displays information about this application"
+    2000, "Create, open, save, or print documents"
+    2010, "Get help"
+END

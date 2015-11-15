@@ -1,4 +1,9 @@
 /* This contains all the functions that are shared between the command line and Windows program */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
 
 typedef struct sRGBAColour COLOUR;
 typedef struct sBitmap BM;
@@ -30,9 +35,9 @@ struct sOptions	{	//what we can get from the command line
 	char jsonfilenamefinal[256];	//this actually holds the filename we'll use
 	char pngfilenamefinal[256];	//this actually holds the filename we'll use
 	char kmlfilenamefinal[256];	//this actually holds the filename we'll use
-	
+
 	char title[256];
-		
+
 	int width;
 	int height;
 
@@ -65,7 +70,7 @@ struct sBitmap	{
 	double zoom;	//on a full map, this is the number of pixels per degree
 
 	OPTIONS *options;
-	
+
 	char *bitmap;	//always going to be a four channel RGBA bitmap now
 	int sizebitmap;
 
@@ -114,6 +119,7 @@ int WriteKMLFile(BM* bm);
 
 int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
+COLOUR bitmapPixelGet(BM* bm, int x, int y);
 int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c);
