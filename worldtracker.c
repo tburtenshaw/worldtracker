@@ -17,10 +17,13 @@ void cleanD3D(void);    // closes Direct3D and releases memory
 */
 
 
-LOCATIONHISTORY locationHistory;
+LOCATIONHISTORY * locationHistory;	//note this is different than the command line program which doesn't use a pointer
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
-HWND hWndMap;
+HWND hwndOverview;
+
+HBITMAP hbmOverview;
+
 
 BM mainBM;
 OPTIONS options;
@@ -29,6 +32,9 @@ OPTIONS options;
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 HWND  hWndStatusbar;
+
+HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
+
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -209,12 +215,16 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		GetFileName(JSONfilename,sizeof(JSONfilename));
 		memset(&options, 0, sizeof(options));	//set all the option results to 0
 		memset(&mainBM, 0, sizeof(mainBM));
-
-		LoadLocations(&locationHistory, JSONfilename);
+		locationHistory = malloc(sizeof(locationHistory));
+		LoadLocations(locationHistory, JSONfilename);
 		options.height=180;options.width=360;
 		RationaliseOptions(&options);
-		bitmapInit(&mainBM, &options, &locationHistory);
-		PlotPaths(&mainBM, &locationHistory, &options);
+		bitmapInit(&mainBM, &options, locationHistory);
+		PlotPaths(&mainBM, locationHistory, &options);
+
+		DeleteObject(hbmOverview);
+		hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
+		InvalidateRect(hwndOverview,NULL, 0);
 
 		break;
 
@@ -228,33 +238,27 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	}
 }
 
-int DrawMap(HWND hwnd, LOCATIONHISTORY lh)
+HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 {
-	HDC hdc;
-	HDC memDC;
 	HBITMAP bitmap;
-	PAINTSTRUCT ps;
 	BITMAPINFO bi;
 	BYTE * bits;
-
 	int x;
 	int y;
 	COLOUR c;
+	COLOUR d;	//window colour
 
 	int result;
 
-	hdc= BeginPaint(hwnd, &ps);
-	memDC = CreateCompatibleDC(hdc);
 
-//	bitmap = CreateCompatibleBitmap(hdc, 360, 180);
-	SetPixel(hdc,10,10,RGB(255,100,0));
-
+	printf("hwnd: %i, hdc: %i\r\n",hwnd,hdc);
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
 	memset(&bi, 0, sizeof(bi));
 	bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
 
+	if (lh==NULL)	return bitmap;
 
-	result = GetDIBits(memDC,bitmap,0,180, NULL, &bi,DIB_RGB_COLORS);	//get the info
+	result = GetDIBits(hdc,bitmap,0,180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
 	printf("getDIBits1: %i\r\n", result);
 	printf("bi.height: %i\t", bi.bmiHeader.biHeight);
@@ -262,23 +266,25 @@ int DrawMap(HWND hwnd, LOCATIONHISTORY lh)
 	printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
 
 
-
 	bits=malloc(bi.bmiHeader.biSizeImage);
 
-	result = GetDIBits(memDC, bitmap, 0, 180, bits, &bi, DIB_RGB_COLORS);	//get the bitmap location
+	result = GetDIBits(hdc, bitmap, 0, 180, bits, &bi, DIB_RGB_COLORS);	//get the bitmap location
 	printf("getDIBits2: %i\r\n", result);
 
 
 	for (y=0;y<180;y++)	{
-		//printf("%i",y);
 		for (x=0;x<360;x++)	{
-			//printf("%X",bits[x+y*360*3+0]);
-			//bits[x*3+y*360*3+0] = 255;
 			c= bitmapPixelGet(&mainBM, x,y);
-			if (c.A>16) {
-				bits[x*3+(180-y-1)*360*3+0] = c.B;
-				bits[x*3+(180-y-1)*360*3+1] = c.G;
-				bits[x*3+(180-y-1)*360*3+2] = c.R;
+			if (c.A>0) {	//don't bother if there's not a visible pixel
+				d.B=bits[x*3+(180-y-1)*360*3+0];
+				d.G=bits[x*3+(180-y-1)*360*3+1];
+				d.R=bits[x*3+(180-y-1)*360*3+2];
+
+				mixColours(&d, &c);
+
+				bits[x*3+(180-y-1)*360*3+0] = d.B;
+				bits[x*3+(180-y-1)*360*3+1] = d.G;
+				bits[x*3+(180-y-1)*360*3+2] = d.R;
 			}
 		}
 	}
@@ -286,31 +292,44 @@ int DrawMap(HWND hwnd, LOCATIONHISTORY lh)
 
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
 	printf("setDIBits: %i", result);
+	free(&bits);
 
-	SelectObject(memDC, bitmap);
+
+	return bitmap;
+}
+
+int DrawMap(HWND hwnd, LOCATIONHISTORY * lh)
+{
+	HDC hdc;
+	HDC memDC;
+	PAINTSTRUCT ps;
+
+	hdc= BeginPaint(hwnd, &ps);
+	memDC = CreateCompatibleDC(hdc);
+
+
+	SetPixel(hdc,10,10,RGB(255,100,0));
+
+//	hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), lh);
+
+	HGDIOBJ oldBitmap = SelectObject(memDC, hbmOverview);
 	BitBlt(hdc,0, 0, 360, 180, memDC, 0, 0, SRCCOPY);
+	SelectObject(memDC, oldBitmap);
 
-
-
-/*
-	for (y=0;y<180;y++)	{
-		for (x=0;x<360;x++)	{
-			c= bitmapPixelGet(&mainBM, x,y);
-			if (c.A>0) SetPixel(hdc,x,y, RGB(c.R, c.G, c.B));
-		}
-	}
-*/
-
-	DeleteObject(bitmap);
+//	DeleteObject(hbmOverview);
 	DeleteDC(hdc);
 	EndPaint(hwnd, &ps);
-	free(&bits);
+
 	return 0;
 }
 
 LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
+		case WM_CREATE:
+			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
+			break;
+
 		case WM_PAINT:
 			DrawMap(hwnd, locationHistory);
 			break;
@@ -324,7 +343,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
 	case WM_CREATE:
-		hWndMap = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, 0,0,360, 180, hwnd,NULL,hInst,NULL);
+		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, 0,0,360, 180, hwnd,NULL,hInst,NULL);
+		locationHistory = NULL;
 		break;
 
 	case WM_SIZE:
