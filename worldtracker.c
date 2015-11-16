@@ -6,15 +6,17 @@
 #include "worldtrackerres.h"
 #include "mytrips.h"
 
-/*
-LPDIRECT3D8 d3d;
-LPDIRECT3DDEVICE8 d3ddev;    // the pointer to the device class
 
-// function prototypes
-void initD3D(HWND hWnd);    // sets up and initializes Direct3D
-int render_frame(void);    // renders a single frame
-void cleanD3D(void);    // closes Direct3D and releases memory
-*/
+#define OVERVIEW_WIDTH 360
+#define OVERVIEW_HEIGHT 180
+#define TEXT_HEIGHT 20
+#define TEXT_DEFAULT_WIDTH 110
+#define MARGIN 10
+
+#define ID_EDITNORTH 1001
+#define ID_EDITSOUTH 1002
+#define ID_EDITWEST 1003
+#define ID_EDITEAST 1004
 
 
 LOCATIONHISTORY * locationHistory;	//note this is different than the command line program which doesn't use a pointer
@@ -22,7 +24,21 @@ HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
 HWND hwndOverview;
 
-HBITMAP hbmOverview;
+//The dialog hwnds
+HWND hwndStaticFilename;
+
+HWND hwndStaticNorth;
+HWND hwndStaticSouth;
+HWND hwndStaticWest;
+HWND hwndStaticEast;
+
+HWND hwndEditNorth;
+HWND hwndEditSouth;
+HWND hwndEditWest;
+HWND hwndEditEast;
+
+
+HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 
 
 BM mainBM;
@@ -204,36 +220,84 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {	char JSONfilename[MAX_PATH];
 
 	switch(id) {
-		// ---TODO--- Add new menu commands here
-		/*@@NEWCOMMANDS@@*/
 		case IDM_ABOUT:
 			DialogBox(hInst,MAKEINTRESOURCE(IDD_ABOUT),
 				hWndMain,AboutDlg);
 			break;
 
 		case IDM_OPEN:
-		GetFileName(JSONfilename,sizeof(JSONfilename));
-		memset(&options, 0, sizeof(options));	//set all the option results to 0
-		memset(&mainBM, 0, sizeof(mainBM));
-		locationHistory = malloc(sizeof(locationHistory));
-		LoadLocations(locationHistory, JSONfilename);
-		options.height=180;options.width=360;
-		RationaliseOptions(&options);
-		bitmapInit(&mainBM, &options, locationHistory);
-		PlotPaths(&mainBM, locationHistory, &options);
+			GetFileName(JSONfilename,sizeof(JSONfilename));
+			memset(&options, 0, sizeof(options));	//set all the option results to 0
+			memset(&mainBM, 0, sizeof(mainBM));
+			if (locationHistory!=NULL)	//free any old one
+				free(locationHistory);
+			locationHistory = malloc(sizeof(locationHistory));
+			LoadLocations(locationHistory, JSONfilename);
+			options.height=180;options.width=360;
+			RationaliseOptions(&options);
+			bitmapInit(&mainBM, &options, locationHistory);
+			PlotPaths(&mainBM, locationHistory, &options);
 
-		DeleteObject(hbmOverview);
-		hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
-		InvalidateRect(hwndOverview,NULL, 0);
+			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
+			InvalidateRect(hwndOverview,NULL, 0);
+
+			char buffer[256];
+			sprintf(buffer,"%s", options.jsonfilenamefinal);
+			SetWindowText(hwndStaticFilename, buffer);
+
+			sprintf(buffer,"%f", options.north);
+			SetWindowText(hwndEditNorth, buffer);
+			sprintf(buffer,"%f", options.south);
+			SetWindowText(hwndEditSouth, buffer);
+			sprintf(buffer,"%f", options.west);
+			SetWindowText(hwndEditWest, buffer);
+			sprintf(buffer,"%f", options.east);
+			SetWindowText(hwndEditEast, buffer);
 
 		break;
 
 		case IDM_SAVE:
-
+			printf("Writing to %s.\r\n", mainBM.options->kmlfilenamefinal);
+			WriteKMLFile(&mainBM);
 		break;
 
 		case IDM_EXIT:
 		PostMessage(hwnd,WM_CLOSE,0,0);
+		break;
+
+		case ID_EDITNORTH:
+		case ID_EDITSOUTH:
+		case ID_EDITEAST:
+		case ID_EDITWEST:
+			switch (codeNotify)	{
+				case EN_CHANGE:
+					char szText[128];
+					SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+					double a=atof(szText);
+
+					switch (id)	{
+						case ID_EDITNORTH:
+						if ((a >= -90) && (a<=90))
+							options.north=a;
+						break;
+						case ID_EDITSOUTH:
+						if ((a >= -90) && (a<=90))
+							options.south=a;
+						break;
+						case ID_EDITWEST:
+						if ((a >= -180) && (a<=180))	{
+							options.west=a;
+							printf("west %f", a);
+						}
+						break;
+						case ID_EDITEAST:
+						if ((a >= -180) && (a<=180))
+							options.east=a;
+						break;
+					}
+					InvalidateRect(hwndOverview, NULL, FALSE);
+					break;
+			}
 		break;
 	}
 }
@@ -250,6 +314,9 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	int result;
 
+	if (hbmOverview!=NULL)	{
+		DeleteObject(hbmOverview);
+	}
 
 	printf("hwnd: %i, hdc: %i\r\n",hwnd,hdc);
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
@@ -303,20 +370,39 @@ int DrawMap(HWND hwnd, LOCATIONHISTORY * lh)
 	HDC hdc;
 	HDC memDC;
 	PAINTSTRUCT ps;
+	HGDIOBJ oldBitmap;
+
+	//for the NSWE lines
+	HPEN hPen;
+	HPEN hPenOld;
 
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
 
-
-	SetPixel(hdc,10,10,RGB(255,100,0));
-
-//	hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), lh);
-
-	HGDIOBJ oldBitmap = SelectObject(memDC, hbmOverview);
+	oldBitmap = SelectObject(memDC, hbmOverview);
 	BitBlt(hdc,0, 0, 360, 180, memDC, 0, 0, SRCCOPY);
 	SelectObject(memDC, oldBitmap);
 
-//	DeleteObject(hbmOverview);
+
+	hPen = CreatePen(PS_SOLID, 1, RGB(192,192,192));
+	hPenOld = (HPEN)SelectObject(hdc, hPen);
+
+	MoveToEx(hdc, 0, 90-options.north, NULL);
+	LineTo(hdc, OVERVIEW_WIDTH, 90-options.north);
+	MoveToEx(hdc, 0, 90-options.south, NULL);
+	LineTo(hdc, OVERVIEW_WIDTH, 90-options.south);
+
+	MoveToEx(hdc, options.west+180, 0, NULL);
+	LineTo(hdc, options.west+180, OVERVIEW_HEIGHT);
+	MoveToEx(hdc, options.east+180, 0, NULL);
+	LineTo(hdc, options.east+180, OVERVIEW_HEIGHT);
+
+
+
+	SelectObject(hdc, hPenOld);
+	DeleteObject(hPen);
+
+
 	DeleteDC(hdc);
 	EndPaint(hwnd, &ps);
 
@@ -327,6 +413,7 @@ LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
 		case WM_CREATE:
+			hbmOverview = NULL;
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
 			break;
 
@@ -343,8 +430,32 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
 	case WM_CREATE:
-		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, 0,0,360, 180, hwnd,NULL,hInst,NULL);
+		//make things null
 		locationHistory = NULL;
+		int y=MARGIN;
+		//now create child windows
+		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH*3+MARGIN*2, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+		//overview Window
+		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, MARGIN, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
+		y+=MARGIN+OVERVIEW_HEIGHT;
+		//dialog
+		hwndStaticNorth = CreateWindow("Static","North:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndEditNorth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITNORTH, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+
+		hwndStaticSouth = CreateWindow("Static","South:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndEditSouth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITSOUTH, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+
+		hwndStaticWest = CreateWindow("Static","West:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndEditWest = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITWEST, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+
+		hwndStaticEast = CreateWindow("Static","East:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndEditEast = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEAST, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+
 		break;
 
 	case WM_SIZE:
@@ -387,46 +498,3 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return msg.wParam;
 }
 
-/*
-//DirectX stuff
-void initD3D(HWND hWnd)
-{
-    HRESULT hResult;
-	d3d = Direct3DCreate8(D3D_SDK_VERSION);    // create the Direct3D interface
-	//printf("%i", (long)d3d);
-
-    D3DPRESENT_PARAMETERS d3dpp;    // create a struct to hold various device information
-
-    ZeroMemory(&d3dpp, sizeof(D3DPRESENT_PARAMETERS));    // clear out the struct for use
-    d3dpp.Windowed = TRUE;    // program windowed, not fullscreen
-    d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
-    d3dpp.hDeviceWindow = hWnd;    // set the window to be used
-
-    //hResult = d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &d3ddev);
-	hResult = d3d->CreateDevice( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hWnd,	D3DCREATE_SOFTWARE_VERTEXPROCESSING,
-									&d3dpp, &d3ddev ) ;
-	printf("result: %i, ok: %i, bad:%i %i\r\n",hResult, D3D_OK,D3DERR_INVALIDCALL, D3DERR_NOTAVAILABLE);
-
-
-	printf("initiatedD3D");
-}
-
-int render_frame(void)
-{
-	HRESULT hr;
-    //return 1;
-	// clear the window to a deep blue
-	hr= d3ddev->Clear(0, NULL, D3DCLEAR_TARGET,D3DCOLOR_XRGB(0, 40, 100), 1.0, 0);
-	printf("result %i",hr);
-	printf("2");
-    d3ddev->BeginScene();    // begins the 3D scene
-
-    // do 3D rendering on the back buffer here
-	printf("3");
-    d3ddev->EndScene();    // ends the 3D scene
-	printf("4");
-    d3ddev->Present(NULL, NULL, NULL, NULL);    // displays the created frame
-	printf("5");
-	return 5;
-}
-*/
