@@ -328,7 +328,6 @@ int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
 	bm->zoom=options->zoom;
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
-	//memset(bitmap, 0, bm->sizebitmap);
 
 	printf("New bitmap width: %i, height: %i\r\n", options->width, options->height);
 

@@ -5,13 +5,19 @@
 #include <d3d8.h>
 #include "worldtrackerres.h"
 #include "mytrips.h"
-
+#include "lodepng.h"
 
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
+#define MARGIN 12
 #define TEXT_HEIGHT 20
-#define TEXT_DEFAULT_WIDTH 110
-#define MARGIN 10
+#define TEXT_WIDTH_QUARTER (OVERVIEW_WIDTH-3*MARGIN)/4
+#define TEXT_WIDTH_THIRD (OVERVIEW_WIDTH-2*MARGIN)/3
+#define TEXT_WIDTH_HALF (OVERVIEW_WIDTH-MARGIN)/2
+#define TEXT_WIDTH_QSHORT TEXT_WIDTH_QUARTER-MARGIN
+#define TEXT_WIDTH_QLONG TEXT_WIDTH_QUARTER+MARGIN
+
+
 
 #define ID_EDITNORTH 1001
 #define ID_EDITSOUTH 1002
@@ -19,10 +25,13 @@
 #define ID_EDITEAST 1004
 
 
-LOCATIONHISTORY * locationHistory;	//note this is different than the command line program which doesn't use a pointer
+LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
 HWND hwndOverview;
+
+HWND  hWndStatusbar;
+
 
 //The dialog hwnds
 HWND hwndStaticFilename;
@@ -37,20 +46,25 @@ HWND hwndEditSouth;
 HWND hwndEditWest;
 HWND hwndEditEast;
 
+HWND hwndStaticPreset;
+HWND hwndEditPreset;
+
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 
 
-BM mainBM;
-OPTIONS options;
+BM overviewBM;
+//BM preview BM;
 
+
+OPTIONS optionsOverview;
+//OPTIONS optionsPreview;
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-HWND  hWndStatusbar;
-
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
 
+int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -170,6 +184,13 @@ int GetFileName(char *buffer,int buflen)
 static BOOL InitApplication(void)
 {
 	WNDCLASS wc;
+
+	memset(&locationHistory,0,sizeof(locationHistory));
+
+
+
+
+
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
 	wc.lpfnWndProc = (WNDPROC)MainWndProc;
@@ -226,39 +247,39 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 
 		case IDM_OPEN:
-			GetFileName(JSONfilename,sizeof(JSONfilename));
-			memset(&options, 0, sizeof(options));	//set all the option results to 0
-			memset(&mainBM, 0, sizeof(mainBM));
-			if (locationHistory!=NULL)	//free any old one
-				free(locationHistory);
-			locationHistory = malloc(sizeof(locationHistory));
-			LoadLocations(locationHistory, JSONfilename);
-			options.height=180;options.width=360;
-			RationaliseOptions(&options);
-			bitmapInit(&mainBM, &options, locationHistory);
-			PlotPaths(&mainBM, locationHistory, &options);
+			if (GetFileName(JSONfilename,sizeof(JSONfilename))==0)
+				return;
+			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
+			memset(&overviewBM, 0, sizeof(overviewBM));
+			printf("Freeing Locations");
+			FreeLocations(&locationHistory);	//first free any locations
 
-			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
+			LoadLocations(&locationHistory, JSONfilename);
+			optionsOverview.height=180;optionsOverview.width=360;
+			RationaliseOptions(&optionsOverview);
+			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
+			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
+
+			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			InvalidateRect(hwndOverview,NULL, 0);
 
 			char buffer[256];
-			sprintf(buffer,"%s", options.jsonfilenamefinal);
+			sprintf(buffer,"%s", optionsOverview.jsonfilenamefinal);
 			SetWindowText(hwndStaticFilename, buffer);
 
-			sprintf(buffer,"%f", options.north);
+			sprintf(buffer,"%f", optionsOverview.north);
 			SetWindowText(hwndEditNorth, buffer);
-			sprintf(buffer,"%f", options.south);
+			sprintf(buffer,"%f", optionsOverview.south);
 			SetWindowText(hwndEditSouth, buffer);
-			sprintf(buffer,"%f", options.west);
+			sprintf(buffer,"%f", optionsOverview.west);
 			SetWindowText(hwndEditWest, buffer);
-			sprintf(buffer,"%f", options.east);
+			sprintf(buffer,"%f", optionsOverview.east);
 			SetWindowText(hwndEditEast, buffer);
 
 		break;
 
 		case IDM_SAVE:
-			printf("Writing to %s.\r\n", mainBM.options->kmlfilenamefinal);
-			WriteKMLFile(&mainBM);
+			ExportKMLDialogAndComplete(hwnd, &optionsOverview, &locationHistory);
 		break;
 
 		case IDM_EXIT:
@@ -278,21 +299,21 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 					switch (id)	{
 						case ID_EDITNORTH:
 						if ((a >= -90) && (a<=90))
-							options.north=a;
+							optionsOverview.north=a;
 						break;
 						case ID_EDITSOUTH:
 						if ((a >= -90) && (a<=90))
-							options.south=a;
+							optionsOverview.south=a;
 						break;
 						case ID_EDITWEST:
 						if ((a >= -180) && (a<=180))	{
-							options.west=a;
+							optionsOverview.west=a;
 							printf("west %f", a);
 						}
 						break;
 						case ID_EDITEAST:
 						if ((a >= -180) && (a<=180))
-							options.east=a;
+							optionsOverview.east=a;
 						break;
 					}
 					InvalidateRect(hwndOverview, NULL, FALSE);
@@ -301,6 +322,46 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 	}
 }
+
+
+int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
+{
+	OPTIONS optionsExport;
+	BM exportBM;
+	int error;
+
+	//Create export options
+	memset(&optionsExport, 0, sizeof(optionsExport));
+	optionsExport.width=1000;
+	optionsExport.height=1000;
+	//get the NSWE from the overview
+	optionsExport.north=o->north;
+	optionsExport.south=o->south;
+	optionsExport.west=o->west;
+	optionsExport.east=o->east;
+
+	memcpy(&optionsExport.kmlfilenamefinal, &o->kmlfilenamefinal, sizeof(o->kmlfilenamefinal));
+	memcpy(&optionsExport.pngfilenamefinal, &o->pngfilenamefinal, sizeof(o->kmlfilenamefinal));
+	RationaliseOptions(&optionsExport);
+
+	bitmapInit(&exportBM, &optionsExport, &locationHistory);
+	DrawGrid(&exportBM);
+	PlotPaths(&exportBM, &locationHistory, &optionsExport);
+
+	printf("png:%s, w:%i, h:%i size:%i\r\n",exportBM.options->pngfilenamefinal, exportBM.width, exportBM.height, exportBM.sizebitmap);
+	error = lodepng_encode32_file(exportBM.options->pngfilenamefinal, exportBM.bitmap, exportBM.width, exportBM.height);
+	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
+//	bitmapWrite(&exportBM, "test.raw");
+	//Write KML file
+	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
+	WriteKMLFile(&exportBM);
+	bitmapDestroy(&exportBM);
+
+
+	return 0;
+}
+
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 {
@@ -318,12 +379,11 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 		DeleteObject(hbmOverview);
 	}
 
-	printf("hwnd: %i, hdc: %i\r\n",hwnd,hdc);
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
 	memset(&bi, 0, sizeof(bi));
 	bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
 
-	if (lh==NULL)	return bitmap;
+	if (lh->first==NULL)	return bitmap;
 
 	result = GetDIBits(hdc,bitmap,0,180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
@@ -341,7 +401,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	for (y=0;y<180;y++)	{
 		for (x=0;x<360;x++)	{
-			c= bitmapPixelGet(&mainBM, x,y);
+			c= bitmapPixelGet(&overviewBM, x,y);
 			if (c.A>0) {	//don't bother if there's not a visible pixel
 				d.B=bits[x*3+(180-y-1)*360*3+0];
 				d.G=bits[x*3+(180-y-1)*360*3+1];
@@ -387,15 +447,15 @@ int DrawMap(HWND hwnd, LOCATIONHISTORY * lh)
 	hPen = CreatePen(PS_SOLID, 1, RGB(192,192,192));
 	hPenOld = (HPEN)SelectObject(hdc, hPen);
 
-	MoveToEx(hdc, 0, 90-options.north, NULL);
-	LineTo(hdc, OVERVIEW_WIDTH, 90-options.north);
-	MoveToEx(hdc, 0, 90-options.south, NULL);
-	LineTo(hdc, OVERVIEW_WIDTH, 90-options.south);
+	MoveToEx(hdc, 0, 90-optionsOverview.north, NULL);
+	LineTo(hdc, OVERVIEW_WIDTH, 90-optionsOverview.north);
+	MoveToEx(hdc, 0, 90-optionsOverview.south, NULL);
+	LineTo(hdc, OVERVIEW_WIDTH, 90-optionsOverview.south);
 
-	MoveToEx(hdc, options.west+180, 0, NULL);
-	LineTo(hdc, options.west+180, OVERVIEW_HEIGHT);
-	MoveToEx(hdc, options.east+180, 0, NULL);
-	LineTo(hdc, options.east+180, OVERVIEW_HEIGHT);
+	MoveToEx(hdc, optionsOverview.west+180, 0, NULL);
+	LineTo(hdc, optionsOverview.west+180, OVERVIEW_HEIGHT);
+	MoveToEx(hdc, optionsOverview.east+180, 0, NULL);
+	LineTo(hdc, optionsOverview.east+180, OVERVIEW_HEIGHT);
 
 
 
@@ -414,11 +474,11 @@ LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	switch (msg) {
 		case WM_CREATE:
 			hbmOverview = NULL;
-			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), locationHistory);
+			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			break;
 
 		case WM_PAINT:
-			DrawMap(hwnd, locationHistory);
+			DrawMap(hwnd, &locationHistory);
 			break;
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -430,30 +490,35 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
 	case WM_CREATE:
-		//make things null
-		locationHistory = NULL;
 		int y=MARGIN;
+		int x=MARGIN;
 		//now create child windows
-		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH*3+MARGIN*2, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 		//overview Window
-		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, MARGIN, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
+		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
 		y+=MARGIN+OVERVIEW_HEIGHT;
 		//dialog
-		hwndStaticNorth = CreateWindow("Static","North:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		hwndEditNorth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITNORTH, hInst, NULL);
+		hwndStaticNorth = CreateWindow("Static","North:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditNorth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITNORTH, hInst, NULL);
+//		y+=MARGIN+TEXT_HEIGHT;
+		x+=MARGIN+TEXT_WIDTH_QLONG;
+		hwndStaticSouth = CreateWindow("Static","South:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditSouth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITSOUTH, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
 
-		hwndStaticSouth = CreateWindow("Static","South:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		hwndEditSouth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITSOUTH, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
+		hwndStaticWest = CreateWindow("Static","West:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditWest = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITWEST, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QLONG;
+		//y+=MARGIN+TEXT_HEIGHT;
 
-		hwndStaticWest = CreateWindow("Static","West:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		hwndEditWest = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, 20, hwnd, (HMENU)ID_EDITWEST, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
-
-		hwndStaticEast = CreateWindow("Static","East:", WS_CHILD | WS_VISIBLE | WS_BORDER, MARGIN, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		hwndEditEast = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, TEXT_DEFAULT_WIDTH+MARGIN*2, y, TEXT_DEFAULT_WIDTH, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEAST, hInst, NULL);
+		hwndStaticEast = CreateWindow("Static","East:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditEast = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEAST, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 
 		break;
@@ -486,7 +551,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (!InitApplication())
 		return 0;
 	hAccelTable = LoadAccelerators(hInst,MAKEINTRESOURCE(IDACCEL));
-	hWndMain = CreateWindow("worldtrackerWndClass","worldtracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
+	hWndMain = CreateWindow("worldtrackerWndClass","WorldTracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
 	CreateSBar(hWndMain,"Ready",1);
 	ShowWindow(hWndMain,SW_SHOW);
 	while (GetMessage(&msg,NULL,0,0)) {

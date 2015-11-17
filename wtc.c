@@ -35,7 +35,6 @@ int main(int argc,char *argv[])
 
 	//Initialise the bitmap
 	bitmapInit(&mainBM, &options, &locationHistory);
-
 	DrawGrid(&mainBM);
 	//ColourWheel(mainBM, 100, 100, 100, 5);  	//Color wheel test of lines and antialiasing
 

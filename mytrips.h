@@ -62,11 +62,6 @@ struct sBitmap	{
 	int width;
 	int height;
 
-	//double west; //move to options
-	//double east;
-	//double north;
-	//double south;
-
 	double zoom;	//on a full map, this is the number of pixels per degree
 
 	OPTIONS *options;
