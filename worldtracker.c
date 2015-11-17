@@ -16,22 +16,25 @@
 #define TEXT_WIDTH_HALF (OVERVIEW_WIDTH-MARGIN)/2
 #define TEXT_WIDTH_QSHORT TEXT_WIDTH_QUARTER-MARGIN
 #define TEXT_WIDTH_QLONG TEXT_WIDTH_QUARTER+MARGIN
-
+#define TEXT_WIDTH_THREEQUARTERS (OVERVIEW_WIDTH-TEXT_WIDTH_QUARTER-MARGIN)
 
 
 #define ID_EDITNORTH 1001
 #define ID_EDITSOUTH 1002
 #define ID_EDITWEST 1003
 #define ID_EDITEAST 1004
+#define ID_EDITPRESET 1005
+#define ID_EDITEXPORTWIDTH 1006
+#define ID_EDITEXPORTHEIGHT 1007
 
 
 LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
 HWND hwndOverview;
+HWND hwndPreview;
 
 HWND  hWndStatusbar;
-
 
 //The dialog hwnds
 HWND hwndStaticFilename;
@@ -49,29 +52,40 @@ HWND hwndEditEast;
 HWND hwndStaticPreset;
 HWND hwndEditPreset;
 
+HWND hwndStaticExportHeading;
+HWND hwndStaticExportWidth;
+HWND hwndEditExportWidth;
+HWND hwndStaticExportHeight;
+HWND hwndEditExportHeight;
+
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
-
+HBITMAP hbmPreview;
 
 BM overviewBM;
-//BM preview BM;
+BM previewBM;
 
 
 OPTIONS optionsOverview;
-//OPTIONS optionsPreview;
+OPTIONS optionsPreview;
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
+HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
+
+int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
+int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
+int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+
+int UpdateHWNDsFromOptions(OPTIONS * o);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
-    SendMessage(hWndStatusbar,
-                SB_SETTEXT,
-                partNumber | displayFlags,
-                (LPARAM)lpszStatusString);
+    SendMessage(hWndStatusbar, SB_SETTEXT, partNumber | displayFlags, (LPARAM)lpszStatusString);
 }
 
 
@@ -185,12 +199,12 @@ static BOOL InitApplication(void)
 {
 	WNDCLASS wc;
 
+	//Set locationHistory to NULL
 	memset(&locationHistory,0,sizeof(locationHistory));
+	memset(&previewBM,0,sizeof(previewBM));
 
 
-
-
-
+	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
 	wc.lpfnWndProc = (WNDPROC)MainWndProc;
@@ -203,13 +217,25 @@ static BOOL InitApplication(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
-	//The Map window class
+	//The Overview window class
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
-	wc.lpfnWndProc = (WNDPROC)MapWndProc;
+	wc.lpfnWndProc = (WNDPROC)OverviewWndProc;
 	wc.hInstance = hInst;
 	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-	wc.lpszClassName = "MapClass";
+	wc.lpszClassName = "OverviewClass";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
+	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	if (!RegisterClass(&wc))
+		return 0;
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)PreviewWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	wc.lpszClassName = "PreviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
 	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
@@ -262,20 +288,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			InvalidateRect(hwndOverview,NULL, 0);
-
-			char buffer[256];
-			sprintf(buffer,"%s", optionsOverview.jsonfilenamefinal);
-			SetWindowText(hwndStaticFilename, buffer);
-
-			sprintf(buffer,"%f", optionsOverview.north);
-			SetWindowText(hwndEditNorth, buffer);
-			sprintf(buffer,"%f", optionsOverview.south);
-			SetWindowText(hwndEditSouth, buffer);
-			sprintf(buffer,"%f", optionsOverview.west);
-			SetWindowText(hwndEditWest, buffer);
-			sprintf(buffer,"%f", optionsOverview.east);
-			SetWindowText(hwndEditEast, buffer);
-
+			UpdateHWNDsFromOptions(&optionsOverview);
 		break;
 
 		case IDM_SAVE:
@@ -290,37 +303,74 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITSOUTH:
 		case ID_EDITEAST:
 		case ID_EDITWEST:
-			switch (codeNotify)	{
-				case EN_CHANGE:
-					char szText[128];
-					SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-					double a=atof(szText);
-
-					switch (id)	{
-						case ID_EDITNORTH:
-						if ((a >= -90) && (a<=90))
-							optionsOverview.north=a;
-						break;
-						case ID_EDITSOUTH:
-						if ((a >= -90) && (a<=90))
-							optionsOverview.south=a;
-						break;
-						case ID_EDITWEST:
-						if ((a >= -180) && (a<=180))	{
-							optionsOverview.west=a;
-							printf("west %f", a);
-						}
-						break;
-						case ID_EDITEAST:
-						if ((a >= -180) && (a<=180))
-							optionsOverview.east=a;
-						break;
-					}
-					InvalidateRect(hwndOverview, NULL, FALSE);
-					break;
-			}
+		case ID_EDITPRESET:
+			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
 		break;
 	}
+}
+
+int UpdateHWNDsFromOptions(OPTIONS * o)
+{
+	char buffer[256];
+	sprintf(buffer,"%s", o->jsonfilenamefinal);
+	SetWindowText(hwndStaticFilename, buffer);
+
+	sprintf(buffer,"%f", o->north);
+	SetWindowText(hwndEditNorth, buffer);
+	sprintf(buffer,"%f", o->south);
+	SetWindowText(hwndEditSouth, buffer);
+	sprintf(buffer,"%f", o->west);
+	SetWindowText(hwndEditWest, buffer);
+	sprintf(buffer,"%f", o->east);
+	SetWindowText(hwndEditEast, buffer);
+
+	return 0;
+}
+
+int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	char szText[128];
+
+	switch (codeNotify)	{
+	case EN_CHANGE:
+		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+		double a=atof(szText);
+			switch (id)	{
+			case ID_EDITNORTH:
+				if ((a >= -90) && (a<=90))
+					optionsOverview.north=a;
+			break;
+			case ID_EDITSOUTH:
+				if ((a >= -90) && (a<=90))
+					optionsOverview.south=a;
+			break;
+			case ID_EDITWEST:
+				if ((a >= -180) && (a<=180))	{
+					optionsOverview.west=a;
+					printf("west %f", a);
+					InvalidateRect(hwnd, NULL, TRUE);
+				}
+			break;
+			case ID_EDITEAST:
+				if ((a >= -180) && (a<=180))
+					optionsOverview.east=a;
+			break;
+		}
+
+	case EN_KILLFOCUS:
+		switch (id)	{
+			case ID_EDITPRESET:
+				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+				LoadPreset(&optionsOverview, szText);
+				UpdateHWNDsFromOptions(&optionsOverview);
+				InvalidateRect(hwndOverview, NULL, FALSE);
+				break;
+		}
+	break;
+	}
+
+
+	return 0;
 }
 
 
@@ -387,7 +437,6 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	result = GetDIBits(hdc,bitmap,0,180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
-	printf("getDIBits1: %i\r\n", result);
 	printf("bi.height: %i\t", bi.bmiHeader.biHeight);
 	printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
 	printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
@@ -396,8 +445,6 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	bits=malloc(bi.bmiHeader.biSizeImage);
 
 	result = GetDIBits(hdc, bitmap, 0, 180, bits, &bi, DIB_RGB_COLORS);	//get the bitmap location
-	printf("getDIBits2: %i\r\n", result);
-
 
 	for (y=0;y<180;y++)	{
 		for (x=0;x<360;x++)	{
@@ -418,14 +465,13 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
-	printf("setDIBits: %i", result);
 	free(&bits);
 
 
 	return bitmap;
 }
 
-int DrawMap(HWND hwnd, LOCATIONHISTORY * lh)
+int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 {
 	HDC hdc;
 	HDC memDC;
@@ -469,22 +515,173 @@ int DrawMap(HWND hwnd, LOCATIONHISTORY * lh)
 	return 0;
 }
 
-LRESULT CALLBACK MapWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
 		case WM_CREATE:
-			hbmOverview = NULL;
+			hbmOverview = NULL;		//set to null, as it deletes the object if not
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			break;
 
 		case WM_PAINT:
-			DrawMap(hwnd, &locationHistory);
+			PaintOverview(hwnd, &locationHistory);
 			break;
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
 	return 0;
 }
+
+LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (msg) {
+		case WM_CREATE:
+			hbmPreview = NULL;
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory);
+			break;
+
+		case WM_PAINT:
+			PaintPreview(hwnd, &locationHistory);
+			break;
+		case WM_LBUTTONDOWN:
+			printf("lbutton");
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory);
+			break;
+		default:
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+	return 0;
+}
+
+int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
+{
+	HDC hdc;
+	HDC memDC;
+	PAINTSTRUCT ps;
+	HGDIOBJ oldBitmap;
+
+	RECT clientRect;
+	int width, height;
+
+//	GetClientRect(hwnd, &clientRect);
+//	width=clientRect.right-clientRect.left;
+//	height=clientRect.bottom-clientRect.top;
+	width=optionsPreview.width;
+	height=optionsPreview.height;
+
+	hdc= BeginPaint(hwnd, &ps);
+	memDC = CreateCompatibleDC(hdc);
+
+	oldBitmap = SelectObject(memDC, hbmPreview);
+	BitBlt(hdc,0, 0, width, height, memDC, 0, 0, SRCCOPY);
+	SelectObject(memDC, oldBitmap);
+
+	DeleteDC(hdc);
+	EndPaint(hwnd, &ps);
+
+
+	return 0;
+}
+
+HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
+{
+	RECT clientRect;
+	HBITMAP bitmap;
+	BITMAPINFO bmi;
+	BYTE * bits;
+	int width, height;
+	int x;
+	int y;
+	COLOUR c;
+	COLOUR d;	//window colour
+
+	int needsRedraw;
+
+	needsRedraw = 1;
+
+	if (hbmPreview!=NULL)	{
+		DeleteObject(hbmPreview);
+	}
+
+	GetClientRect(hwnd, &clientRect);
+	width=clientRect.right-clientRect.left;
+	height=clientRect.bottom-clientRect.top;
+
+	printf("starting width: %i\r\n", width);
+
+	//Set the size from the window, if it's changed, definitely needs redraw
+	if (optionsPreview.width != width)	{
+		optionsPreview.width = width;
+		needsRedraw = 1;
+	}
+
+	if (optionsPreview.height =! height)	{
+		optionsPreview.height = height;
+		needsRedraw = 1;
+	}
+
+	//Get the options from the preview
+	if (optionsPreview.north != optionsOverview.north)	{
+		optionsPreview.north =optionsOverview.north;
+		needsRedraw = 1;
+	}
+	if (optionsPreview.south != optionsOverview.south)	{
+		optionsPreview.south =optionsOverview.south;
+		needsRedraw = 1;
+	}
+	if (optionsPreview.west != optionsOverview.west)	{
+		optionsPreview.west =optionsOverview.west;
+		needsRedraw = 1;
+	}
+	if (optionsPreview.east != optionsOverview.east)	{
+		optionsPreview.east =optionsOverview.east;
+		needsRedraw = 1;
+	}
+
+	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
+		if (previewBM.bitmap)	{
+			bitmapDestroy(&previewBM);
+		}
+		RationaliseOptions(&optionsPreview);
+		optionsPreview.width =width;
+		height = optionsPreview.height;
+		bitmapInit(&previewBM, &optionsPreview, &locationHistory);
+		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
+	}
+	printf("Finishing width: %i\r\n", width);
+
+	memset(&bmi, 0, sizeof(bmi));
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height; // top-down
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 24;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
+
+	int b=0;
+	for (y=0;y<height;y++)	{
+		for (x=0;x<width;x++)	{
+			c= bitmapPixelGet(&previewBM, x, y);
+			d.R=d.G=d.B=0;
+			mixColours(&d, &c);
+			bits[b] =d.B;	b++;
+			bits[b] =d.G;	b++;
+			bits[b] =d.R;	b++;
+		}
+		b+=(4-b%4);	//this rounds to next WORD
+		printf(" %i ", b%4);
+
+	}
+
+
+//	SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, optionsPreview.width, optionsPreview.height, SWP_NOMOVE);
+	InvalidateRect(hwnd, NULL, FALSE);
+	return bitmap;
+}
+
+
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
@@ -496,17 +693,17 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 		//overview Window
-		hwndOverview = CreateWindow("MapClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
+		hwndOverview = CreateWindow("OverviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
 		y+=MARGIN+OVERVIEW_HEIGHT;
 		//dialog
 		hwndStaticNorth = CreateWindow("Static","North:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
-		hwndEditNorth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITNORTH, hInst, NULL);
+		hwndEditNorth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITNORTH, hInst, NULL);
 //		y+=MARGIN+TEXT_HEIGHT;
 		x+=MARGIN+TEXT_WIDTH_QLONG;
 		hwndStaticSouth = CreateWindow("Static","South:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
-		hwndEditSouth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITSOUTH, hInst, NULL);
+		hwndEditSouth = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITSOUTH, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
 
@@ -520,6 +717,28 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
 		hwndEditEast = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEAST, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
+		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=TEXT_WIDTH_QUARTER+ MARGIN;
+		hwndEditPreset = CreateWindow("Edit", "Type a place",  WS_CHILD | WS_VISIBLE|WS_BORDER, x,y,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITPRESET, hInst, NULL);
+
+		//Now the right hand side
+		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
+		y=MARGIN;
+		hwndStaticExportHeading = CreateWindow("Static","Export information", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=TEXT_WIDTH_QUARTER+MARGIN;
+		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
+		x+=TEXT_WIDTH_QUARTER+MARGIN;
+		hwndStaticExportHeight = CreateWindow("Static","Height:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=TEXT_WIDTH_QUARTER+MARGIN;
+		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
+
+		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+
 
 		break;
 

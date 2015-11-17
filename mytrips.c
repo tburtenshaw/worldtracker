@@ -341,6 +341,7 @@ int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
 int bitmapDestroy(BM *bm)
 {
 	free(bm->bitmap);
+	bm->bitmap = NULL;
 	return 0;
 }
 
@@ -984,7 +985,7 @@ int WriteKMLFile(BM* bm)
 
 int LoadPreset(OPTIONS *options, char *preset)
 {
-	#define PRESET_COUNT 52
+	#define PRESET_COUNT 53
 	#define MAX_PRESET_LENGTH 32
 
 	char preset_name[PRESET_COUNT][MAX_PRESET_LENGTH];
@@ -1044,6 +1045,7 @@ strcpy(preset_name[48],"montreal"); preset_north[48]=  45.711;	preset_south[48]=
 strcpy(preset_name[49],"southeastasia"); preset_north[49]= 29;	preset_south[49]= -11;	preset_west[49]=91; preset_east[49]=128;
 strcpy(preset_name[50],"th"); preset_north[50]= 20.5;	preset_south[50]= 5.5;	preset_west[50]=97; preset_east[50]=106;
 strcpy(preset_name[51],"florida"); preset_north[51]= 31;	preset_south[51]= 24.4;	preset_west[51]=-87.65; preset_east[51]=-80;
+strcpy(preset_name[52],"world"); preset_north[52]= 90;	preset_south[52]= -90;	preset_west[52]=-180; preset_east[52]=180;
 
 	for (i=0;i<PRESET_COUNT;i++)	{
 		if (!stricmp(preset,preset_name[i]))	{
