@@ -388,8 +388,13 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 
 	int r,g,b,a;
 
+
+	if ((cBrush->A)==0)	{//if we're painting with a transparent brush, just return
+		return 1;
+	}
 	//first work out the alpha
-	a=cCanvas->A+cBrush->A;
+	//a=cCanvas->A + cBrush->A;
+	a=cBrush->A + (cCanvas->A * (255 - cBrush->A))/255;	//proper way to do it, it's not simply additive
 	if (a>255)
 			a = 255;
 
@@ -397,12 +402,30 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 
 		//printf("r%i g%i b%i a%i + r%i g%i b%i a%i = ",cCanvas->R,cCanvas->G,cCanvas->B,cCanvas->A, cBrush->R,cBrush->G,cBrush->B,cBrush->A);
 
+/*
 		r = (cCanvas->R*(255-cBrush->A)+cBrush->R*cBrush->A);	//mix proportionally to the max alpha
 		g = (cCanvas->G*(255-cBrush->A)+cBrush->G*cBrush->A);
 		b = (cCanvas->B*(255-cBrush->A)+cBrush->B*cBrush->A);
 		r/=a;
 		g/=a;
 		b/=a;
+		*/
+
+		//New way
+		//This is essentially doing the RGB function in https://en.wikipedia.org/wiki/Alpha_compositing
+		//I rearranged equation in wolfram alpha to take care of the fact by alphas are between 0 and 255
+		//And ensured that minimal divisions were done.
+		r = (255*cBrush->R * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->R) + (255*cCanvas->A * cCanvas->R);
+		r /=255;
+		r /=a;
+
+		g = (255*cBrush->G * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->G) + (255*cCanvas->A * cCanvas->G);
+		g /=255;
+		g /=a;
+
+		b = (255*cBrush->B * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->B) + (255*cCanvas->A * cCanvas->B);
+		b /=255;
+		b /=a;
 
 		if (r>255)	r=255;
 		if (g>255)	g=255;
@@ -410,8 +433,15 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 		//printf("r%i g%i b%i a%i\r\n",r,g,b,a);
 
 	}
-		else
-	return 0;
+	else	{	//if there's no alpha in the output, then remove all colour
+		printf("no alpha");
+		cCanvas->R=0;
+		cCanvas->G=0;
+		cCanvas->B=0;
+		cCanvas->A=0;
+		return 0;
+	}
+
 
 	//set the canvas
 	cCanvas->R=r;
@@ -419,6 +449,32 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 	cCanvas->B=b;
 	cCanvas->A=a;
 	return 1;
+
+/*
+	double rs,gs,bs,as;
+	double rd,gd,bd,ad;
+	double ro,go,bo,ao;
+	as = cBrush->A;	rs = cBrush->R;		gs = cBrush->G;	bs = cBrush->B;
+	as=as/255;
+
+	ad = cCanvas->A;	rd = cCanvas->R;		gd = cCanvas->G;	bd = cCanvas->B;
+	ad=ad/255;
+
+	ao = as+ad*(1-as);
+	ro = (rs*as + rd*ad*(1-as))/ao;
+	go = (gs*as + gd*ad*(1-as))/ao;
+	bo = (bs*as + bd*ad*(1-as))/ao;
+
+	if ((as>0) &&(as<1))
+		printf("A: %f %f %f\t",as, ad, ao);
+
+	cCanvas->R = (int)ro;
+	cCanvas->G = (int)go;
+	cCanvas->B = (int)bo;
+	cCanvas->A = (int)ao*255;
+
+	return 1;
+	*/
 }
 
 int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)

@@ -595,9 +595,9 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	COLOUR c;
 	COLOUR d;	//window colour
 
-	int needsRedraw;
+	int needsRedraw;	//whether we need to recalculate the BM
 
-	needsRedraw = 1;
+	needsRedraw = 0;
 
 	if (hbmPreview!=NULL)	{
 		DeleteObject(hbmPreview);
@@ -639,6 +639,7 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	}
 
 	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
+		printf("redraw");
 		if (previewBM.bitmap)	{
 			bitmapDestroy(&previewBM);
 		}
@@ -676,7 +677,7 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	}
 
 
-//	SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, optionsPreview.width, optionsPreview.height, SWP_NOMOVE);
+	//SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, width, height, SWP_NOMOVE);
 	InvalidateRect(hwnd, NULL, FALSE);
 	return bitmap;
 }
