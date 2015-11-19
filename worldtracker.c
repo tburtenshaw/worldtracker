@@ -73,7 +73,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
-HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
+HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRedraw);
 
 int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
@@ -285,9 +285,9 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			RationaliseOptions(&optionsOverview);
 			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
 			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
-
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			InvalidateRect(hwndOverview,NULL, 0);
+			InvalidateRect(hwndPreview, NULL, 0);
 			UpdateHWNDsFromOptions(&optionsOverview);
 		break;
 
@@ -333,6 +333,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 	switch (codeNotify)	{
 	case EN_CHANGE:
+		InvalidateRect(hwndPreview, NULL, 0);
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 		double a=atof(szText);
 			switch (id)	{
@@ -537,7 +538,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	switch (msg) {
 		case WM_CREATE:
 			hbmPreview = NULL;
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory);
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
 
 		case WM_PAINT:
@@ -545,7 +546,8 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			break;
 		case WM_LBUTTONDOWN:
 			printf("lbutton");
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory);
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			InvalidateRect(hwndPreview,NULL, 0);
 			break;
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -563,6 +565,8 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	RECT clientRect;
 	int width, height;
 
+	hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 0);
+
 //	GetClientRect(hwnd, &clientRect);
 //	width=clientRect.right-clientRect.left;
 //	height=clientRect.bottom-clientRect.top;
@@ -574,6 +578,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
 	BitBlt(hdc,0, 0, width, height, memDC, 0, 0, SRCCOPY);
+	//printf("blt:%i ",hbmPreview);
 	SelectObject(memDC, oldBitmap);
 
 	DeleteDC(hdc);
@@ -583,7 +588,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	return 0;
 }
 
-HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
+HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRedraw)
 {
 	RECT clientRect;
 	HBITMAP bitmap;
@@ -599,15 +604,22 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	needsRedraw = 0;
 
-	if (hbmPreview!=NULL)	{
-		DeleteObject(hbmPreview);
+	if (forceRedraw)
+		needsRedraw = 1;
+
+	if (hbmPreview==NULL)	{
+		needsRedraw = 1;
+		printf("hbmPreview is null");
+	}
+
+	if (!previewBM.bitmap)	{
+		needsRedraw = 1;
+		printf("no bitmap");
 	}
 
 	GetClientRect(hwnd, &clientRect);
 	width=clientRect.right-clientRect.left;
 	height=clientRect.bottom-clientRect.top;
-
-	printf("starting width: %i\r\n", width);
 
 	//Set the size from the window, if it's changed, definitely needs redraw
 	if (optionsPreview.width != width)	{
@@ -638,8 +650,15 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 		needsRedraw = 1;
 	}
 
+	/*
+	if (needsRedraw==0)	{
+		//printf("doesn't need redraw\r\n");
+		return hbmPreview;
+	}
+*/
+	printf("starting width: %i\r\n", width);
 	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
-		printf("redraw");
+		printf("redraw\r\n");
 		if (previewBM.bitmap)	{
 			bitmapDestroy(&previewBM);
 		}
@@ -651,6 +670,13 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	}
 	printf("Finishing width: %i\r\n", width);
 
+		RationaliseOptions(&optionsPreview);
+	if (hbmPreview!=NULL)	{
+		DeleteObject(hbmPreview);
+		//printf("Deleted old Preview HBITMAP\r\n");
+	}
+
+	printf("Creating bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = width;
@@ -660,7 +686,6 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	bmi.bmiHeader.biCompression = BI_RGB;
 
 	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
-
 	int b=0;
 	for (y=0;y<height;y++)	{
 		for (x=0;x<width;x++)	{
@@ -669,16 +694,15 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 			mixColours(&d, &c);
 			bits[b] =d.B;	b++;
 			bits[b] =d.G;	b++;
-			bits[b] =d.R;	b++;
+			bits[b] =d.R+x%4*(16*y/height);	b++;
 		}
 		b+=(4-b%4);	//this rounds to next WORD
-		printf(" %i ", b%4);
-
 	}
 
 
 	//SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, width, height, SWP_NOMOVE);
-	InvalidateRect(hwnd, NULL, FALSE);
+	//InvalidateRect(hwnd, NULL, FALSE);
+	//printf("New HBM %i\r\n", bitmap);
 	return bitmap;
 }
 
