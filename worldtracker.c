@@ -650,12 +650,12 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 		needsRedraw = 1;
 	}
 
-	/*
+
 	if (needsRedraw==0)	{
 		//printf("doesn't need redraw\r\n");
 		return hbmPreview;
 	}
-*/
+
 	printf("starting width: %i\r\n", width);
 	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
 		printf("redraw\r\n");
