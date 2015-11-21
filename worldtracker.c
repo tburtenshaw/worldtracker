@@ -27,12 +27,36 @@
 #define ID_EDITEXPORTWIDTH 1006
 #define ID_EDITEXPORTHEIGHT 1007
 
+//these don't really need to be the bearing, but I thought it would be easier
+#define D_NORTH 0
+#define D_SOUTH 180
+#define D_WEST 270
+#define D_EAST 90
+
+typedef struct sMovebar MOVEBARINFO;
+
+struct sMovebar	{
+	int direction;
+	float position;
+	COLORREF colour;
+};
 
 LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
-HWND hwndOverview;
+HWND hwndOverview;	//The overview is also used to hold the positions to be drawn and exported
 HWND hwndPreview;
+
+//The bars that can be moved to set the viewport
+HWND hwndOverviewMovebarNorth;
+HWND hwndOverviewMovebarSouth;
+HWND hwndOverviewMovebarEast;
+HWND hwndOverviewMovebarWest;
+//each of these windows has the same windowproc, so the WindowLongPtr is set to some info
+MOVEBARINFO mbiNorth;
+MOVEBARINFO mbiSouth;
+MOVEBARINFO mbiEast;
+MOVEBARINFO mbiWest;
 
 HWND  hWndStatusbar;
 
@@ -58,13 +82,14 @@ HWND hwndEditExportWidth;
 HWND hwndStaticExportHeight;
 HWND hwndEditExportHeight;
 
-
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
 
 BM overviewBM;
 BM previewBM;
 
+POINT mousePoint;
+BOOL mouseDrag;
 
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
@@ -72,6 +97,10 @@ OPTIONS optionsPreview;
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
+LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
+
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
 HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRedraw);
 
@@ -81,7 +110,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
-int UpdateHWNDsFromOptions(OPTIONS * o);
+int UpdateEditboxesFromOptions(OPTIONS * o);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -206,7 +235,7 @@ static BOOL InitApplication(void)
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
+	wc.style = 0;
 	wc.lpfnWndProc = (WNDPROC)MainWndProc;
 	wc.hInstance = hInst;
 	wc.hbrBackground = (HBRUSH)(COLOR_WINDOW+1);
@@ -219,10 +248,10 @@ static BOOL InitApplication(void)
 
 	//The Overview window class
 	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
+	wc.style = CS_DBLCLKS;
 	wc.lpfnWndProc = (WNDPROC)OverviewWndProc;
 	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
 	wc.lpszClassName = "OverviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
@@ -230,14 +259,29 @@ static BOOL InitApplication(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+	//The Preview window class
 	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_HREDRAW|CS_VREDRAW |CS_DBLCLKS ;
+	wc.style = CS_DBLCLKS ;
 	wc.lpfnWndProc = (WNDPROC)PreviewWndProc;
 	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
 	wc.lpszClassName = "PreviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
+	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	if (!RegisterClass(&wc))
+		return 0;
+
+	//The class for movable bar to select position in Overview
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)OverviewMovebarWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "OverviewMovebarClass";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL,IDC_SIZEWE);
 	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
 	if (!RegisterClass(&wc))
 		return 0;
@@ -288,7 +332,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 			InvalidateRect(hwndOverview,NULL, 0);
 			InvalidateRect(hwndPreview, NULL, 0);
-			UpdateHWNDsFromOptions(&optionsOverview);
+			UpdateEditboxesFromOptions(&optionsOverview);
 		break;
 
 		case IDM_SAVE:
@@ -309,7 +353,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	}
 }
 
-int UpdateHWNDsFromOptions(OPTIONS * o)
+int UpdateEditboxesFromOptions(OPTIONS * o)
 {
 	char buffer[256];
 	sprintf(buffer,"%s", o->jsonfilenamefinal);
@@ -327,43 +371,49 @@ int UpdateHWNDsFromOptions(OPTIONS * o)
 	return 0;
 }
 
+int UpdateBarsFromOptions(OPTIONS * o)
+{
+
+	return 0;
+}
+
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
 	char szText[128];
+	double value;	//to hold the textbox value
 
 	switch (codeNotify)	{
 	case EN_CHANGE:
 		InvalidateRect(hwndPreview, NULL, 0);
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-		double a=atof(szText);
-			switch (id)	{
-			case ID_EDITNORTH:
-				if ((a >= -90) && (a<=90))
-					optionsOverview.north=a;
-			break;
+		value=atof(szText);
+		switch (id)	{
+		case ID_EDITNORTH:
+			if ((value >= -90) && (value<=90))
+				optionsOverview.north=value;
+		break;
 			case ID_EDITSOUTH:
-				if ((a >= -90) && (a<=90))
-					optionsOverview.south=a;
+				if ((value >= -90) && (value<=90))
+					optionsOverview.south=value;
 			break;
 			case ID_EDITWEST:
-				if ((a >= -180) && (a<=180))	{
-					optionsOverview.west=a;
-					printf("west %f", a);
-					InvalidateRect(hwnd, NULL, TRUE);
+				if ((value >= -180) && (value<=180))	{
+					optionsOverview.west=value;
+
 				}
 			break;
 			case ID_EDITEAST:
-				if ((a >= -180) && (a<=180))
-					optionsOverview.east=a;
+				if ((value >= -180) && (value<=180))
+					optionsOverview.east=value;
 			break;
 		}
-
+	break;
 	case EN_KILLFOCUS:
 		switch (id)	{
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 				LoadPreset(&optionsOverview, szText);
-				UpdateHWNDsFromOptions(&optionsOverview);
+				UpdateEditboxesFromOptions(&optionsOverview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				break;
 		}
@@ -479,10 +529,6 @@ int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 	PAINTSTRUCT ps;
 	HGDIOBJ oldBitmap;
 
-	//for the NSWE lines
-	HPEN hPen;
-	HPEN hPenOld;
-
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
 
@@ -491,27 +537,101 @@ int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 	SelectObject(memDC, oldBitmap);
 
 
-	hPen = CreatePen(PS_SOLID, 1, RGB(192,192,192));
-	hPenOld = (HPEN)SelectObject(hdc, hPen);
-
-	MoveToEx(hdc, 0, 90-optionsOverview.north, NULL);
-	LineTo(hdc, OVERVIEW_WIDTH, 90-optionsOverview.north);
-	MoveToEx(hdc, 0, 90-optionsOverview.south, NULL);
-	LineTo(hdc, OVERVIEW_WIDTH, 90-optionsOverview.south);
-
-	MoveToEx(hdc, optionsOverview.west+180, 0, NULL);
-	LineTo(hdc, optionsOverview.west+180, OVERVIEW_HEIGHT);
-	MoveToEx(hdc, optionsOverview.east+180, 0, NULL);
-	LineTo(hdc, optionsOverview.east+180, OVERVIEW_HEIGHT);
-
-
-
-	SelectObject(hdc, hPenOld);
-	DeleteObject(hPen);
-
-
 	DeleteDC(hdc);
 	EndPaint(hwnd, &ps);
+
+	return 0;
+}
+
+LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	MOVEBARINFO * pMbi;
+	char buffer[256];
+
+	switch (msg) {
+		case WM_LBUTTONDOWN:
+			GetCursorPos(&mousePoint);
+			mouseDrag=TRUE;
+			SetCapture(hwnd);
+		break;
+		case WM_MOUSEMOVE:
+			if (mouseDrag == FALSE)
+				return 1;
+			GetCursorPos(&mousePoint);
+			ScreenToClient(GetParent(hwnd), &mousePoint);
+			pMbi = (MOVEBARINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+			if ((pMbi->direction == D_NORTH)||(pMbi->direction == D_SOUTH))	{
+				if (mousePoint.y<0)	mousePoint.y=0;
+				if (mousePoint.y>180)	mousePoint.y=180;
+				MoveWindow(hwnd, 0, mousePoint.y, 360,3,TRUE);
+			}
+
+
+			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
+				if (mousePoint.x<-1)	mousePoint.x=-1;
+				if (mousePoint.x>359)	mousePoint.x=359;
+				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
+			}
+
+		break;
+		case WM_LBUTTONUP:
+			if (mouseDrag == FALSE)
+				return 1;
+
+			pMbi = (MOVEBARINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+			mouseDrag=FALSE;
+			ReleaseCapture();
+			GetCursorPos(&mousePoint);
+			ScreenToClient(GetParent(hwnd), &mousePoint);
+
+			if ((pMbi->direction == D_NORTH)||(pMbi->direction == D_SOUTH))	{
+				if (mousePoint.y<0)	mousePoint.y=0;
+				if (mousePoint.y>180)	mousePoint.y=180;
+				MoveWindow(hwnd, 0, mousePoint.y, 360,3,TRUE);
+			}
+
+
+			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
+				if (mousePoint.x<-1)	mousePoint.x=-1;
+				if (mousePoint.x>359)	mousePoint.x=359;
+				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
+			}
+
+
+			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
+				pMbi->position=(float)mousePoint.x-180;
+			}	else
+				pMbi->position=90-(float)mousePoint.y;
+
+
+/*			sprintf(buffer,"%f",pMbi->position);
+
+			if (pMbi->direction == D_WEST)	{
+				SetWindowText(hwndEditWest, buffer);
+			}
+			if (pMbi->direction == D_EAST)	{
+				SetWindowText(hwndEditEast, buffer);
+			}
+			if (pMbi->direction == D_NORTH)	{
+				SetWindowText(hwndEditNorth, buffer);
+			}
+			if (pMbi->direction == D_SOUTH)	{
+				SetWindowText(hwndEditSouth, buffer);
+			}
+*/
+		break;
+//		case WM_MOVE:
+//			printf("move: %i", lParam);
+			//MoveWindow(hwnd, lParam, 0, 3,180,TRUE);
+//			return 0;
+//		break;
+		//case WM_ERASEBKGND:
+//    		return 1;
+		default:
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+
 
 	return 0;
 }
@@ -522,8 +642,26 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
-			break;
+			hwndOverviewMovebarWest = CreateWindow("OverviewMovebarClass", "West", WS_CHILD|WS_VISIBLE, 10,0,3,180,hwnd, NULL, hInst, NULL);
+			mbiWest.direction = D_WEST;
+			SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
 
+			hwndOverviewMovebarEast = CreateWindow("OverviewMovebarClass", "East", WS_CHILD|WS_VISIBLE, 350,0,3,180,hwnd, NULL, hInst, NULL);
+			mbiEast.direction = D_EAST;
+			SetWindowLongPtr(hwndOverviewMovebarEast, GWL_USERDATA, (LONG)&mbiEast);
+
+			hwndOverviewMovebarNorth = CreateWindow("OverviewMovebarClass", "North", WS_CHILD|WS_VISIBLE, 0,10,360,3,hwnd, NULL, hInst, NULL);
+			mbiNorth.direction = D_NORTH;
+			SetWindowLongPtr(hwndOverviewMovebarNorth, GWL_USERDATA, (LONG)&mbiNorth);
+
+			hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
+			mbiSouth.direction = D_SOUTH;
+			SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
+
+
+			break;
+		case WM_ERASEBKGND:
+    		return 1;
 		case WM_PAINT:
 			PaintOverview(hwnd, &locationHistory);
 			break;
@@ -540,7 +678,8 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			hbmPreview = NULL;
 			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
-
+		case WM_ERASEBKGND:
+    		return 1;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
 			break;
@@ -718,7 +857,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 		//overview Window
-		hwndOverview = CreateWindow("OverviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
+		hwndOverview = CreateWindow("OverviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
 		y+=MARGIN+OVERVIEW_HEIGHT;
 		//dialog
 		hwndStaticNorth = CreateWindow("Static","North:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
@@ -762,7 +901,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
-		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
 
 		break;
