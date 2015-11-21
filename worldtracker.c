@@ -7,6 +7,8 @@
 #include "mytrips.h"
 #include "lodepng.h"
 
+
+
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
 #define MARGIN 12
@@ -109,6 +111,8 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+
+int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
 int UpdateBarsFromOptions(OPTIONS * o);
@@ -561,6 +565,7 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 
 	switch (msg) {
 		case WM_LBUTTONDOWN:
+			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
 			GetCursorPos(&mousePoint);
 			mouseDrag=TRUE;
 			SetCapture(hwnd);
@@ -696,8 +701,67 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
+int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
+{
+	int zDelta;
+	double longitude;
+	double latitude;
+
+	double longspan;
+	double latspan;
+
+	double fromw, frome, fromn, froms;
+	double zoomfactor;
+
+	zoomfactor=0.1;
+	//zoomfactor=-0.1;	//negative zooms in
+
+	POINT mousePoint;
+
+	zDelta = HIWORD(wParam);
+	mousePoint.x = GET_X_LPARAM(lParam);
+	mousePoint.y = GET_Y_LPARAM(lParam);
+	ScreenToClient(hwnd, &mousePoint);
+
+	longspan = optionsOverview.east - optionsOverview.west;
+	latspan = optionsOverview.north - optionsOverview.south;
+
+	longitude = (double)mousePoint.x*longspan/optionsOverview.width + optionsOverview.west;
+	latitude = optionsOverview.north-(double)mousePoint.y*latspan/optionsOverview.height;
+
+	printf("Initial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
+	//printf("mw %i: %i,%i: %f,%f\r\n",zDelta,mousePoint.x,mousePoint.y, longitude, latitude);
+
+	//get the distance from the edges
+	fromw=longitude-optionsOverview.west;
+	frome=optionsOverview.east-longitude;
+
+	fromn=optionsOverview.north-latitude;
+	froms=latitude - optionsOverview.south;
+
+	//then calculate the zoom
+	fromw=(1- fromw/longspan*zoomfactor)*fromw;
+	frome=(1- frome/longspan*zoomfactor)*frome;
+
+	fromn =(1- fromn/latspan*zoomfactor)*fromn;
+	froms =(1- froms/latspan*zoomfactor)*froms;
+
+	optionsOverview.west = longitude-fromw;
+	optionsOverview.east = longitude+frome;
+	optionsOverview.north = latitude+fromn;
+	optionsOverview.south = latitude-froms;
+	//printf("fromn: %f, froms: %f\r\n", fromn, froms);
+	printf("Final longspan: %f, latspan %f, aspect ratio: %f\r\n", optionsOverview.east - optionsOverview.west, optionsOverview.north - optionsOverview.south, (optionsOverview.east - optionsOverview.west)/(optionsOverview.north - optionsOverview.south));
+
+	UpdateEditboxesFromOptions(&optionsOverview);
+	UpdateBarsFromOptions(&optionsOverview);
+
+	return 0;
+}
+
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
+
 	switch (msg) {
 		case WM_CREATE:
 			hbmPreview = NULL;
@@ -712,6 +776,12 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			printf("lbutton");
 			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			InvalidateRect(hwndPreview,NULL, 0);
+			break;
+		case WM_MOUSEMOVE:
+			SetFocus(hwnd);	//this is a temporary move so we get the WM_MOUSEWHEEL messages;
+			break;
+		case WM_MOUSEWHEEL:
+			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
