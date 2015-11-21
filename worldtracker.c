@@ -111,6 +111,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
+int UpdateBarsFromOptions(OPTIONS * o);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -333,6 +334,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			InvalidateRect(hwndOverview,NULL, 0);
 			InvalidateRect(hwndPreview, NULL, 0);
 			UpdateEditboxesFromOptions(&optionsOverview);
+			UpdateBarsFromOptions(&optionsOverview);
 		break;
 
 		case IDM_SAVE:
@@ -373,7 +375,10 @@ int UpdateEditboxesFromOptions(OPTIONS * o)
 
 int UpdateBarsFromOptions(OPTIONS * o)
 {
-
+	MoveWindow(hwndOverviewMovebarWest, 180 + o->west , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarEast, 180 + o->east , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->north, 360,3,TRUE);
+	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->south, 360,3,TRUE);
 	return 0;
 }
 
@@ -391,7 +396,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITNORTH:
 			if ((value >= -90) && (value<=90))
 				optionsOverview.north=value;
-		break;
+			break;
 			case ID_EDITSOUTH:
 				if ((value >= -90) && (value<=90))
 					optionsOverview.south=value;
@@ -407,6 +412,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 					optionsOverview.east=value;
 			break;
 		}
+		UpdateBarsFromOptions(&optionsOverview);
 	break;
 	case EN_KILLFOCUS:
 		switch (id)	{
@@ -414,6 +420,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 				LoadPreset(&optionsOverview, szText);
 				UpdateEditboxesFromOptions(&optionsOverview);
+				UpdateBarsFromOptions(&optionsOverview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				break;
 		}
@@ -430,11 +437,15 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	OPTIONS optionsExport;
 	BM exportBM;
 	int error;
+	char editboxtext[128];
 
 	//Create export options
 	memset(&optionsExport, 0, sizeof(optionsExport));
-	optionsExport.width=1000;
-	optionsExport.height=1000;
+
+	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
+	optionsExport.width=atol(&editboxtext[0]);
+	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
+	optionsExport.height=atol(&editboxtext[0]);
 	//get the NSWE from the overview
 	optionsExport.north=o->north;
 	optionsExport.south=o->south;
@@ -598,12 +609,26 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
 			}
 
-
+/*
 			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
-				pMbi->position=(float)mousePoint.x-180;
-			}	else
+				pMbi->position=(float)mousePoint.x-180;	//do we even need this position ?is it just duplicating things?
+			}	else	{
 				pMbi->position=90-(float)mousePoint.y;
-
+			}
+*/
+			if (pMbi->direction == D_WEST)	{
+				optionsOverview.west = mousePoint.x-180;
+			}
+			if (pMbi->direction == D_EAST)	{
+				optionsOverview.east = mousePoint.x-180;
+			}
+			if (pMbi->direction == D_NORTH)	{
+				optionsOverview.north =90-mousePoint.y;
+			}
+			if (pMbi->direction == D_SOUTH)	{
+				optionsOverview.south =90-mousePoint.y;
+			}
+			UpdateEditboxesFromOptions(&optionsOverview);
 
 /*			sprintf(buffer,"%f",pMbi->position);
 
