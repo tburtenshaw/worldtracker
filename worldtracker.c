@@ -703,7 +703,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
 {
-	int zDelta;
+	signed int zDelta;
 	double longitude;
 	double latitude;
 
@@ -719,39 +719,42 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
 	POINT mousePoint;
 
 	zDelta = HIWORD(wParam);
+
+	if (zDelta>32768)	{//convert it to a signed int
+		zDelta -=65536;
+	}
+
+	zoomfactor = 12/(double)zDelta;
+
 	mousePoint.x = GET_X_LPARAM(lParam);
 	mousePoint.y = GET_Y_LPARAM(lParam);
 	ScreenToClient(hwnd, &mousePoint);
+
 
 	longspan = optionsOverview.east - optionsOverview.west;
 	latspan = optionsOverview.north - optionsOverview.south;
 
 	longitude = (double)mousePoint.x*longspan/optionsOverview.width + optionsOverview.west;
-	latitude = optionsOverview.north-(double)mousePoint.y*latspan/optionsOverview.height;
+	latitude = optionsOverview.north - latspan* (double)mousePoint.y/(double)optionsOverview.height;
 
-	printf("Initial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	//printf("mw %i: %i,%i: %f,%f\r\n",zDelta,mousePoint.x,mousePoint.y, longitude, latitude);
+	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
+	printf("\r\nmw %i: x%i, y%i ht:%i: long:%f,lat:%f\r\n",zDelta,mousePoint.x,mousePoint.y,  optionsOverview.height,longitude, latitude);
 
-	//get the distance from the edges
-	fromw=longitude-optionsOverview.west;
-	frome=optionsOverview.east-longitude;
+	optionsOverview.west-=longitude;
+	optionsOverview.north-=latitude;
+	optionsOverview.east-=longitude;
+	optionsOverview.south-=latitude;
 
-	fromn=optionsOverview.north-latitude;
-	froms=latitude - optionsOverview.south;
+	optionsOverview.west*=(1-zoomfactor);
+	optionsOverview.north*=(1-zoomfactor);
+	optionsOverview.east*=(1-zoomfactor);
+	optionsOverview.south*=(1-zoomfactor);
 
-	//then calculate the zoom
-	fromw=(1- fromw/longspan*zoomfactor)*fromw;
-	frome=(1- frome/longspan*zoomfactor)*frome;
+	optionsOverview.west+=longitude;
+	optionsOverview.north+=latitude;
+	optionsOverview.east+=longitude;
+	optionsOverview.south+=latitude;
 
-	fromn =(1- fromn/latspan*zoomfactor)*fromn;
-	froms =(1- froms/latspan*zoomfactor)*froms;
-
-	optionsOverview.west = longitude-fromw;
-	optionsOverview.east = longitude+frome;
-	optionsOverview.north = latitude+fromn;
-	optionsOverview.south = latitude-froms;
-	//printf("fromn: %f, froms: %f\r\n", fromn, froms);
-	printf("Final longspan: %f, latspan %f, aspect ratio: %f\r\n", optionsOverview.east - optionsOverview.west, optionsOverview.north - optionsOverview.south, (optionsOverview.east - optionsOverview.west)/(optionsOverview.north - optionsOverview.south));
 
 	UpdateEditboxesFromOptions(&optionsOverview);
 	UpdateBarsFromOptions(&optionsOverview);
@@ -928,11 +931,13 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 			mixColours(&d, &c);
 			bits[b] =d.B;	b++;
 			bits[b] =d.G;	b++;
-			bits[b] =d.R+x%4*(16*y/height);	b++;
+			bits[b] =d.R;	b++;
 		}
 		b+=(4-b%4);	//this rounds to next WORD
 	}
 
+
+	optionsOverview.height	=height;
 
 	//SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, width, height, SWP_NOMOVE);
 	//InvalidateRect(hwnd, NULL, FALSE);
