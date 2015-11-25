@@ -99,8 +99,9 @@ OPTIONS optionsPreview;
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
+int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio);	//aspect ratio here is width/height
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
@@ -772,6 +773,10 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			break;
 		case WM_ERASEBKGND:
     		return 1;
+		case WM_SIZE:
+			printf("s");
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			break;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
 			break;
@@ -854,20 +859,24 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 		printf("no bitmap");
 	}
 
-	GetClientRect(hwnd, &clientRect);
-	width=clientRect.right-clientRect.left;
-	height=clientRect.bottom-clientRect.top;
+//	GetClientRect(hwnd, &clientRect);
+//	width=clientRect.right-clientRect.left;
+//	height=clientRect.bottom-clientRect.top;
 
 	//Set the size from the window, if it's changed, definitely needs redraw
+/*
 	if (optionsPreview.width != width)	{
+		printf("different width %i %i\r\n", optionsPreview.width, width);
 		optionsPreview.width = width;
 		needsRedraw = 1;
 	}
 
 	if (optionsPreview.height =! height)	{
 		optionsPreview.height = height;
+		printf("different height");
 		needsRedraw = 1;
 	}
+	*/
 
 	//Get the options from the preview
 	if (optionsPreview.north != optionsOverview.north)	{
@@ -889,19 +898,23 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 
 
 	if (needsRedraw==0)	{
-		//printf("doesn't need redraw\r\n");
 		return hbmPreview;
 	}
 
+	height = optionsPreview.height;
+	width = optionsPreview.width;
+
+
 	printf("starting width: %i\r\n", width);
 	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
-		printf("redraw\r\n");
+		printf("\r\n **** redraw ****\r\n");
 		if (previewBM.bitmap)	{
 			bitmapDestroy(&previewBM);
 		}
 		RationaliseOptions(&optionsPreview);
-		optionsPreview.width =width;
-		height = optionsPreview.height;
+		//optionsPreview.width =width;
+		//height = optionsPreview.height;
+		//width = optionsPreview.width;
 		bitmapInit(&previewBM, &optionsPreview, &locationHistory);
 		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 	}
@@ -939,9 +952,6 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 
 	optionsOverview.height	=height;
 
-	//SetWindowPos(hwnd, 0, clientRect.left, clientRect.top, width, height, SWP_NOMOVE);
-	//InvalidateRect(hwnd, NULL, FALSE);
-	//printf("New HBM %i\r\n", bitmap);
 	return bitmap;
 }
 
@@ -1002,13 +1012,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
-
-
 		break;
 
 	case WM_SIZE:
 		SendMessage(hWndStatusbar,msg,wParam,lParam);
 		InitializeStatusBar(hWndStatusbar,1);
+
+		PreviewWindowFitToAspectRatio(hwnd, lParam, 1);
 		break;
 	case WM_MENUSELECT:
 		return MsgMenuSelect(hwnd,msg,wParam,lParam);
@@ -1024,6 +1034,53 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
+
+int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio)
+{
+	int mainheight, mainwidth;
+	int availableheight, availablewidth;
+	int endheight, endwidth;
+
+	RECT previewRect;
+	POINT previewPoint;
+
+	mainheight = HIWORD(lParam);
+	mainwidth = LOWORD(lParam);
+
+	GetWindowRect(hwndPreview, &previewRect);
+	previewPoint.x=previewRect.left;
+	previewPoint.y=previewRect.top;
+	ScreenToClient(hwnd, &previewPoint);
+
+	availableheight = mainheight - previewPoint.y - MARGIN;
+	availablewidth  = mainwidth - previewPoint.x - MARGIN;
+
+	//printf("ht:%i avail:%i top:%i %i\r\n", mainheight, availableheight,previewRect.top, previewPoint.y);
+
+	if (availableheight*aspectratio > availablewidth)	{	//width limited
+		endheight = availablewidth/aspectratio;
+		endwidth =  availablewidth;
+	} else	{
+		endwidth =  availableheight*aspectratio;
+		endheight = availableheight;
+	}
+
+	optionsPreview.width=endwidth;
+	optionsPreview.height=endheight;
+
+
+	if (endwidth<360)	{
+		endwidth=360;
+		endheight = availablewidth/aspectratio;
+	}
+
+	int r= SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
+
+
+	printf("ht: %i, wt: %i r:%i\r\n", endheight, endwidth,r);
+
+	return 0;
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, INT nCmdShow)
 {
