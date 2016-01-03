@@ -1,7 +1,3 @@
-#define MAX_DIMENSION 4096*2
-#define PI 3.14159265
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +39,7 @@ int RationaliseOptions(OPTIONS *options)
 	fprintf(stdout, "KML: %s\r\n",options->kmlfilenamefinal);
 
 	//Set the zoom
-	if ((options->zoom<0.1) || (options->zoom>55))	{	//have to decide the limit, i've tested to 55
+	if (((options->zoom<0.1) || (options->zoom>55)) && (options->zoom!=0))	{	//have to decide the limit, i've tested to 55
 		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
 		options->zoom = 0;	//set to zero, then we'll calculate.
 	}
@@ -62,7 +58,9 @@ int RationaliseOptions(OPTIONS *options)
 
 
 	if ((options->height==0) && (options->width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
-		if (options->zoom==0)	{options->zoom=10;}	//default zoom
+		if (options->zoom==0)	{
+			options->zoom=10;
+		}	//default zoom
 		options->width=360*options->zoom;
 		options->height= 180*options->zoom;
 	}	else
@@ -131,7 +129,9 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	coord=locationHistory->first;
 	while (coord)	{
 
-		c=TimestampToRgb(coord->timestampS, 0, options->colourcycle);
+		//Set the colour to draw the line.
+		c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
+		c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
 		c.A=100;
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
@@ -222,6 +222,18 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 		if ((fabs(waitingFor10000->latitude - coord->latitude) >0.0001) ||(fabs(waitingFor10000->latitude - coord->latitude) >0.0001))	{
 			waitingFor10000->next10000ppd = coord;
 			waitingFor10000=coord;
+		}
+
+
+		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
+		if (prevCoord)	{
+			coord->distancefromprev = MetersApartFlatEarth(prevCoord->latitude, prevCoord->longitude, coord->latitude, coord->longitude);
+			coord->secondsfromprev = coord->timestampS - prevCoord->timestampS;
+//		printf("%fm (%i to %i) %is\t",coord->distancefromprev, prevCoord->timestampS, coord->timestampS, coord->secondsfromprev);
+		}
+		else	{
+			coord->distancefromprev = 0;
+			coord->secondsfromprev = 0;
 		}
 
 
@@ -914,6 +926,18 @@ COLOUR TimestampToRgb(long ts, long min, long max)
 }
 
 
+COLOUR SpeedToRgb(double speed, double maxspeed)
+{
+	double hue;
+
+	hue = speed/maxspeed * 200;
+
+	return HsvToRgb((char)hue,255,255,255);
+}
+
+
+
+
 int DrawGrid(BM* bm)
 {
 	//int i;
@@ -1094,4 +1118,27 @@ int MakeProperFilename(char *targetstring, char *source, char *def, char *ext)
 		sprintf(targetstring,"%s.%s",source, ext);
 
 	return 1;
+}
+
+double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2)	//let's say 1=origin, 2=destination
+{
+	//convert to radians
+	lat1*=PI/180;
+	long1*=PI/180;
+	lat2*=PI/180;
+	long2*=PI/180;
+
+	double deltalat=lat2-lat1;
+	double deltalong = long2-long1;
+	double meanlat=(lat1+lat2)/2;
+	//double a = PI/2 - lat1;
+	//double b = PI/2 - lat2;
+	//double u = a * a + b * b;
+//		printf("%f ",deltalong);
+
+	//double v = -2 * a * b * cos(long2 - long1);
+	//double c = sqrt(abs(u + v));
+
+	double c=sqrt( (deltalat*deltalat) + ((cos(meanlat)*deltalong)*(cos(meanlat)*deltalong)) );
+	return EARTH_MEAN_RADIUS_KM*1000 * c;
 }

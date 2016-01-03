@@ -12,6 +12,10 @@ typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
 typedef struct sHeatmap HEATMAP;
 
+#define MAX_DIMENSION 4096*2
+#define PI 3.14159265
+#define EARTH_MEAN_RADIUS_KM 6371
+
 struct sRGBAColour	{
 	unsigned char R;
 	unsigned char G;
@@ -47,6 +51,7 @@ struct sOptions	{	//what we can get from the command line
 	double south;
 
 	double zoom;
+	double aspectratio;
 
 	unsigned long	fromtimestamp;
 	unsigned long	totimestamp;
@@ -80,6 +85,9 @@ struct sLocation	{
 	double longitude;
 	long timestampS; //we'll use a long instead of the high precision of google
 	int accuracy;
+
+	double distancefromprev;
+	long secondsfromprev;
 
 	LOCATION* next;	//linked list
 	LOCATION* prev;
@@ -139,6 +147,7 @@ COLOUR HeatmapColour(unsigned char normalisedtemp);
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 COLOUR TimestampToRgb(long ts, long min, long max);
+COLOUR SpeedToRgb(double speed, double maxspeed);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 
@@ -148,3 +157,4 @@ double fpart(double x);
 double rfpart(double x);
 int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
 
+double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"

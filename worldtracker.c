@@ -35,6 +35,12 @@
 #define D_WEST 270
 #define D_EAST 90
 
+//what the aspect ratio is locked to
+#define LOCK_AR_UNDECLARED 0
+#define LOCK_AR_NSWE 1
+#define LOCK_AR_EXPORTSIZE 2
+#define LOCK_AR_WINDOW 3
+
 typedef struct sMovebar MOVEBARINFO;
 
 struct sMovebar	{
@@ -101,7 +107,8 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
-int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio);	//aspect ratio here is width/height
+int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
+double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
@@ -615,13 +622,6 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
 			}
 
-/*
-			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
-				pMbi->position=(float)mousePoint.x-180;	//do we even need this position ?is it just duplicating things?
-			}	else	{
-				pMbi->position=90-(float)mousePoint.y;
-			}
-*/
 			if (pMbi->direction == D_WEST)	{
 				optionsOverview.west = mousePoint.x-180;
 			}
@@ -636,31 +636,9 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			}
 			UpdateEditboxesFromOptions(&optionsOverview);
 
-/*			sprintf(buffer,"%f",pMbi->position);
-
-			if (pMbi->direction == D_WEST)	{
-				SetWindowText(hwndEditWest, buffer);
-			}
-			if (pMbi->direction == D_EAST)	{
-				SetWindowText(hwndEditEast, buffer);
-			}
-			if (pMbi->direction == D_NORTH)	{
-				SetWindowText(hwndEditNorth, buffer);
-			}
-			if (pMbi->direction == D_SOUTH)	{
-				SetWindowText(hwndEditSouth, buffer);
-			}
-*/
 		break;
-//		case WM_MOVE:
-//			printf("move: %i", lParam);
-			//MoveWindow(hwnd, lParam, 0, 3,180,TRUE);
-//			return 0;
-//		break;
-		//case WM_ERASEBKGND:
-//    		return 1;
 		default:
-		return DefWindowProc(hwnd,msg,wParam,lParam);
+			return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
 
 
@@ -714,9 +692,6 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
 	double fromw, frome, fromn, froms;
 	double zoomfactor;
 
-	zoomfactor=0.1;
-	//zoomfactor=-0.1;	//negative zooms in
-
 	POINT mousePoint;
 
 	zDelta = HIWORD(wParam);
@@ -739,7 +714,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
 	latitude = optionsOverview.north - latspan* (double)mousePoint.y/(double)optionsOverview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	printf("\r\nmw %i: x%i, y%i ht:%i: long:%f,lat:%f\r\n",zDelta,mousePoint.x,mousePoint.y,  optionsOverview.height,longitude, latitude);
+	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f\r\n",mousePoint.x,mousePoint.y,  optionsOverview.height, optionsOverview.width, longitude, latitude);
 
 	optionsOverview.west-=longitude;
 	optionsOverview.north-=latitude;
@@ -774,20 +749,19 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		case WM_ERASEBKGND:
     		return 1;
 		case WM_SIZE:
-			printf("s");
+			printf("***size***\r\n");
 			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			InvalidateRect(hwnd, NULL, 0);
 			break;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
 			break;
 		case WM_LBUTTONDOWN:
-			printf("lbutton");
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
-			InvalidateRect(hwndPreview,NULL, 0);
+			printf("lbutton %i %i",0,0);
 			break;
-		case WM_MOUSEMOVE:
-			SetFocus(hwnd);	//this is a temporary move so we get the WM_MOUSEWHEEL messages;
-			break;
+//		case WM_MOUSEMOVE:
+//			SetFocus(hwnd);	//this is a temporary move so we get the WM_MOUSEWHEEL messages;
+//			break;
 		case WM_MOUSEWHEEL:
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
@@ -809,9 +783,6 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 0);
 
-//	GetClientRect(hwnd, &clientRect);
-//	width=clientRect.right-clientRect.left;
-//	height=clientRect.bottom-clientRect.top;
 	width=optionsPreview.width;
 	height=optionsPreview.height;
 
@@ -820,7 +791,6 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
 	BitBlt(hdc,0, 0, width, height, memDC, 0, 0, SRCCOPY);
-	//printf("blt:%i ",hbmPreview);
 	SelectObject(memDC, oldBitmap);
 
 	DeleteDC(hdc);
@@ -859,25 +829,6 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 		printf("no bitmap");
 	}
 
-//	GetClientRect(hwnd, &clientRect);
-//	width=clientRect.right-clientRect.left;
-//	height=clientRect.bottom-clientRect.top;
-
-	//Set the size from the window, if it's changed, definitely needs redraw
-/*
-	if (optionsPreview.width != width)	{
-		printf("different width %i %i\r\n", optionsPreview.width, width);
-		optionsPreview.width = width;
-		needsRedraw = 1;
-	}
-
-	if (optionsPreview.height =! height)	{
-		optionsPreview.height = height;
-		printf("different height");
-		needsRedraw = 1;
-	}
-	*/
-
 	//Get the options from the preview
 	if (optionsPreview.north != optionsOverview.north)	{
 		optionsPreview.north =optionsOverview.north;
@@ -903,27 +854,23 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 
 	height = optionsPreview.height;
 	width = optionsPreview.width;
-
-
 	printf("starting width: %i\r\n", width);
-	if (needsRedraw)	{	//we'll need to delete the existing bitmap, and generate another
-		printf("\r\n **** redraw ****\r\n");
-		if (previewBM.bitmap)	{
-			bitmapDestroy(&previewBM);
-		}
-		RationaliseOptions(&optionsPreview);
-		//optionsPreview.width =width;
-		//height = optionsPreview.height;
-		//width = optionsPreview.width;
-		bitmapInit(&previewBM, &optionsPreview, &locationHistory);
-		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
-	}
-	printf("Finishing width: %i\r\n", width);
 
-		RationaliseOptions(&optionsPreview);
+	PreviewFixParamsToLock(LOCK_AR_WINDOW, &optionsPreview);
+
+	if (previewBM.bitmap)	{
+		bitmapDestroy(&previewBM);
+	}
+
+	RationaliseOptions(&optionsPreview);
+	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
+	if (previewBM.lh)	{
+		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
+		printf("Finishing width: %i\r\n", width);
+	}
+
 	if (hbmPreview!=NULL)	{
 		DeleteObject(hbmPreview);
-		//printf("Deleted old Preview HBITMAP\r\n");
 	}
 
 	printf("Creating bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
@@ -946,7 +893,9 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 			bits[b] =d.G;	b++;
 			bits[b] =d.R;	b++;
 		}
-		b+=(4-b%4);	//this rounds to next WORD
+		//printf("%i ",b);
+		//b=b-((b+3)%4)+3;	//this rounds to next WORD
+		b=(b+3) & ~3;	//this is fanciest way
 	}
 
 
@@ -1017,11 +966,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	case WM_SIZE:
 		SendMessage(hWndStatusbar,msg,wParam,lParam);
 		InitializeStatusBar(hWndStatusbar,1);
-
-		PreviewWindowFitToAspectRatio(hwnd, lParam, 1);
+		PreviewWindowFitToAspectRatio(hwnd, lParam, (optionsPreview.east-optionsPreview.west)/(optionsPreview.north-optionsPreview.south));
 		break;
 	case WM_MENUSELECT:
 		return MsgMenuSelect(hwnd,msg,wParam,lParam);
+	case WM_MOUSEWHEEL:
+		SendMessage(hwndPreview, msg,wParam,lParam);
+		break;
 	case WM_COMMAND:
 		HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);
 		break;
@@ -1032,6 +983,49 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
 	return 0;
+}
+
+double PreviewFixParamsToLock(int lockedPart, OPTIONS * o)
+{
+	int dlat,dlong;
+
+	if ((o->width==0) || (o->height==0))	{
+
+	}
+
+	switch (lockedPart)	{
+		case LOCK_AR_WINDOW:
+			dlong = o->east - o->west;
+			dlat = o->north - o->south;
+
+			if ((o->west+dlat*o->aspectratio) > o->east)
+				o->east = (o->west+dlat*o->aspectratio);
+
+			else if ((o->north-dlong/o->aspectratio)>o->south)
+				o->south =(o->north-dlong/o->aspectratio);
+			break;
+	}
+
+	if (o->south < -90) o->south=-90;
+	if (o->south > 90) o->south=90;
+
+	if (o->north > 90) o->north=90;
+	if (o->north < -90) o->north=-90;
+
+	if (o->west > 180) o->west=180;
+	if (o->west < -180) o->west=-180;
+
+	if (o->east > 180) o->east=180;
+	if (o->east < -180) o->east=-180;
+
+
+	o->zoom=o->width/(o->east - o->west);
+
+	UpdateEditboxesFromOptions(&optionsOverview);
+	UpdateBarsFromOptions(&optionsOverview);
+
+
+	return 1;
 }
 
 
@@ -1057,27 +1051,34 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio)
 
 	//printf("ht:%i avail:%i top:%i %i\r\n", mainheight, availableheight,previewRect.top, previewPoint.y);
 
-	if (availableheight*aspectratio > availablewidth)	{	//width limited
-		endheight = availablewidth/aspectratio;
+	if (aspectratio == 0)	{	//fit to screen
 		endwidth =  availablewidth;
-	} else	{
-		endwidth =  availableheight*aspectratio;
 		endheight = availableheight;
+		if (endwidth<320) endwidth=320;
+	}
+	else	{
+		if (availableheight*aspectratio > availablewidth)	{	//width limited
+			endheight = availablewidth/aspectratio;
+			endwidth =  availablewidth;
+		} else	{
+			endwidth =  availableheight*aspectratio;
+			endheight = availableheight;
+		}
+
+		if (endwidth<360)	{
+			endwidth=360;
+			endheight = availablewidth/aspectratio;
+		}
 	}
 
 	optionsPreview.width=endwidth;
 	optionsPreview.height=endheight;
+	optionsPreview.aspectratio=aspectratio;
+
+	SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
 
 
-	if (endwidth<360)	{
-		endwidth=360;
-		endheight = availablewidth/aspectratio;
-	}
-
-	int r= SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
-
-
-	printf("ht: %i, wt: %i r:%i\r\n", endheight, endwidth,r);
+	printf("ht: %i, wt: %i\r\n", endheight, endwidth);
 
 	return 0;
 }
