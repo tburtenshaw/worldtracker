@@ -8,7 +8,6 @@
 #include "lodepng.h"
 
 
-
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
 #define MARGIN 12
@@ -120,7 +119,8 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
-int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam);
+int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam);
+int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
 int UpdateBarsFromOptions(OPTIONS * o);
@@ -336,15 +336,18 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			memset(&overviewBM, 0, sizeof(overviewBM));
 			printf("Freeing Locations");
 			FreeLocations(&locationHistory);	//first free any locations
-
 			LoadLocations(&locationHistory, JSONfilename);
+
 			optionsOverview.height=180;optionsOverview.width=360;
 			RationaliseOptions(&optionsOverview);
+
 			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
 			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
+
 			InvalidateRect(hwndOverview,NULL, 0);
-			InvalidateRect(hwndPreview, NULL, 0);
+			InvalidateRect(hwndPreview, NULL, 1);
+
 			UpdateEditboxesFromOptions(&optionsOverview);
 			UpdateBarsFromOptions(&optionsOverview);
 		break;
@@ -391,6 +394,7 @@ int UpdateBarsFromOptions(OPTIONS * o)
 	MoveWindow(hwndOverviewMovebarEast, 180 + o->east , 0, 3,180,TRUE);
 	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->north, 360,3,TRUE);
 	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->south, 360,3,TRUE);
+	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
 	return 0;
 }
 
@@ -398,33 +402,59 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
 	char szText[128];
 	double value;	//to hold the textbox value
+	int needsRedraw;
 
 	switch (codeNotify)	{
 	case EN_CHANGE:
-		InvalidateRect(hwndPreview, NULL, 0);
+		printf("EN_CHANGE");
+		needsRedraw=0;
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 		value=atof(szText);
 		switch (id)	{
 		case ID_EDITNORTH:
 			if ((value >= -90) && (value<=90))
-				optionsOverview.north=value;
-			break;
-			case ID_EDITSOUTH:
-				if ((value >= -90) && (value<=90))
-					optionsOverview.south=value;
-			break;
-			case ID_EDITWEST:
-				if ((value >= -180) && (value<=180))	{
-					optionsOverview.west=value;
-
+				if ((optionsOverview.north!=value) || (optionsPreview.north!=value))	{
+					optionsOverview.north=value;
+					optionsPreview.north=value;
+					needsRedraw = 1;
+					printf("N");
 				}
 			break;
-			case ID_EDITEAST:
-				if ((value >= -180) && (value<=180))
+		case ID_EDITSOUTH:
+			if ((value >= -90) && (value<=90))
+				if ((optionsOverview.south!=value) || (optionsPreview.south!=value))	{
+					optionsOverview.south=value;
+					optionsPreview.south=value;
+					needsRedraw = 1;
+					printf("S");
+				}
+			break;
+		case ID_EDITWEST:
+			if ((value >= -180) && (value<=180))	{
+				if ((optionsOverview.west!=value) || (optionsPreview.west!=value))	{
+					optionsOverview.west=value;
+					optionsPreview.west=value;
+					needsRedraw = 1;
+					printf("W");
+				}
+			}
+		break;
+		case ID_EDITEAST:
+			if ((value >= -180) && (value<=180))
+				if ((optionsOverview.east != value) || (optionsPreview.east != value))	{
 					optionsOverview.east=value;
+					optionsPreview.east=value;
+					needsRedraw = 1;
+					printf("E");
+				}
 			break;
 		}
-		UpdateBarsFromOptions(&optionsOverview);
+		if (needsRedraw)	{
+			printf("redraw");
+			InvalidateRect(hwndPreview, NULL, TRUE);
+			UpdateBarsFromOptions(&optionsOverview);
+		}
+
 	break;
 	case EN_KILLFOCUS:
 		switch (id)	{
@@ -434,6 +464,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				UpdateEditboxesFromOptions(&optionsOverview);
 				UpdateBarsFromOptions(&optionsOverview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
+				InvalidateRect(hwndPreview, NULL, TRUE);
 				break;
 		}
 	break;
@@ -680,7 +711,23 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
-int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
+int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	POINT mousePoint;
+
+	mousePoint.x = GET_X_LPARAM(lParam);
+	mousePoint.y = GET_Y_LPARAM(lParam);
+
+	switch (msg)	{
+		case WM_LBUTTONDOWN:
+			printf("%i %i,", mousePoint.x, mousePoint.y);
+		break;
+	}
+
+	return 0;
+}
+
+int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
 	signed int zDelta;
 	double longitude;
@@ -702,66 +749,78 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam,LPARAM lParam)
 
 	zoomfactor = 12/(double)zDelta;
 
+	longspan = optionsPreview.east - optionsPreview.west;
+	latspan = optionsPreview.north - optionsPreview.south;
+
+	if ((zDelta>0)&&((longspan<0.01) || (latspan<0.01)))	{	//if we're too zoomed in already (i.e. there's less than 0.01 degrees between sides)
+		return 0;
+	}
+
+
 	mousePoint.x = GET_X_LPARAM(lParam);
 	mousePoint.y = GET_Y_LPARAM(lParam);
 	ScreenToClient(hwnd, &mousePoint);
 
 
-	longspan = optionsOverview.east - optionsOverview.west;
-	latspan = optionsOverview.north - optionsOverview.south;
 
-	longitude = (double)mousePoint.x*longspan/optionsOverview.width + optionsOverview.west;
-	latitude = optionsOverview.north - latspan* (double)mousePoint.y/(double)optionsOverview.height;
+
+	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.west;
+	latitude = optionsPreview.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f\r\n",mousePoint.x,mousePoint.y,  optionsOverview.height, optionsOverview.width, longitude, latitude);
+	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f\r\n",mousePoint.x,mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude);
 
-	optionsOverview.west-=longitude;
-	optionsOverview.north-=latitude;
-	optionsOverview.east-=longitude;
-	optionsOverview.south-=latitude;
+	optionsPreview.west-=longitude;
+	optionsPreview.north-=latitude;
+	optionsPreview.east-=longitude;
+	optionsPreview.south-=latitude;
 
-	optionsOverview.west*=(1-zoomfactor);
-	optionsOverview.north*=(1-zoomfactor);
-	optionsOverview.east*=(1-zoomfactor);
-	optionsOverview.south*=(1-zoomfactor);
+	optionsPreview.west*=(1-zoomfactor);
+	optionsPreview.north*=(1-zoomfactor);
+	optionsPreview.east*=(1-zoomfactor);
+	optionsPreview.south*=(1-zoomfactor);
 
-	optionsOverview.west+=longitude;
-	optionsOverview.north+=latitude;
-	optionsOverview.east+=longitude;
-	optionsOverview.south+=latitude;
+	optionsPreview.west+=longitude;
+	optionsPreview.north+=latitude;
+	optionsPreview.east+=longitude;
+	optionsPreview.south+=latitude;
 
 
-	UpdateEditboxesFromOptions(&optionsOverview);
-	UpdateBarsFromOptions(&optionsOverview);
+	UpdateEditboxesFromOptions(&optionsPreview);
+	UpdateBarsFromOptions(&optionsPreview);
+	InvalidateRect(hwnd, 0, TRUE);
 
-	return 0;
+	return 1;
 }
 
-LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam)
 {
+	RECT clientRect;
 
 	switch (msg) {
 		case WM_CREATE:
 			hbmPreview = NULL;
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
 		case WM_ERASEBKGND:
+			GetClientRect(hwnd, &clientRect);
+			optionsPreview.width = clientRect.right;
+			optionsPreview.height = clientRect.bottom;
+			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
     		return 1;
 		case WM_SIZE:
-			printf("***size***\r\n");
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
-			InvalidateRect(hwnd, NULL, 0);
+			//printf("***size***\r\n");
+			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			InvalidateRect(hwnd, NULL, 1);
 			break;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
 			break;
 		case WM_LBUTTONDOWN:
-			printf("lbutton %i %i",0,0);
+		case WM_MOUSEMOVE:
+		case WM_LBUTTONUP:
+			HandlePreviewLbutton(hwnd, msg, wParam, lParam);
 			break;
-//		case WM_MOUSEMOVE:
-//			SetFocus(hwnd);	//this is a temporary move so we get the WM_MOUSEWHEEL messages;
-//			break;
 		case WM_MOUSEWHEEL:
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
@@ -781,10 +840,16 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	RECT clientRect;
 	int width, height;
 
-	hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 0);
+
+	GetClientRect(hwnd, &clientRect);
+
+	optionsPreview.width = clientRect.right;
+	optionsPreview.height = clientRect.bottom;
 
 	width=optionsPreview.width;
 	height=optionsPreview.height;
+
+
 
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
@@ -814,6 +879,8 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 
 	int needsRedraw;	//whether we need to recalculate the BM
 
+
+/*
 	needsRedraw = 0;
 
 	if (forceRedraw)
@@ -852,11 +919,12 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 		return hbmPreview;
 	}
 
+	*/
 	height = optionsPreview.height;
 	width = optionsPreview.width;
-	printf("starting width: %i\r\n", width);
+	//printf("starting width: %i\r\n", width);
 
-	PreviewFixParamsToLock(LOCK_AR_WINDOW, &optionsPreview);
+	//PreviewFixParamsToLock(LOCK_AR_WINDOW, &optionsPreview);
 
 	if (previewBM.bitmap)	{
 		bitmapDestroy(&previewBM);
@@ -866,7 +934,7 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
 	if (previewBM.lh)	{
 		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
-		printf("Finishing width: %i\r\n", width);
+		//printf("Finishing width: %i\r\n", width);
 	}
 
 	if (hbmPreview!=NULL)	{
@@ -893,9 +961,7 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 			bits[b] =d.G;	b++;
 			bits[b] =d.R;	b++;
 		}
-		//printf("%i ",b);
-		//b=b-((b+3)%4)+3;	//this rounds to next WORD
-		b=(b+3) & ~3;	//this is fanciest way
+		b=(b+3) & ~3;	//round to next WORD alignment
 	}
 
 

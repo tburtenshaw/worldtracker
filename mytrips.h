@@ -56,6 +56,7 @@ struct sOptions	{	//what we can get from the command line
 	unsigned long	fromtimestamp;
 	unsigned long	totimestamp;
 
+	unsigned char alpha;		//the alpha value of the line
 	int thickness;		//the thickness of the line
 	COLOUR gridcolour;
 	int gridsize;

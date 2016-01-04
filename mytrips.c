@@ -110,6 +110,10 @@ int RationaliseOptions(OPTIONS *options)
 	options->thickness=1;
 	if (options->thickness == 0) options->thickness = 1+options->width/1000;
 
+	//Set the alpha of the line
+	options->alpha=200;	//default
+
+
 	//Grid colour
 	options->gridcolour.R=192;options->gridcolour.G=192;options->gridcolour.B=192;options->gridcolour.A=128;
 
@@ -132,7 +136,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		//Set the colour to draw the line.
 		c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
 		c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
-		c.A=100;
+		c.A=options->alpha;
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
