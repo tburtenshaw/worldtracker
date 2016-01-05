@@ -181,7 +181,7 @@ int HandleCLIOptions(int argc,char *argv[], OPTIONS *options)
 						i++;
 					}
 					break;
-				case 'c':
+				case 'c':	//how to cycle through the colours
 				case 'C':
 					if (i+1<argc)	{
 						if (!stricmp(argv[i+1],"day"))	options->colourcycle=60*60*24;
@@ -204,6 +204,13 @@ int HandleCLIOptions(int argc,char *argv[], OPTIONS *options)
 							i++;
 						}
 
+					}
+					break;
+				case 'a':	//alpha value
+				case 'A':
+					if (i+1<argc)	{
+						options->alpha = strtod(argv[i+1], NULL);
+						i++;
 					}
 					break;
 				case 'f':	//from time

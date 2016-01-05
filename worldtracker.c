@@ -7,6 +7,8 @@
 #include "mytrips.h"
 #include "lodepng.h"
 
+#define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations
+
 
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
@@ -100,6 +102,12 @@ BOOL mouseDrag;
 
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
+OPTIONS optionsExport;
+
+//Multithread stuff
+HANDLE hAccessLocationsMutex;
+DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
+DWORD WINAPI ThreadSaveKML(OPTIONS *info);
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
@@ -111,7 +119,7 @@ double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
-HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRedraw);
+HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh);
 
 int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
@@ -124,6 +132,9 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
 int UpdateBarsFromOptions(OPTIONS * o);
+
+
+
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -320,6 +331,8 @@ BOOL _stdcall AboutDlg(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+
+
 void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {	char JSONfilename[MAX_PATH];
 
@@ -332,21 +345,12 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case IDM_OPEN:
 			if (GetFileName(JSONfilename,sizeof(JSONfilename))==0)
 				return;
-			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
-			memset(&overviewBM, 0, sizeof(overviewBM));
-			printf("Freeing Locations");
-			FreeLocations(&locationHistory);	//first free any locations
-			LoadLocations(&locationHistory, JSONfilename);
 
-			optionsOverview.height=180;optionsOverview.width=360;
-			RationaliseOptions(&optionsOverview);
+			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
 
-			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
-			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
-			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
-
-			InvalidateRect(hwndOverview,NULL, 0);
-			InvalidateRect(hwndPreview, NULL, 1);
+//			InvalidateRect(hwndOverview,NULL, 0);
+//			InvalidateRect(hwndPreview, NULL, 1);
 
 			UpdateEditboxesFromOptions(&optionsOverview);
 			UpdateBarsFromOptions(&optionsOverview);
@@ -369,6 +373,20 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 	}
 }
+
+//This is the thread that loads the file
+DWORD WINAPI LoadKMLThread(void *JSONfilename)
+{
+	printf("Freeing Locations");
+	FreeLocations(&locationHistory);	//first free any locations
+	LoadLocations(&locationHistory, JSONfilename);
+
+	//Once loaded, tell the windows they can update
+	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
+	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+	return 0;
+}
+
 
 int UpdateEditboxesFromOptions(OPTIONS * o)
 {
@@ -394,6 +412,7 @@ int UpdateBarsFromOptions(OPTIONS * o)
 	MoveWindow(hwndOverviewMovebarEast, 180 + o->east , 0, 3,180,TRUE);
 	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->north, 360,3,TRUE);
 	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->south, 360,3,TRUE);
+
 	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
 	return 0;
 }
@@ -451,7 +470,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 		if (needsRedraw)	{
 			printf("redraw");
-			InvalidateRect(hwndPreview, NULL, TRUE);
+			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+			//InvalidateRect(hwndPreview, NULL, TRUE);
 			UpdateBarsFromOptions(&optionsOverview);
 		}
 
@@ -464,7 +484,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				UpdateEditboxesFromOptions(&optionsOverview);
 				UpdateBarsFromOptions(&optionsOverview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
-				InvalidateRect(hwndPreview, NULL, TRUE);
+				SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+//				InvalidateRect(hwndPreview, NULL, TRUE);
 				break;
 		}
 	break;
@@ -477,9 +498,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 {
-	OPTIONS optionsExport;
-	BM exportBM;
-	int error;
+//	BM exportBM;
+//	int error;
 	char editboxtext[128];
 
 	//Create export options
@@ -489,7 +509,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	optionsExport.width=atol(&editboxtext[0]);
 	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
 	optionsExport.height=atol(&editboxtext[0]);
-	//get the NSWE from the overview
+	//get the NSWE from the options
 	optionsExport.north=o->north;
 	optionsExport.south=o->south;
 	optionsExport.west=o->west;
@@ -497,6 +517,8 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 
 	memcpy(&optionsExport.kmlfilenamefinal, &o->kmlfilenamefinal, sizeof(o->kmlfilenamefinal));
 	memcpy(&optionsExport.pngfilenamefinal, &o->pngfilenamefinal, sizeof(o->kmlfilenamefinal));
+
+/*
 	RationaliseOptions(&optionsExport);
 
 	bitmapInit(&exportBM, &optionsExport, &locationHistory);
@@ -507,15 +529,40 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	error = lodepng_encode32_file(exportBM.options->pngfilenamefinal, exportBM.bitmap, exportBM.width, exportBM.height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
-//	bitmapWrite(&exportBM, "test.raw");
 	//Write KML file
 	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
 	WriteKMLFile(&exportBM);
 	bitmapDestroy(&exportBM);
+*/
 
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSaveKML, &optionsExport ,0,NULL);
 
 	return 0;
 }
+
+DWORD WINAPI ThreadSaveKML(OPTIONS *options)
+{
+	BM exportBM;
+	int error;
+
+	RationaliseOptions(options);
+
+	printf("bitmap init %i", options->width);
+	bitmapInit(&exportBM, options, &locationHistory);
+	DrawGrid(&exportBM);
+	PlotPaths(&exportBM, &locationHistory, options);
+
+	printf("png:%s, w:%i, h:%i size:%i\r\n",exportBM.options->pngfilenamefinal, exportBM.width, exportBM.height, exportBM.sizebitmap);
+	error = lodepng_encode32_file(exportBM.options->pngfilenamefinal, exportBM.bitmap, exportBM.width, exportBM.height);
+	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
+	//Write KML file
+	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
+	WriteKMLFile(&exportBM);
+	bitmapDestroy(&exportBM);
+	return 0;
+}
+
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
@@ -540,7 +587,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	if (lh->first==NULL)	return bitmap;
 
-	result = GetDIBits(hdc,bitmap,0,180, NULL, &bi,DIB_RGB_COLORS);	//get the info
+	result = GetDIBits(hdc, bitmap, 0, 180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
 	printf("bi.height: %i\t", bi.bmiHeader.biHeight);
 	printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
@@ -700,7 +747,27 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 
 			break;
-		case WM_ERASEBKGND:
+
+		case WT_WM_RECALCBITMAP:
+			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
+			memset(&overviewBM, 0, sizeof(overviewBM));
+
+
+
+			optionsOverview.height=180;optionsOverview.width=360;
+			RationaliseOptions(&optionsOverview);
+
+			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
+			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
+			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
+
+			printf("recalc'd overview BM");
+
+			InvalidateRect(hwnd, 0, 0);
+
+
+			break;
+		case WM_ERASEBKGND:	//to avoid flicker:
     		return 1;
 		case WM_PAINT:
 			PaintOverview(hwnd, &locationHistory);
@@ -788,7 +855,9 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 	UpdateEditboxesFromOptions(&optionsPreview);
 	UpdateBarsFromOptions(&optionsPreview);
-	InvalidateRect(hwnd, 0, TRUE);
+
+	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+	//InvalidateRect(hwnd, 0, TRUE);
 
 	return 1;
 }
@@ -802,16 +871,19 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			hbmPreview = NULL;
 			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
-		case WM_ERASEBKGND:
+		case WT_WM_RECALCBITMAP:
+//		case WM_ERASEBKGND:	//note that this will be called inappropriately (for this purpose) when screen is moved from offscreen //may need to make a custom WM_
 			GetClientRect(hwnd, &clientRect);
 			optionsPreview.width = clientRect.right;
 			optionsPreview.height = clientRect.bottom;
-			hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
+			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
+			InvalidateRect(hwnd, NULL, 0);
     		return 1;
-		case WM_SIZE:
+		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
 			//printf("***size***\r\n");
 			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
-			InvalidateRect(hwnd, NULL, 1);
+			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+			//InvalidateRect(hwnd, NULL, 1);
 			break;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
@@ -842,12 +914,26 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 
 	GetClientRect(hwnd, &clientRect);
+	width=clientRect.right;
+	height=clientRect.bottom;
 
-	optionsPreview.width = clientRect.right;
-	optionsPreview.height = clientRect.bottom;
 
-	width=optionsPreview.width;
-	height=optionsPreview.height;
+//	optionsPreview.width = clientRect.right;
+//	optionsPreview.height = clientRect.bottom;
+
+	if (!previewBM.bitmap)	{
+		hdc= BeginPaint(hwnd, &ps);
+
+		DeleteDC(hdc);
+		EndPaint(hwnd, &ps);
+	}
+
+	if (width!=previewBM.width)	{
+		printf("width not the same");
+	}
+	if (height!=previewBM.height)	{
+		printf("width not the same");
+	}
 
 
 
@@ -865,7 +951,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	return 0;
 }
 
-HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRedraw)
+HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 {
 	RECT clientRect;
 	HBITMAP bitmap;
@@ -877,54 +963,8 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 	COLOUR c;
 	COLOUR d;	//window colour
 
-	int needsRedraw;	//whether we need to recalculate the BM
-
-
-/*
-	needsRedraw = 0;
-
-	if (forceRedraw)
-		needsRedraw = 1;
-
-	if (hbmPreview==NULL)	{
-		needsRedraw = 1;
-		printf("hbmPreview is null");
-	}
-
-	if (!previewBM.bitmap)	{
-		needsRedraw = 1;
-		printf("no bitmap");
-	}
-
-	//Get the options from the preview
-	if (optionsPreview.north != optionsOverview.north)	{
-		optionsPreview.north =optionsOverview.north;
-		needsRedraw = 1;
-	}
-	if (optionsPreview.south != optionsOverview.south)	{
-		optionsPreview.south =optionsOverview.south;
-		needsRedraw = 1;
-	}
-	if (optionsPreview.west != optionsOverview.west)	{
-		optionsPreview.west =optionsOverview.west;
-		needsRedraw = 1;
-	}
-	if (optionsPreview.east != optionsOverview.east)	{
-		optionsPreview.east =optionsOverview.east;
-		needsRedraw = 1;
-	}
-
-
-	if (needsRedraw==0)	{
-		return hbmPreview;
-	}
-
-	*/
 	height = optionsPreview.height;
 	width = optionsPreview.width;
-	//printf("starting width: %i\r\n", width);
-
-	//PreviewFixParamsToLock(LOCK_AR_WINDOW, &optionsPreview);
 
 	if (previewBM.bitmap)	{
 		bitmapDestroy(&previewBM);
@@ -934,7 +974,6 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
 	if (previewBM.lh)	{
 		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
-		//printf("Finishing width: %i\r\n", width);
 	}
 
 	if (hbmPreview!=NULL)	{
@@ -964,8 +1003,6 @@ HBITMAP MakeHBitmapPreview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh, int forceRe
 		b=(b+3) & ~3;	//round to next WORD alignment
 	}
 
-
-	optionsOverview.height	=height;
 
 	return bitmap;
 }
