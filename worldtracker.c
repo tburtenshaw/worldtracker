@@ -7,8 +7,11 @@
 #include "mytrips.h"
 #include "lodepng.h"
 
-#define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations
+#define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations - this will do it as soon as message received
+#define WT_WM_QUEUERECALC WM_APP+1	//Signal that the map needs to be replotted (essentially this starts a timer) so we don't waste time
 
+
+#define IDT_PREVIEWTIMER 1
 
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
@@ -470,7 +473,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 		if (needsRedraw)	{
 			printf("redraw");
-			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			//InvalidateRect(hwndPreview, NULL, TRUE);
 			UpdateBarsFromOptions(&optionsOverview);
 		}
@@ -484,7 +487,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				UpdateEditboxesFromOptions(&optionsOverview);
 				UpdateBarsFromOptions(&optionsOverview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
-				SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 //				InvalidateRect(hwndPreview, NULL, TRUE);
 				break;
 		}
@@ -829,8 +832,6 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	ScreenToClient(hwnd, &mousePoint);
 
 
-
-
 	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.west;
 	latitude = optionsPreview.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
@@ -856,7 +857,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	UpdateEditboxesFromOptions(&optionsPreview);
 	UpdateBarsFromOptions(&optionsPreview);
 
-	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+	SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
 	//InvalidateRect(hwnd, 0, TRUE);
 
 	return 1;
@@ -871,19 +872,28 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			hbmPreview = NULL;
 			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
+		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
+			KillTimer(hwnd, IDT_PREVIEWTIMER);
+			SetTimer(hwnd, IDT_PREVIEWTIMER, 200, NULL);
+			return 1;
+			break;
+		case WM_TIMER:
+			printf("timer");
+			KillTimer(hwnd, IDT_PREVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
-//		case WM_ERASEBKGND:	//note that this will be called inappropriately (for this purpose) when screen is moved from offscreen //may need to make a custom WM_
+			printf("**********recalc******\r\n");
 			GetClientRect(hwnd, &clientRect);
 			optionsPreview.width = clientRect.right;
 			optionsPreview.height = clientRect.bottom;
 			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
 			InvalidateRect(hwnd, NULL, 0);
     		return 1;
+			break;
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
 			//printf("***size***\r\n");
 			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
-			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
-			//InvalidateRect(hwnd, NULL, 1);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			InvalidateRect(hwnd, NULL, 0);
 			break;
 		case WM_PAINT:
 			PaintPreview(hwnd, &locationHistory);
@@ -928,20 +938,21 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 		EndPaint(hwnd, &ps);
 	}
 
-	if (width!=previewBM.width)	{
-		printf("width not the same");
-	}
-	if (height!=previewBM.height)	{
-		printf("width not the same");
-	}
-
-
-
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
-	BitBlt(hdc,0, 0, width, height, memDC, 0, 0, SRCCOPY);
+	if ((width!=previewBM.width) || (height!=previewBM.height))	{
+		printf("width not the same");
+		StretchBlt(hdc,0,0,width, height, memDC, 0,0,previewBM.width, previewBM.height, SRCCOPY);
+	}
+	else	{
+		BitBlt(hdc,0, 0, width, height, memDC, 0, 0, SRCCOPY);
+	}
+
+
+
+
 	SelectObject(memDC, oldBitmap);
 
 	DeleteDC(hdc);
