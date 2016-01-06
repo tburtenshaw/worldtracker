@@ -11,6 +11,7 @@ typedef struct sOptions OPTIONS;
 typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
 typedef struct sHeatmap HEATMAP;
+typedef struct sNswe NSWE;
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -31,6 +32,15 @@ struct sHeatmap	{
 	unsigned char *radius;
 };
 
+struct sNswe	{
+	//order shouldn't matter as we're not directly accessing from memory, or saving to file
+	double west;
+	double east;
+	double north;
+	double south;
+
+};
+
 struct sOptions	{	//what we can get from the command line
 	char *jsonfilenameinput;	//these are just pointers to either the default, or the command line argument
 	char *pngfilenameinput;
@@ -45,10 +55,12 @@ struct sOptions	{	//what we can get from the command line
 	int width;
 	int height;
 
-	double west;
+/*	double west;
 	double east;
 	double north;
 	double south;
+*/
+	NSWE nswe;
 
 	double zoom;
 	double aspectratio;
@@ -151,6 +163,8 @@ COLOUR TimestampToRgb(long ts, long min, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
+
+int CopyNSWE(NSWE *dest, NSWE *src);
 
 double ipart(double x);
 double round(double x);

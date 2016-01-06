@@ -45,15 +45,15 @@ int RationaliseOptions(OPTIONS *options)
 	}
 
 	//if they're the wrong way around
-	if (options->east<options->west)	{tempdouble=options->east; options->east=options->west; options->west=tempdouble;}
-	if (options->north<options->south)	{tempdouble=options->north; options->north=options->south; options->south=tempdouble;}
+	if (options->nswe.east<options->nswe.west)	{tempdouble=options->nswe.east; options->nswe.east=options->nswe.west; options->nswe.west=tempdouble;}
+	if (options->nswe.north<options->nswe.south)	{tempdouble=options->nswe.north; options->nswe.north=options->nswe.south; options->nswe.south=tempdouble;}
 
 	//if they're strange
-	if ((options->east-options->west == 0) || (options->north-options->south==0) || (options->east-options->west>360) || (options->north-options->south>360))	{
-		options->west=-180;
-		options->east=180;
-		options->north=90;
-		options->south=-90;
+	if ((options->nswe.east-options->nswe.west == 0) || (options->nswe.north-options->nswe.south==0) || (options->nswe.east-options->nswe.west>360) || (options->nswe.north-options->nswe.south>360))	{
+		options->nswe.west=-180;
+		options->nswe.east=180;
+		options->nswe.north=90;
+		options->nswe.south=-90;
 	}
 
 
@@ -65,17 +65,17 @@ int RationaliseOptions(OPTIONS *options)
 		options->height= 180*options->zoom;
 	}	else
 	if (options->width==0)	{	//the haven't specified a width (but have a height)
-		options->width=options->height*(options->east-options->west)/(options->north-options->south);
+		options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
 		if (options->width > MAX_DIMENSION)	{	//if we're oversizing it
 			options->width = MAX_DIMENSION;
-			options->height = options->width*(options->north - options->south)/(options->east - options->west);
+			options->height = options->width*(options->nswe.north - options->nswe.south)/(options->nswe.east - options->nswe.west);
 		}
 	}	else
 	if (options->height==0)	{	//the haven't specified a height (but have a width)
-			options->height=options->width*(options->north-options->south)/(options->east-options->west);
+			options->height=options->width*(options->nswe.north-options->nswe.south)/(options->nswe.east-options->nswe.west);
 			if (options->height > MAX_DIMENSION)	{	//if we're oversizing it
 				options->height = MAX_DIMENSION;
-				options->width=options->height*(options->east-options->west)/(options->north-options->south);
+				options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
 			}
 	}
 
@@ -83,23 +83,23 @@ int RationaliseOptions(OPTIONS *options)
 	//test for strange rounding errors
 	if ((options->width==0) || (options->height==0) || (options->height > MAX_DIMENSION) || (options->width > MAX_DIMENSION))	{
 		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", options->width, options->height);
-		options->west=-180;
-		options->east=180;
-		options->north=90;
-		options->south=-90;
+		options->nswe.west=-180;
+		options->nswe.east=180;
+		options->nswe.north=90;
+		options->nswe.south=-90;
 		options->height=180;
 		options->width=360;
 	}
 
 	//if the aspect ratio of coords is different, set the width to be related to the
-	testwidth=options->height*(options->east-options->west)/(options->north-options->south);
+	testwidth=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
 	if (testwidth != options->width)	{
 		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, options->width);
 		options->width=testwidth;
 	}
 
 	//then calculate how many pixels per degree
-	options->zoom=options->width/(options->east-options->west);
+	options->zoom=options->width/(options->nswe.east-options->nswe.west);
 	fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
 
 	//Set the from and to times
@@ -620,10 +620,10 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	//if it's flagged not to draw then return
 	if (lon2>360 || lon1>360) return 0;
 	//if the line is obviously out of the bounds of the bitmap then can return
-	if ((lon1 < bm->options->west) && (lon2 < bm->options->west))	return 0;
-	if ((lon1 > bm->options->east) && (lon2 > bm->options->east))	return 0;
-	if ((lat1 < bm->options->south) && (lat2 < bm->options->south))	return 0;
-	if ((lat1 > bm->options->north) && (lat2 > bm->options->north))	return 0;
+	if ((lon1 < bm->options->nswe.west) && (lon2 < bm->options->nswe.west))	return 0;
+	if ((lon1 > bm->options->nswe.east) && (lon2 > bm->options->nswe.east))	return 0;
+	if ((lat1 < bm->options->nswe.south) && (lat2 < bm->options->nswe.south))	return 0;
+	if ((lat1 > bm->options->nswe.north) && (lat2 > bm->options->nswe.north))	return 0;
 
 
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
@@ -739,8 +739,8 @@ int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 	width = bm->width;
 	height = bm->height;
 
-	*y=(bm->options->north - phi)/(bm->options->north - bm->options->south)*height;
-	*x=(lambda - bm->options->west)/(bm->options->east - bm->options->west)*width;
+	*y=(bm->options->nswe.north - phi)/(bm->options->nswe.north - bm->options->nswe.south)*height;
+	*x=(lambda - bm->options->nswe.west)/(bm->options->nswe.east - bm->options->nswe.west)*width;
 
 	return 0;
 }
@@ -1016,10 +1016,10 @@ int WriteKMLFile(BM* bm)
 	fprintf(kml, "<description>From %s to %s</description>\r\n", sStartTime, sEndTime);
 	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->options->pngfilenamefinal);
     fprintf(kml, "<LatLonBox>\r\n");
-	fprintf(kml, "<north>%f</north>\r\n",bm->options->north);
-	fprintf(kml, "<south>%f</south>\r\n",bm->options->south);
-	fprintf(kml, "<east>%f</east>\r\n",bm->options->east);
-	fprintf(kml, "<west>%f</west>\r\n",bm->options->west);
+	fprintf(kml, "<north>%f</north>\r\n",bm->options->nswe.north);
+	fprintf(kml, "<south>%f</south>\r\n",bm->options->nswe.south);
+	fprintf(kml, "<east>%f</east>\r\n",bm->options->nswe.east);
+	fprintf(kml, "<west>%f</west>\r\n",bm->options->nswe.west);
 	fprintf(kml, "<rotation>0</rotation>\r\n");
 	fprintf(kml, "</LatLonBox>\r\n");
 	fprintf(kml, "</GroundOverlay>\r\n");
@@ -1097,10 +1097,10 @@ strcpy(preset_name[52],"world"); preset_north[52]= 90;	preset_south[52]= -90;	pr
 
 	for (i=0;i<PRESET_COUNT;i++)	{
 		if (!stricmp(preset,preset_name[i]))	{
-			options->north=preset_north[i];
-			options->south=preset_south[i];
-			options->west=preset_west[i];
-			options->east=preset_east[i];
+			options->nswe.north=preset_north[i];
+			options->nswe.south=preset_south[i];
+			options->nswe.west=preset_west[i];
+			options->nswe.east=preset_east[i];
 		}
 	}
 
@@ -1145,4 +1145,11 @@ double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2
 
 	double c=sqrt( (deltalat*deltalat) + ((cos(meanlat)*deltalong)*(cos(meanlat)*deltalong)) );
 	return EARTH_MEAN_RADIUS_KM*1000 * c;
+}
+
+int CopyNSWE(NSWE *dest, NSWE *src)
+{
+	//this just does n=n, e=e, etc.
+	memcpy(dest, src, sizeof(*dest));
+	return 0;
 }

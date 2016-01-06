@@ -9,7 +9,7 @@
 
 #define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations - this will do it as soon as message received
 #define WT_WM_QUEUERECALC WM_APP+1	//Signal that the map needs to be replotted (essentially this starts a timer) so we don't waste time
-
+#define WT_WM_SIGNALMOUSEWHEEL WM_APP+2	//We shouldn't send WM_MOUSEWHEEL between functions, but send this to down propagate to child window if required
 
 #define IDT_PREVIEWTIMER 1
 
@@ -100,8 +100,11 @@ HBITMAP hbmPreview;
 BM overviewBM;
 BM previewBM;
 
-POINT mousePoint;
-BOOL mouseDrag;
+POINT overviewOriginalPoint;
+NSWE overviewOriginalNSWE;
+BOOL mouseDragMovebar;
+BOOL mouseDragOverview;
+
 
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
@@ -117,7 +120,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
-int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
+int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
 double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
 
 
@@ -354,13 +357,13 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 //			InvalidateRect(hwndOverview,NULL, 0);
 //			InvalidateRect(hwndPreview, NULL, 1);
-
 			UpdateEditboxesFromOptions(&optionsOverview);
 			UpdateBarsFromOptions(&optionsOverview);
+
 		break;
 
 		case IDM_SAVE:
-			ExportKMLDialogAndComplete(hwnd, &optionsOverview, &locationHistory);
+			ExportKMLDialogAndComplete(hwnd, &optionsPreview, &locationHistory);
 		break;
 
 		case IDM_EXIT:
@@ -397,13 +400,13 @@ int UpdateEditboxesFromOptions(OPTIONS * o)
 	sprintf(buffer,"%s", o->jsonfilenamefinal);
 	SetWindowText(hwndStaticFilename, buffer);
 
-	sprintf(buffer,"%f", o->north);
+	sprintf(buffer,"%f", o->nswe.north);
 	SetWindowText(hwndEditNorth, buffer);
-	sprintf(buffer,"%f", o->south);
+	sprintf(buffer,"%f", o->nswe.south);
 	SetWindowText(hwndEditSouth, buffer);
-	sprintf(buffer,"%f", o->west);
+	sprintf(buffer,"%f", o->nswe.west);
 	SetWindowText(hwndEditWest, buffer);
-	sprintf(buffer,"%f", o->east);
+	sprintf(buffer,"%f", o->nswe.east);
 	SetWindowText(hwndEditEast, buffer);
 
 	return 0;
@@ -411,10 +414,10 @@ int UpdateEditboxesFromOptions(OPTIONS * o)
 
 int UpdateBarsFromOptions(OPTIONS * o)
 {
-	MoveWindow(hwndOverviewMovebarWest, 180 + o->west , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarEast, 180 + o->east , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->north, 360,3,TRUE);
-	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->south, 360,3,TRUE);
+	MoveWindow(hwndOverviewMovebarWest, 180 + o->nswe.west , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarEast, 180 + o->nswe.east , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->nswe.north, 360,3,TRUE);
+	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->nswe.south, 360,3,TRUE);
 
 	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
 	return 0;
@@ -428,34 +431,35 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 	switch (codeNotify)	{
 	case EN_CHANGE:
-		printf("EN_CHANGE");
+		if (hwndCtl!=GetFocus())
+			return 0;
 		needsRedraw=0;
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 		value=atof(szText);
 		switch (id)	{
 		case ID_EDITNORTH:
 			if ((value >= -90) && (value<=90))
-				if ((optionsOverview.north!=value) || (optionsPreview.north!=value))	{
-					optionsOverview.north=value;
-					optionsPreview.north=value;
+				if ((optionsOverview.nswe.north!=value) || (optionsPreview.nswe.north!=value))	{
+					optionsOverview.nswe.north=value;
+					optionsPreview.nswe.north=value;
 					needsRedraw = 1;
 					printf("N");
 				}
 			break;
 		case ID_EDITSOUTH:
 			if ((value >= -90) && (value<=90))
-				if ((optionsOverview.south!=value) || (optionsPreview.south!=value))	{
-					optionsOverview.south=value;
-					optionsPreview.south=value;
+				if ((optionsOverview.nswe.south!=value) || (optionsPreview.nswe.south!=value))	{
+					optionsOverview.nswe.south=value;
+					optionsPreview.nswe.south=value;
 					needsRedraw = 1;
 					printf("S");
 				}
 			break;
 		case ID_EDITWEST:
 			if ((value >= -180) && (value<=180))	{
-				if ((optionsOverview.west!=value) || (optionsPreview.west!=value))	{
-					optionsOverview.west=value;
-					optionsPreview.west=value;
+				if ((optionsOverview.nswe.west!=value) || (optionsPreview.nswe.west!=value))	{
+					optionsOverview.nswe.west=value;
+					optionsPreview.nswe.west=value;
 					needsRedraw = 1;
 					printf("W");
 				}
@@ -463,9 +467,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 		case ID_EDITEAST:
 			if ((value >= -180) && (value<=180))
-				if ((optionsOverview.east != value) || (optionsPreview.east != value))	{
-					optionsOverview.east=value;
-					optionsPreview.east=value;
+				if ((optionsOverview.nswe.east != value) || (optionsPreview.nswe.east != value))	{
+					optionsOverview.nswe.east=value;
+					optionsPreview.nswe.east=value;
 					needsRedraw = 1;
 					printf("E");
 				}
@@ -483,9 +487,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		switch (id)	{
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-				LoadPreset(&optionsOverview, szText);
-				UpdateEditboxesFromOptions(&optionsOverview);
-				UpdateBarsFromOptions(&optionsOverview);
+				LoadPreset(&optionsPreview, szText);
+				UpdateEditboxesFromOptions(&optionsPreview);
+				UpdateBarsFromOptions(&optionsPreview);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 //				InvalidateRect(hwndPreview, NULL, TRUE);
@@ -510,33 +514,16 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 
 	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
 	optionsExport.width=atol(&editboxtext[0]);
-	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
+	SendMessage(hwndEditExportHeight, WM_GETTEXT, 128,(long)&editboxtext[0]);
 	optionsExport.height=atol(&editboxtext[0]);
 	//get the NSWE from the options
-	optionsExport.north=o->north;
-	optionsExport.south=o->south;
-	optionsExport.west=o->west;
-	optionsExport.east=o->east;
+	optionsExport.nswe.north=o->nswe.north;
+	optionsExport.nswe.south=o->nswe.south;
+	optionsExport.nswe.west=o->nswe.west;
+	optionsExport.nswe.east=o->nswe.east;
 
 	memcpy(&optionsExport.kmlfilenamefinal, &o->kmlfilenamefinal, sizeof(o->kmlfilenamefinal));
 	memcpy(&optionsExport.pngfilenamefinal, &o->pngfilenamefinal, sizeof(o->kmlfilenamefinal));
-
-/*
-	RationaliseOptions(&optionsExport);
-
-	bitmapInit(&exportBM, &optionsExport, &locationHistory);
-	DrawGrid(&exportBM);
-	PlotPaths(&exportBM, &locationHistory, &optionsExport);
-
-	printf("png:%s, w:%i, h:%i size:%i\r\n",exportBM.options->pngfilenamefinal, exportBM.width, exportBM.height, exportBM.sizebitmap);
-	error = lodepng_encode32_file(exportBM.options->pngfilenamefinal, exportBM.bitmap, exportBM.width, exportBM.height);
-	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
-
-	//Write KML file
-	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
-	WriteKMLFile(&exportBM);
-	bitmapDestroy(&exportBM);
-*/
 
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSaveKML, &optionsExport ,0,NULL);
 
@@ -650,17 +637,18 @@ int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	MOVEBARINFO * pMbi;
+	POINT mousePoint;
 	char buffer[256];
 
 	switch (msg) {
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
 			GetCursorPos(&mousePoint);
-			mouseDrag=TRUE;
+			mouseDragMovebar=TRUE;
 			SetCapture(hwnd);
 		break;
 		case WM_MOUSEMOVE:
-			if (mouseDrag == FALSE)
+			if (mouseDragMovebar == FALSE)
 				return 1;
 			GetCursorPos(&mousePoint);
 			ScreenToClient(GetParent(hwnd), &mousePoint);
@@ -681,11 +669,11 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 
 		break;
 		case WM_LBUTTONUP:
-			if (mouseDrag == FALSE)
+			if (mouseDragMovebar == FALSE)
 				return 1;
 
 			pMbi = (MOVEBARINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-			mouseDrag=FALSE;
+			mouseDragMovebar=FALSE;
 			ReleaseCapture();
 			GetCursorPos(&mousePoint);
 			ScreenToClient(GetParent(hwnd), &mousePoint);
@@ -704,18 +692,19 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			}
 
 			if (pMbi->direction == D_WEST)	{
-				optionsOverview.west = mousePoint.x-180;
+				optionsPreview.nswe.west = mousePoint.x-180;
 			}
 			if (pMbi->direction == D_EAST)	{
-				optionsOverview.east = mousePoint.x-180;
+				optionsPreview.nswe.east = mousePoint.x-180;
 			}
 			if (pMbi->direction == D_NORTH)	{
-				optionsOverview.north =90-mousePoint.y;
+				optionsPreview.nswe.north =90-mousePoint.y;
 			}
 			if (pMbi->direction == D_SOUTH)	{
-				optionsOverview.south =90-mousePoint.y;
+				optionsPreview.nswe.south =90-mousePoint.y;
 			}
-			UpdateEditboxesFromOptions(&optionsOverview);
+			UpdateEditboxesFromOptions(&optionsPreview);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
 		break;
 		default:
@@ -728,6 +717,8 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
+	POINT mousePoint;
+
 	switch (msg) {
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
@@ -747,15 +738,11 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
 			mbiSouth.direction = D_SOUTH;
 			SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
-
-
 			break;
 
 		case WT_WM_RECALCBITMAP:
 			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
 			memset(&overviewBM, 0, sizeof(overviewBM));
-
-
 
 			optionsOverview.height=180;optionsOverview.width=360;
 			RationaliseOptions(&optionsOverview);
@@ -768,13 +755,48 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 			InvalidateRect(hwnd, 0, 0);
 
-
 			break;
-		case WM_ERASEBKGND:	//to avoid flicker:
+		case WM_ERASEBKGND:	//to avoid flicker:(although shouldn't need if hbrush is null)
     		return 1;
 		case WM_PAINT:
 			PaintOverview(hwnd, &locationHistory);
 			break;
+		case WM_LBUTTONDOWN:
+			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
+			GetCursorPos(&overviewOriginalPoint);
+			CopyNSWE(&overviewOriginalNSWE, &optionsPreview.nswe);
+			//overviewOriginalNSWE.north = optionsOverview.north;
+			//overviewOriginalNSWE.south = optionsOverview.south;
+			//overviewOriginalNSWE.west = optionsOverview.west;
+			//overviewOriginalNSWE.east = optionsOverview.east;
+
+			mouseDragOverview=TRUE;
+			SetCapture(hwnd);
+			break;
+		case WM_MOUSEMOVE:
+			if (mouseDragOverview == FALSE)
+				return 1;
+			GetCursorPos(&mousePoint);
+			optionsPreview.nswe.north=overviewOriginalNSWE.north-mousePoint.y+overviewOriginalPoint.y;
+			optionsPreview.nswe.south=overviewOriginalNSWE.south-mousePoint.y+overviewOriginalPoint.y;
+			optionsPreview.nswe.west=overviewOriginalNSWE.west+mousePoint.x-overviewOriginalPoint.x;
+			optionsPreview.nswe.east=overviewOriginalNSWE.east+mousePoint.x-overviewOriginalPoint.x;
+			UpdateBarsFromOptions(&optionsPreview);
+			UpdateEditboxesFromOptions(&optionsPreview);
+			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+
+			printf("mousedragging");
+			break;
+
+		case WM_LBUTTONUP:
+			if (mouseDragOverview == FALSE)
+				return 1;
+			mouseDragOverview=FALSE;
+			ReleaseCapture();
+			break;
+
+
+
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
@@ -811,6 +833,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 	POINT mousePoint;
 
+	SetFocus(hwnd);
 	zDelta = HIWORD(wParam);
 
 	if (zDelta>32768)	{//convert it to a signed int
@@ -819,8 +842,8 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 	zoomfactor = 12/(double)zDelta;
 
-	longspan = optionsPreview.east - optionsPreview.west;
-	latspan = optionsPreview.north - optionsPreview.south;
+	longspan = optionsPreview.nswe.east - optionsPreview.nswe.west;
+	latspan = optionsPreview.nswe.north - optionsPreview.nswe.south;
 
 	if ((zDelta>0)&&((longspan<0.01) || (latspan<0.01)))	{	//if we're too zoomed in already (i.e. there's less than 0.01 degrees between sides)
 		return 0;
@@ -832,26 +855,26 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	ScreenToClient(hwnd, &mousePoint);
 
 
-	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.west;
-	latitude = optionsPreview.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
+	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.nswe.west;
+	latitude = optionsPreview.nswe.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
 	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f\r\n",mousePoint.x,mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude);
 
-	optionsPreview.west-=longitude;
-	optionsPreview.north-=latitude;
-	optionsPreview.east-=longitude;
-	optionsPreview.south-=latitude;
+	optionsPreview.nswe.west-=longitude;
+	optionsPreview.nswe.north-=latitude;
+	optionsPreview.nswe.east-=longitude;
+	optionsPreview.nswe.south-=latitude;
 
-	optionsPreview.west*=(1-zoomfactor);
-	optionsPreview.north*=(1-zoomfactor);
-	optionsPreview.east*=(1-zoomfactor);
-	optionsPreview.south*=(1-zoomfactor);
+	optionsPreview.nswe.west*=(1-zoomfactor);
+	optionsPreview.nswe.north*=(1-zoomfactor);
+	optionsPreview.nswe.east*=(1-zoomfactor);
+	optionsPreview.nswe.south*=(1-zoomfactor);
 
-	optionsPreview.west+=longitude;
-	optionsPreview.north+=latitude;
-	optionsPreview.east+=longitude;
-	optionsPreview.south+=latitude;
+	optionsPreview.nswe.west+=longitude;
+	optionsPreview.nswe.north+=latitude;
+	optionsPreview.nswe.east+=longitude;
+	optionsPreview.nswe.south+=latitude;
 
 
 	UpdateEditboxesFromOptions(&optionsPreview);
@@ -875,6 +898,10 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
 			SetTimer(hwnd, IDT_PREVIEWTIMER, 200, NULL);
+			int w,h;
+			GetClientRect(hWndMain, &clientRect);
+			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
+			InvalidateRect(hwnd, NULL, 0);	//trigger a WM_PAINT, as we may be able to stretch or translate
 			return 1;
 			break;
 		case WM_TIMER:
@@ -903,7 +930,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WM_LBUTTONUP:
 			HandlePreviewLbutton(hwnd, msg, wParam, lParam);
 			break;
-		case WM_MOUSEWHEEL:
+		case WT_WM_SIGNALMOUSEWHEEL:
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
 		default:
@@ -1022,6 +1049,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
+	RECT rect;	//temporary rect, currently used for checkingposition of preview window
+
 	switch (msg) {
 	case WM_CREATE:
 		int y=MARGIN;
@@ -1064,13 +1093,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y=MARGIN;
 		hwndStaticExportHeading = CreateWindow("Static","Export information", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
-		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE |WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
+		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+MARGIN;
 		hwndStaticExportHeight = CreateWindow("Static","Height:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
+		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
@@ -1080,12 +1109,18 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	case WM_SIZE:
 		SendMessage(hWndStatusbar,msg,wParam,lParam);
 		InitializeStatusBar(hWndStatusbar,1);
-		PreviewWindowFitToAspectRatio(hwnd, lParam, (optionsPreview.east-optionsPreview.west)/(optionsPreview.north-optionsPreview.south));
+		PreviewWindowFitToAspectRatio(hwnd, HIWORD(lParam), LOWORD(lParam), (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
 		break;
 	case WM_MENUSELECT:
 		return MsgMenuSelect(hwnd,msg,wParam,lParam);
 	case WM_MOUSEWHEEL:
-		SendMessage(hwndPreview, msg,wParam,lParam);
+		//if it's within the Preview message box, send it there
+		GetWindowRect(hwndPreview, &rect);
+		printf("Rectleft %i, rectright %i, mousex %i, mousey %i. \r\n",rect.left, rect.right, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		if ((GET_X_LPARAM(lParam)>=rect.left) && (GET_X_LPARAM(lParam)<=rect.right) && (GET_Y_LPARAM(lParam)>=rect.top) && (GET_Y_LPARAM(lParam)<=rect.bottom))	{
+			SendMessage(hwndPreview, WT_WM_SIGNALMOUSEWHEEL, wParam, lParam);
+		}
+		return 0;
 		break;
 	case WM_COMMAND:
 		HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);
@@ -1099,6 +1134,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
+/*
 double PreviewFixParamsToLock(int lockedPart, OPTIONS * o)
 {
 	int dlat,dlong;
@@ -1109,59 +1145,65 @@ double PreviewFixParamsToLock(int lockedPart, OPTIONS * o)
 
 	switch (lockedPart)	{
 		case LOCK_AR_WINDOW:
-			dlong = o->east - o->west;
-			dlat = o->north - o->south;
+			dlong = o->nswe.east - o->nswe.west;
+			dlat = o->nswe.north - o->nswe.south;
 
-			if ((o->west+dlat*o->aspectratio) > o->east)
-				o->east = (o->west+dlat*o->aspectratio);
+			if ((o->nswe.west+dlat*o->aspectratio) > o->nswe.east)
+				o->nswe.east = (o->nswe.west+dlat*o->aspectratio);
 
-			else if ((o->north-dlong/o->aspectratio)>o->south)
-				o->south =(o->north-dlong/o->aspectratio);
+			else if ((o->nswe.north-dlong/o->aspectratio)>o->nswe.south)
+				o->nswe.south =(o->nswe.north-dlong/o->aspectratio);
 			break;
 	}
 
-	if (o->south < -90) o->south=-90;
-	if (o->south > 90) o->south=90;
+	if (o->nswe.south < -90) o->nswe.south=-90;
+	if (o->nswe.south > 90) o->nswe.south=90;
 
-	if (o->north > 90) o->north=90;
-	if (o->north < -90) o->north=-90;
+	if (o->nswe.north > 90) o->nswe.north=90;
+	if (o->nswe.north < -90) o->nswe.north=-90;
 
-	if (o->west > 180) o->west=180;
-	if (o->west < -180) o->west=-180;
+	if (o->nswe.west > 180) o->nswe.west=180;
+	if (o->nswe.west < -180) o->nswe.west=-180;
 
-	if (o->east > 180) o->east=180;
-	if (o->east < -180) o->east=-180;
+	if (o->nswe.east > 180) o->nswe.east=180;
+	if (o->nswe.east < -180) o->nswe.east=-180;
 
 
-	o->zoom=o->width/(o->east - o->west);
+	o->zoom=o->width/(o->nswe.east - o->nswe.west);
 
-	UpdateEditboxesFromOptions(&optionsOverview);
-	UpdateBarsFromOptions(&optionsOverview);
+	UpdateEditboxesFromOptions(&optionsPreview);
+	UpdateBarsFromOptions(&optionsPreview);
 
 
 	return 1;
 }
+*/
 
-
-int PreviewWindowFitToAspectRatio(HWND hwnd, LPARAM lParam, double aspectratio)
+int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio)
 {
-	int mainheight, mainwidth;
+	//int mainheight, mainwidth;
 	int availableheight, availablewidth;
 	int endheight, endwidth;
 
+	RECT statusbarRect;
 	RECT previewRect;
 	POINT previewPoint;
 
-	mainheight = HIWORD(lParam);
-	mainwidth = LOWORD(lParam);
+	//mainheight = HIWORD(lParam);
+	//mainwidth = LOWORD(lParam);
 
 	GetWindowRect(hwndPreview, &previewRect);
 	previewPoint.x=previewRect.left;
 	previewPoint.y=previewRect.top;
 	ScreenToClient(hwnd, &previewPoint);
 
-	availableheight = mainheight - previewPoint.y - MARGIN;
+	//Get status bar heigh
+	GetClientRect(hWndStatusbar, &statusbarRect);
+
+	availableheight = mainheight - previewPoint.y - MARGIN-statusbarRect.bottom;
 	availablewidth  = mainwidth - previewPoint.x - MARGIN;
+
+
 
 	//printf("ht:%i avail:%i top:%i %i\r\n", mainheight, availableheight,previewRect.top, previewPoint.y);
 
@@ -1217,4 +1259,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	return msg.wParam;
 }
+
 
