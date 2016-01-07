@@ -920,28 +920,56 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 			stretchPreview.nHeightSrc=optionsPreview.height;
 		}
 
-		stretchPreview.nXOriginSrc-=mousePoint.x;
-		stretchPreview.nYOriginSrc-=mousePoint.y;
-//		stretchPreview.nWidthSrc-=mousePoint.x;
-//		stretchPreview.nHeightSrc-=mousePoint.y;
-
-
-		stretchPreview.nXOriginSrc*=(1-zoomfactor);
-		stretchPreview.nYOriginSrc*=(1-zoomfactor);
 		stretchPreview.nWidthSrc*=(1-zoomfactor);
 		stretchPreview.nHeightSrc*=(1-zoomfactor);
 
+		stretchPreview.nXOriginSrc-=mousePoint.x;
+		stretchPreview.nYOriginSrc-=mousePoint.y;
 
+		stretchPreview.nXOriginSrc*=(1-zoomfactor);
+		stretchPreview.nYOriginSrc*=(1-zoomfactor);
 
 		stretchPreview.nXOriginSrc+=mousePoint.x;
 		stretchPreview.nYOriginSrc+=mousePoint.y;
-//		stretchPreview.nWidthSrc+=mousePoint.x;
-//		stretchPreview.nHeightSrc+=mousePoint.y;
 
 		stretchPreview.useStretch = TRUE;
 
 		printf("Stretch dest:(%i,%i,%i,%i)", stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest);
 		printf(" from src (%i,%i,%i,%i)\r\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
+	}
+	else	{
+		//when zooming out the src wile be the whole window, and we'll compress it to a smaller area
+		stretchPreview.nXOriginSrc=0;
+		stretchPreview.nYOriginSrc=0;
+		stretchPreview.nWidthSrc=optionsPreview.width;
+		stretchPreview.nHeightSrc=optionsPreview.height;
+
+		//initially set it up to just the same
+		if (!stretchPreview.useStretch)	{
+			stretchPreview.nXOriginDest=0;
+			stretchPreview.nYOriginDest=0;
+			stretchPreview.nWidthDest=optionsPreview.width;
+			stretchPreview.nHeightDest=optionsPreview.height;
+		}
+
+		//then scale size
+		stretchPreview.nWidthDest/=(1-zoomfactor);
+		stretchPreview.nHeightDest/=(1-zoomfactor);
+
+		//translating so the origin is at the mouse point
+		stretchPreview.nXOriginDest-=mousePoint.x;
+		stretchPreview.nYOriginDest-=mousePoint.y;
+
+		stretchPreview.nXOriginDest/=(1-zoomfactor);
+		stretchPreview.nYOriginDest/=(1-zoomfactor);
+
+		stretchPreview.nXOriginDest+=mousePoint.x;
+		stretchPreview.nYOriginDest+=mousePoint.y;
+
+		stretchPreview.useStretch = TRUE;
+
+
+
 	}
 
 
