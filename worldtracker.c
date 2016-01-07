@@ -46,12 +46,26 @@
 #define LOCK_AR_WINDOW 3
 
 typedef struct sMovebar MOVEBARINFO;
+typedef struct sStretch STRETCH;
 
 struct sMovebar	{
 	int direction;
 	float position;
 	COLORREF colour;
 };
+
+struct sStretch	{
+	BOOL useStretch;	//should paint use this to stretchblt
+	int   nXOriginDest;	//these are set by mousewheel zoom function
+	int   nYOriginDest; //to mimic the look of zooming
+	int   nWidthDest;	//without having to recalculate fully
+	int   nHeightDest;
+	int   nXOriginSrc;
+	int   nYOriginSrc;
+	int   nWidthSrc;
+	int   nHeightSrc;
+};
+
 
 LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
@@ -96,6 +110,8 @@ HWND hwndEditExportHeight;
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
+
+STRETCH stretchPreview;
 
 BM overviewBM;
 BM previewBM;
@@ -383,11 +399,12 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 //This is the thread that loads the file
 DWORD WINAPI LoadKMLThread(void *JSONfilename)
 {
-	printf("Freeing Locations");
+//	UpdateStatusBar("Loading file...", 0, 0);
 	FreeLocations(&locationHistory);	//first free any locations
 	LoadLocations(&locationHistory, JSONfilename);
 
 	//Once loaded, tell the windows they can update
+//    UpdateStatusBar("Ready", 0, 0);
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 	return 0;
@@ -641,6 +658,16 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 	char buffer[256];
 
 	switch (msg) {
+		case WM_SETCURSOR:
+			pMbi = (MOVEBARINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+			if ((pMbi->direction == D_NORTH)||(pMbi->direction == D_SOUTH))	{
+				SetCursor(LoadCursor(NULL,IDC_SIZENS));
+			}
+			else	{
+				SetCursor(LoadCursor(NULL,IDC_SIZEWE));
+			}
+			return 1;
+			break;
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
 			GetCursorPos(&mousePoint);
@@ -859,29 +886,70 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	latitude = optionsPreview.nswe.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f\r\n",mousePoint.x,mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude);
+	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
 
+	//This shifts the origin to where the mouse was
 	optionsPreview.nswe.west-=longitude;
 	optionsPreview.nswe.north-=latitude;
 	optionsPreview.nswe.east-=longitude;
 	optionsPreview.nswe.south-=latitude;
-
+	//resizes
 	optionsPreview.nswe.west*=(1-zoomfactor);
 	optionsPreview.nswe.north*=(1-zoomfactor);
 	optionsPreview.nswe.east*=(1-zoomfactor);
 	optionsPreview.nswe.south*=(1-zoomfactor);
-
+	//then moves the origin back
 	optionsPreview.nswe.west+=longitude;
 	optionsPreview.nswe.north+=latitude;
 	optionsPreview.nswe.east+=longitude;
 	optionsPreview.nswe.south+=latitude;
+
+	//Now we set the coords for the StretchBlt if required
+	if (zoomfactor>0)	{	//if we're zooming in
+		//we'll stretch the centre to the whole window
+		stretchPreview.nXOriginDest=0;
+		stretchPreview.nYOriginDest=0;
+		stretchPreview.nWidthDest=optionsPreview.width;
+		stretchPreview.nHeightDest=optionsPreview.height;
+
+		//if this isn't already set, it'll be the same as the destination
+		if (!stretchPreview.useStretch)	{
+			stretchPreview.nXOriginSrc=0;
+			stretchPreview.nYOriginSrc=0;
+			stretchPreview.nWidthSrc=optionsPreview.width;
+			stretchPreview.nHeightSrc=optionsPreview.height;
+		}
+
+		stretchPreview.nXOriginSrc-=mousePoint.x;
+		stretchPreview.nYOriginSrc-=mousePoint.y;
+//		stretchPreview.nWidthSrc-=mousePoint.x;
+//		stretchPreview.nHeightSrc-=mousePoint.y;
+
+
+		stretchPreview.nXOriginSrc*=(1-zoomfactor);
+		stretchPreview.nYOriginSrc*=(1-zoomfactor);
+		stretchPreview.nWidthSrc*=(1-zoomfactor);
+		stretchPreview.nHeightSrc*=(1-zoomfactor);
+
+
+
+		stretchPreview.nXOriginSrc+=mousePoint.x;
+		stretchPreview.nYOriginSrc+=mousePoint.y;
+//		stretchPreview.nWidthSrc+=mousePoint.x;
+//		stretchPreview.nHeightSrc+=mousePoint.y;
+
+		stretchPreview.useStretch = TRUE;
+
+		printf("Stretch dest:(%i,%i,%i,%i)", stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest);
+		printf(" from src (%i,%i,%i,%i)\r\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
+	}
+
 
 
 	UpdateEditboxesFromOptions(&optionsPreview);
 	UpdateBarsFromOptions(&optionsPreview);
 
 	SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
-	//InvalidateRect(hwnd, 0, TRUE);
 
 	return 1;
 }
@@ -913,6 +981,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			optionsPreview.width = clientRect.right;
 			optionsPreview.height = clientRect.bottom;
 			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
+			stretchPreview.useStretch = FALSE;
 			InvalidateRect(hwnd, NULL, 0);
     		return 1;
 			break;
@@ -969,7 +1038,11 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	memDC = CreateCompatibleDC(hdc);
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
-	if ((width!=previewBM.width) || (height!=previewBM.height))	{
+	if (stretchPreview.useStretch)	{
+		StretchBlt(hdc, stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest,
+			memDC, stretchPreview.nXOriginSrc,stretchPreview.nYOriginSrc,stretchPreview.nWidthSrc, stretchPreview.nHeightSrc, SRCCOPY);
+	}
+	else if ((width!=previewBM.width) || (height!=previewBM.height))	{
 		printf("width not the same");
 		StretchBlt(hdc,0,0,width, height, memDC, 0,0,previewBM.width, previewBM.height, SRCCOPY);
 	}
