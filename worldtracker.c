@@ -140,6 +140,7 @@ CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I sho
 
 DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
+DWORD WINAPI ThreadSetHBitmap(LOCATIONHISTORY *lh);
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
@@ -1127,12 +1128,11 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 	switch (msg) {
 		case WM_CREATE:
 			hbmPreview = NULL;
-			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			break;
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
-			SetTimer(hwnd, IDT_PREVIEWTIMER, 200, NULL);
-			int w,h;
+			SetTimer(hwnd, IDT_PREVIEWTIMER, 100, NULL);	//200 is good without threads
+			//int w,h;
 			GetClientRect(hWndMain, &clientRect);
 			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
 			InvalidateRect(hwnd, NULL, 0);	//trigger a WM_PAINT, as we may be able to stretch or translate
@@ -1146,14 +1146,16 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			GetClientRect(hwnd, &clientRect);
 			optionsPreview.width = clientRect.right;
 			optionsPreview.height = clientRect.bottom;
-			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
-			stretchPreview.useStretch = FALSE;
-			InvalidateRect(hwnd, NULL, 0);
+//			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
+
+			CloseHandle(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSetHBitmap, &locationHistory ,0,NULL));
+
+//			stretchPreview.useStretch = FALSE;
+//			InvalidateRect(hwnd, NULL, 0);
     		return 1;
 			break;
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
 			//printf("***size***\r\n");
-			//hbmPreview = MakeHBitmapPreview(hwnd, GetDC(hwnd), &locationHistory, 1);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			InvalidateRect(hwnd, NULL, 0);
 			break;
@@ -1173,6 +1175,17 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 	}
 	return 0;
 }
+
+DWORD WINAPI ThreadSetHBitmap(LOCATIONHISTORY *lh)
+{
+	hbmPreview = MakeHBitmapPreview(GetDC(hwndPreview), lh);
+	stretchPreview.useStretch = FALSE;
+	InvalidateRect(hwndPreview, NULL, 0);
+
+
+	return 0;
+}
+
 
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 {
@@ -1205,11 +1218,28 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
 	if (stretchPreview.useStretch)	{
+		SetStretchBltMode(hdc, HALFTONE);
 		StretchBlt(hdc, stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest,
 			memDC, stretchPreview.nXOriginSrc,stretchPreview.nYOriginSrc,stretchPreview.nWidthSrc, stretchPreview.nHeightSrc, SRCCOPY);
+
+		//fill in the remaining areas
+		if (stretchPreview.nYOriginDest>0)	{
+			Rectangle(hdc,0,0,previewBM.width,stretchPreview.nYOriginDest);
+		}
+		if (stretchPreview.nXOriginDest>0)	{
+			Rectangle(hdc,0,0,stretchPreview.nXOriginDest, previewBM.height);
+		}
+
+		//if (stretchPreview.nYOriginDest+stretchPreview.nHeightDest<previewBM.height)	{
+//			Rectangle(hdc,0,stretchPreview.nYOriginDest+stretchPreview.nHeightDest, stretchPreview.nXOriginDest, previewBM.height);
+//		}
+
+
+
 	}
 	else if ((width!=previewBM.width) || (height!=previewBM.height))	{
 		printf("width not the same");
+		SetStretchBltMode(hdc, HALFTONE);
 		StretchBlt(hdc,0,0,width, height, memDC, 0,0,previewBM.width, previewBM.height, SRCCOPY);
 	}
 	else	{
@@ -1242,6 +1272,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 
 	height = optionsPreview.height;
 	width = optionsPreview.width;
+
+	EnterCriticalSection(&critAccessLocations);
 
 	if (previewBM.bitmap)	{
 		bitmapDestroy(&previewBM);
@@ -1280,7 +1312,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 		b=(b+3) & ~3;	//round to next WORD alignment
 	}
 
-
+	LeaveCriticalSection(&critAccessLocations);
 	return bitmap;
 }
 
