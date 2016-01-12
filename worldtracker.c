@@ -116,18 +116,28 @@ STRETCH stretchPreview;
 BM overviewBM;
 BM previewBM;
 
+
+//Mouse dragging
 POINT overviewOriginalPoint;
+POINT previewOriginalPoint;
+
 NSWE overviewOriginalNSWE;
+NSWE previewOriginalNSWE;
+
 BOOL mouseDragMovebar;
 BOOL mouseDragOverview;
+BOOL mouseDragPreview;
 
 
+//Options are still based on the command line program
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
 OPTIONS optionsExport;
 
 //Multithread stuff
-HANDLE hAccessLocationsMutex;
+//HANDLE hAccessLocationsMutex;
+CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
+
 DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
 
@@ -368,7 +378,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			if (GetFileName(JSONfilename,sizeof(JSONfilename))==0)
 				return;
 
-			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
+//			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
 
 //			InvalidateRect(hwndOverview,NULL, 0);
@@ -400,8 +410,13 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 DWORD WINAPI LoadKMLThread(void *JSONfilename)
 {
 //	UpdateStatusBar("Loading file...", 0, 0);
+
+    EnterCriticalSection(&critAccessLocations);
+
 	FreeLocations(&locationHistory);	//first free any locations
 	LoadLocations(&locationHistory, JSONfilename);
+
+	LeaveCriticalSection(&critAccessLocations);
 
 	//Once loaded, tell the windows they can update
 //    UpdateStatusBar("Ready", 0, 0);
@@ -552,6 +567,7 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	BM exportBM;
 	int error;
 
+	EnterCriticalSection(&critAccessLocations);
 	RationaliseOptions(options);
 
 	printf("bitmap init %i", options->width);
@@ -567,6 +583,9 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
 	WriteKMLFile(&exportBM);
 	bitmapDestroy(&exportBM);
+
+	LeaveCriticalSection(&critAccessLocations);
+
 	return 0;
 }
 
@@ -812,7 +831,6 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			UpdateEditboxesFromOptions(&optionsPreview);
 			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 
-			printf("mousedragging");
 			break;
 
 		case WM_LBUTTONUP:
@@ -832,15 +850,108 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	double dpp;	//degrees per pixel
 	POINT mousePoint;
+	int mouseDeltaX, mouseDeltaY;
 
 	mousePoint.x = GET_X_LPARAM(lParam);
 	mousePoint.y = GET_Y_LPARAM(lParam);
 
 	switch (msg)	{
 		case WM_LBUTTONDOWN:
-			printf("%i %i,", mousePoint.x, mousePoint.y);
+			previewOriginalPoint.x=mousePoint.x;
+			previewOriginalPoint.y=mousePoint.y;
+			CopyNSWE(&previewOriginalNSWE, &optionsPreview.nswe);
+			mouseDragPreview=TRUE;
+			SetFocus(hwnd);
+			SetCapture(hwnd);
 		break;
+		case WM_MOUSEMOVE:
+			if (mouseDragPreview == FALSE)
+				return 1;
+			dpp = (optionsPreview.nswe.east - optionsPreview.nswe.west)/(optionsPreview.width);	//dpp aspect ratio should be 1, so only need to read x
+			mouseDeltaX = mousePoint.x-previewOriginalPoint.x;
+			mouseDeltaY = mousePoint.y-previewOriginalPoint.y;
+
+			optionsPreview.nswe.east= previewOriginalNSWE.east - dpp*(mouseDeltaX);
+			optionsPreview.nswe.west= previewOriginalNSWE.west - dpp*(mouseDeltaX);
+			optionsPreview.nswe.north= previewOriginalNSWE.north + dpp*(mousePoint.y-previewOriginalPoint.y);
+			optionsPreview.nswe.south= previewOriginalNSWE.south + dpp*(mousePoint.y-previewOriginalPoint.y);
+
+			stretchPreview.nXOriginSrc=0;
+			stretchPreview.nYOriginSrc=0;
+			stretchPreview.nWidthSrc=optionsPreview.width;
+			stretchPreview.nHeightSrc=optionsPreview.height;
+
+
+			stretchPreview.nXOriginDest=0;
+			stretchPreview.nYOriginDest=0;
+			stretchPreview.nWidthDest=optionsPreview.width;
+			stretchPreview.nHeightDest=optionsPreview.height;
+
+			//now set the stretchblt info
+			if (mouseDeltaX<0)	{	//moving left
+				stretchPreview.nXOriginSrc=mouseDeltaX*-1;
+				stretchPreview.nXOriginDest=0;
+				stretchPreview.nWidthSrc = optionsPreview.width + mouseDeltaX;
+				stretchPreview.nWidthDest = optionsPreview.width + mouseDeltaX;
+				stretchPreview.useStretch = TRUE;
+
+				InvalidateRect(hwndPreview, NULL, 0);
+
+			}
+			else if (mouseDeltaX>0)	{	//moving right
+				stretchPreview.nXOriginSrc=0;
+				stretchPreview.nXOriginDest=mouseDeltaX;
+				stretchPreview.nWidthSrc = optionsPreview.width - mouseDeltaX;
+				stretchPreview.nWidthDest = optionsPreview.width - mouseDeltaX;
+				stretchPreview.useStretch = TRUE;
+
+				InvalidateRect(hwndPreview, NULL, 0);
+			}
+
+
+			if (mouseDeltaY>0)	{	//moving down
+				stretchPreview.nYOriginSrc=mouseDeltaY*-1;
+				stretchPreview.nYOriginDest=0;
+				stretchPreview.nHeightSrc = optionsPreview.height + mouseDeltaY;
+				stretchPreview.nHeightDest = optionsPreview.height + mouseDeltaY;
+				stretchPreview.useStretch = TRUE;
+
+				InvalidateRect(hwndPreview, NULL, 0);
+
+			}
+			else if (mouseDeltaY<0)	{	//moving up
+				stretchPreview.nYOriginSrc=0;
+				stretchPreview.nYOriginDest=mouseDeltaY;
+				stretchPreview.nHeightSrc = optionsPreview.height - mouseDeltaY;
+				stretchPreview.nHeightDest = optionsPreview.height - mouseDeltaY;
+				stretchPreview.useStretch = TRUE;
+
+				InvalidateRect(hwndPreview, NULL, 0);
+			}
+
+
+
+
+
+//			previewOriginalPoint.x=mousePoint.x;
+//			previewOriginalPoint.y=mousePoint.y;
+			UpdateBarsFromOptions(&optionsPreview);
+			UpdateEditboxesFromOptions(&optionsPreview);
+
+
+
+		break;
+		case WM_LBUTTONUP:
+			if (mouseDragPreview == FALSE)
+				return 1;
+			mouseDragPreview=FALSE;
+			ReleaseCapture();
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+		break;
+
+
 	}
 
 	return 0;
@@ -1348,6 +1459,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	hInst = hInstance;
 	if (!InitApplication())
 		return 0;
+	InitializeCriticalSection(&critAccessLocations);
 	hAccelTable = LoadAccelerators(hInst,MAKEINTRESOURCE(IDACCEL));
 	hWndMain = CreateWindow("worldtrackerWndClass","WorldTracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
 	CreateSBar(hWndMain,"Ready",1);
