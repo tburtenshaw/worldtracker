@@ -117,6 +117,9 @@ int RationaliseOptions(OPTIONS *options)
 	//Grid colour
 	options->gridcolour.R=192;options->gridcolour.G=192;options->gridcolour.B=192;options->gridcolour.A=128;
 
+	options->colourby = COLOUR_BY_TIME;
+	options->forceheight = 0;
+
 	return 0;
 }
 
@@ -134,8 +137,14 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	while (coord)	{
 
 		//Set the colour to draw the line.
-		c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
-		c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
+
+		if (options->colourby == COLOUR_BY_TIME)	{
+			c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
+		}
+		else	{
+			c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
+		}
+
 		c.A=options->alpha;
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{

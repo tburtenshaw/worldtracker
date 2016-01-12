@@ -163,8 +163,8 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam);
 int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
-int UpdateBarsFromOptions(OPTIONS * o);
-
+int UpdateBarsFromNSWE(NSWE * d);
+int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
 
 
 
@@ -288,6 +288,13 @@ static BOOL InitApplication(void)
 	memset(&locationHistory,0,sizeof(locationHistory));
 	memset(&previewBM,0,sizeof(previewBM));
 
+	memset(&optionsPreview,0,sizeof(optionsPreview));
+	memset(&optionsOverview,0,sizeof(optionsPreview));
+
+	optionsPreview.nswe.north=90;
+	optionsPreview.nswe.south=-90;
+	optionsPreview.nswe.west=-180;
+	optionsPreview.nswe.east=180;
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -383,8 +390,9 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 //			InvalidateRect(hwndOverview,NULL, 0);
 //			InvalidateRect(hwndPreview, NULL, 1);
-			UpdateEditboxesFromOptions(&optionsOverview);
-			UpdateBarsFromOptions(&optionsOverview);
+			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
 
 		break;
 
@@ -396,6 +404,8 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		PostMessage(hwnd,WM_CLOSE,0,0);
 		break;
 
+		case ID_EDITEXPORTHEIGHT:
+		case ID_EDITEXPORTWIDTH:
 		case ID_EDITNORTH:
 		case ID_EDITSOUTH:
 		case ID_EDITEAST:
@@ -444,12 +454,12 @@ int UpdateEditboxesFromOptions(OPTIONS * o)
 	return 0;
 }
 
-int UpdateBarsFromOptions(OPTIONS * o)
+int UpdateBarsFromNSWE(NSWE * d)
 {
-	MoveWindow(hwndOverviewMovebarWest, 180 + o->nswe.west , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarEast, 180 + o->nswe.east , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - o->nswe.north, 360,3,TRUE);
-	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - o->nswe.south, 360,3,TRUE);
+	MoveWindow(hwndOverviewMovebarWest, 180 + d->west , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarEast, 180 + d->east , 0, 3,180,TRUE);
+	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - d->north, 360,3,TRUE);
+	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - d->south, 360,3,TRUE);
 
 	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
 	return 0;
@@ -506,12 +516,23 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 					printf("E");
 				}
 			break;
+
+		case ID_EDITEXPORTHEIGHT:
+			printf("editedheight");
+			UpdateExportAspectRatioFromOptions(&optionsPreview, 1);
+			break;
+		case ID_EDITEXPORTWIDTH:
+			printf("editedwidth");
+			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
+			break;
+
 		}
+
 		if (needsRedraw)	{
-			printf("redraw");
+			printf("redraw from edit");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			//InvalidateRect(hwndPreview, NULL, TRUE);
-			UpdateBarsFromOptions(&optionsOverview);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
 		}
 
 	break;
@@ -521,7 +542,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 				LoadPreset(&optionsPreview, szText);
 				UpdateEditboxesFromOptions(&optionsPreview);
-				UpdateBarsFromOptions(&optionsPreview);
+				UpdateBarsFromNSWE(&optionsPreview.nswe);
+				UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 //				InvalidateRect(hwndPreview, NULL, TRUE);
@@ -750,6 +772,8 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 				optionsPreview.nswe.south =90-mousePoint.y;
 			}
 			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
 		break;
@@ -784,6 +808,8 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
 			mbiSouth.direction = D_SOUTH;
 			SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
+
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			break;
 
 		case WT_WM_RECALCBITMAP:
@@ -827,8 +853,9 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsPreview.nswe.south=overviewOriginalNSWE.south-mousePoint.y+overviewOriginalPoint.y;
 			optionsPreview.nswe.west=overviewOriginalNSWE.west+mousePoint.x-overviewOriginalPoint.x;
 			optionsPreview.nswe.east=overviewOriginalNSWE.east+mousePoint.x-overviewOriginalPoint.x;
-			UpdateBarsFromOptions(&optionsPreview);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 
 			break;
@@ -937,9 +964,9 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 //			previewOriginalPoint.x=mousePoint.x;
 //			previewOriginalPoint.y=mousePoint.y;
-			UpdateBarsFromOptions(&optionsPreview);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditboxesFromOptions(&optionsPreview);
-
+			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 
 
 		break;
@@ -1084,9 +1111,9 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	}
 
 
-
+	UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 	UpdateEditboxesFromOptions(&optionsPreview);
-	UpdateBarsFromOptions(&optionsPreview);
+	UpdateBarsFromNSWE(&optionsPreview.nswe);
 
 	SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
 
@@ -1316,6 +1343,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+
+		UpdateEditboxesFromOptions(&optionsPreview);
 		break;
 
 	case WM_SIZE:
@@ -1390,6 +1419,39 @@ double PreviewFixParamsToLock(int lockedPart, OPTIONS * o)
 	return 1;
 }
 */
+
+int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
+{
+	char buffer[255];
+	int exportHeight;
+	int exportWidth;
+
+	if ((o->width<1)||(o->height<1))
+		return 0;
+
+	if (forceHeight)	{
+		GetWindowText(hwndEditExportHeight, &buffer[0], 255);
+		exportHeight=atol(&buffer[0]);
+		printf("height: %i, ",exportHeight);
+		exportWidth=exportHeight*o->width/o->height;
+		printf("width: %i\r\n",exportWidth);
+		sprintf(&buffer[0], "%i", exportWidth);
+		SetWindowText(hwndEditExportWidth, &buffer[0]);
+
+	}
+	else	{	//we'll be forcing the width static
+		GetWindowText(hwndEditExportWidth, &buffer[0], 255);
+		exportWidth=atol(&buffer[0]);
+		exportHeight=exportWidth*o->height/o->width;
+		sprintf(&buffer[0], "%i", exportHeight);
+		SetWindowText(hwndEditExportHeight, &buffer[0]);
+	}
+	InvalidateRect(hwndEditExportWidth, NULL, 0);
+	InvalidateRect(hwndEditExportHeight, NULL, 0);
+	return 1;
+}
+
+
 
 int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio)
 {

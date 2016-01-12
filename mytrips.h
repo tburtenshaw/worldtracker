@@ -17,6 +17,9 @@ typedef struct sNswe NSWE;
 #define PI 3.14159265
 #define EARTH_MEAN_RADIUS_KM 6371
 
+#define COLOUR_BY_TIME 1
+#define COLOUR_BY_SPEED 2
+
 struct sRGBAColour	{
 	unsigned char R;
 	unsigned char G;
@@ -55,6 +58,8 @@ struct sOptions	{	//what we can get from the command line
 	int width;
 	int height;
 
+	int forceheight;	//do we keep the height fixed when adjusting ratios? if 0 (default) we keep the width fixed
+
 /*	double west;
 	double east;
 	double north;
@@ -72,6 +77,8 @@ struct sOptions	{	//what we can get from the command line
 	int thickness;		//the thickness of the line
 	COLOUR gridcolour;
 	int gridsize;
+
+	int colourby;		//it'll be a COLOUR_BY_..., default COLOUR_BY_TIME
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
 };
 
