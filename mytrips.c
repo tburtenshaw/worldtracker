@@ -6,29 +6,39 @@
 
 #include "lodepng.h"
 #include "mytrips.h"
-#include "wtc.h"
 
 int RationaliseOptions(OPTIONS *options)
 {
 
 	double tempdouble;
 	int testwidth;
+	char noext[MAX_PATH];
+	char *period;
 
 
-	if (options->colourcycle==0) options->colourcycle = (60*60*24*183);
+	if (options->colourcycle==0) options->colourcycle = (60*60*24);//(60*60*24*183);
 
 	//Load appropriate filenames
+/*
+	if ((options->pngfilenameinput==NULL) && (options->kmlfilenameinput))	{	//if there's a kml, no png named
+		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "trips.kml", "kml");
+
+		strcpy(&noext[0], options->kmlfilenamefinal);	//copy the finalised png filename
+		period=strrchr(noext,'.');			//find the final period
+		*period=0;								//replace it with a null to end it
+
+		sprintf(options->pngfilenameinput, "%s.png", noext);
+	}
+*/
 	MakeProperFilename(options->pngfilenamefinal, options->pngfilenameinput, "trips.png", "png");
-		char pngnoext[256];
-		char *period;
 
 
 	if (options->kmlfilenameinput==NULL)	{
-		strcpy(&pngnoext[0], options->pngfilenamefinal);	//copy the finalised png filename
-		period=strrchr(pngnoext,'.');			//find the final period
+		strcpy(&noext[0], options->pngfilenamefinal);	//copy the finalised png filename
+		period=strrchr(noext,'.');			//find the final period
 		*period=0;								//replace it with a null to end it
-		fprintf(stdout, "KML no ext: %s\r\n",pngnoext);
-		MakeProperFilename(options->kmlfilenamefinal, pngnoext, "fallback.kml", "kml");
+		fprintf(stdout, "KML no ext: %s\r\n",noext);
+		MakeProperFilename(options->kmlfilenamefinal, noext, "fallback.kml", "kml");
 	} else
 	{
 		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "fallback.kml", "kml");
@@ -107,8 +117,10 @@ int RationaliseOptions(OPTIONS *options)
 		options->totimestamp =-1;
 
 	//Set the thickness
-	options->thickness=1;
-	if (options->thickness == 0) options->thickness = 1+options->width/1000;
+	if (options->thickness == 0)
+		options->thickness=1;
+
+	//options->thickness = 1+options->width/1000;
 
 	//Set the alpha of the line
 	options->alpha=200;	//default
@@ -141,8 +153,11 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		if (options->colourby == COLOUR_BY_TIME)	{
 			c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
 		}
-		else	{
+		else if (options->colourby == COLOUR_BY_SPEED)	{
 			c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
+		}
+		else if (options->colourby == COLOUR_BY_ACCURACY)	{
+			c=AccuracyToRgb(coord->accuracy);
 		}
 
 		c.A=options->alpha;
@@ -948,6 +963,28 @@ COLOUR SpeedToRgb(double speed, double maxspeed)
 	return HsvToRgb((char)hue,255,255,255);
 }
 
+COLOUR AccuracyToRgb(int accuracy)
+{
+	COLOUR cDarkred;
+	COLOUR cOrangeRed;
+	COLOUR cGold;
+	COLOUR cGreenYellow;
+	COLOUR cDarkgreen;
+
+	cDarkgreen.R=0;	cDarkgreen.G=100;	cDarkgreen.B=0;
+
+	cGreenYellow.R=173; cGreenYellow.G=255; cGreenYellow.B=47;
+	cGold.R = 255;	cGold.G = 215;	cGold.B = 0;
+	cOrangeRed.R=255; cOrangeRed.G=69; cOrangeRed.B=0;
+	cDarkred.R=139; 	cDarkred.G=0;	cDarkred.B=0;
+
+	if (accuracy<10)	return cDarkgreen;
+	if (accuracy<50)	return cGreenYellow;
+	if (accuracy<100)	return cGold;
+	if (accuracy<500)	return cOrangeRed;
+	return cDarkred;
+
+}
 
 
 

@@ -2,7 +2,7 @@
 #include <windowsx.h>
 #include <commctrl.h>
 #include <string.h>
-#include <d3d8.h>
+
 #include "worldtrackerres.h"
 #include "mytrips.h"
 #include "lodepng.h"
@@ -32,6 +32,11 @@
 #define ID_EDITPRESET 1005
 #define ID_EDITEXPORTWIDTH 1006
 #define ID_EDITEXPORTHEIGHT 1007
+#define ID_EDITDATEFROM 1008
+#define ID_EDITDATETO 1009
+#define ID_EDITTHICKNESS 1010
+#define ID_EDITCOLOURBY 1011
+
 
 //these don't really need to be the bearing, but I thought it would be easier
 #define D_NORTH 0
@@ -40,10 +45,10 @@
 #define D_EAST 90
 
 //what the aspect ratio is locked to
-#define LOCK_AR_UNDECLARED 0
-#define LOCK_AR_NSWE 1
-#define LOCK_AR_EXPORTSIZE 2
-#define LOCK_AR_WINDOW 3
+//#define LOCK_AR_UNDECLARED 0
+//#define LOCK_AR_NSWE 1
+//#define LOCK_AR_EXPORTSIZE 2
+//#define LOCK_AR_WINDOW 3
 
 typedef struct sMovebar MOVEBARINFO;
 typedef struct sStretch STRETCH;
@@ -107,6 +112,11 @@ HWND hwndStaticExportWidth;
 HWND hwndEditExportWidth;
 HWND hwndStaticExportHeight;
 HWND hwndEditExportHeight;
+
+HWND hwndEditDateTo;
+HWND hwndEditDateFrom;
+HWND hwndEditThickness;
+
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
@@ -389,8 +399,6 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 //			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
 
-//			InvalidateRect(hwndOverview,NULL, 0);
-//			InvalidateRect(hwndPreview, NULL, 1);
 			UpdateEditboxesFromOptions(&optionsPreview);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
@@ -412,6 +420,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITEAST:
 		case ID_EDITWEST:
 		case ID_EDITPRESET:
+		case ID_EDITTHICKNESS:
 			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
 		break;
 	}
@@ -472,18 +481,21 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	double value;	//to hold the textbox value
 	int needsRedraw;
 
-	switch (codeNotify)	{
-	case EN_CHANGE:
-		if (hwndCtl!=GetFocus())
-			return 0;
+//	printf("%i\t", codeNotify);
+
+	if (codeNotify==EN_CHANGE)	{
+	//If not in focus we shouldn't do anything with the change
+	if (hwndCtl!=GetFocus())
+		return 0;
+
 		needsRedraw=0;
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 		value=atof(szText);
+
 		switch (id)	{
 		case ID_EDITNORTH:
 			if ((value >= -90) && (value<=90))
-				if ((optionsOverview.nswe.north!=value) || (optionsPreview.nswe.north!=value))	{
-					optionsOverview.nswe.north=value;
+				if (optionsPreview.nswe.north!=value)	{
 					optionsPreview.nswe.north=value;
 					needsRedraw = 1;
 					printf("N");
@@ -491,8 +503,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 		case ID_EDITSOUTH:
 			if ((value >= -90) && (value<=90))
-				if ((optionsOverview.nswe.south!=value) || (optionsPreview.nswe.south!=value))	{
-					optionsOverview.nswe.south=value;
+				if (optionsPreview.nswe.south!=value)	{
 					optionsPreview.nswe.south=value;
 					needsRedraw = 1;
 					printf("S");
@@ -500,8 +511,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 		case ID_EDITWEST:
 			if ((value >= -180) && (value<=180))	{
-				if ((optionsOverview.nswe.west!=value) || (optionsPreview.nswe.west!=value))	{
-					optionsOverview.nswe.west=value;
+				if (optionsPreview.nswe.west!=value)	{
 					optionsPreview.nswe.west=value;
 					needsRedraw = 1;
 					printf("W");
@@ -510,8 +520,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 		case ID_EDITEAST:
 			if ((value >= -180) && (value<=180))
-				if ((optionsOverview.nswe.east != value) || (optionsPreview.nswe.east != value))	{
-					optionsOverview.nswe.east=value;
+				if (optionsPreview.nswe.east != value)	{
 					optionsPreview.nswe.east=value;
 					needsRedraw = 1;
 					printf("E");
@@ -519,25 +528,27 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 
 		case ID_EDITEXPORTHEIGHT:
-			printf("editedheight");
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 1);
 			break;
 		case ID_EDITEXPORTWIDTH:
-			printf("editedwidth");
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
+			break;
+
+		case ID_EDITTHICKNESS:
+			optionsPreview.thickness=value;
+			needsRedraw=1;
 			break;
 
 		}
 
 		if (needsRedraw)	{
-			printf("redraw from edit");
+			printf("redraw from edit\r\n");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-			//InvalidateRect(hwndPreview, NULL, TRUE);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 		}
 
-	break;
-	case EN_KILLFOCUS:
+	}
+	else if (codeNotify== EN_KILLFOCUS)	{
 		switch (id)	{
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
@@ -547,10 +558,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-//				InvalidateRect(hwndPreview, NULL, TRUE);
 				break;
 		}
-	break;
+
 	}
 
 
@@ -560,25 +570,54 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 {
-//	BM exportBM;
-//	int error;
+	char filename[MAX_PATH];
 	char editboxtext[128];
+	OPENFILENAME ofn;
+
+	memset(&ofn,0,sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hwnd;
+	ofn.hInstance = hInst;
+	filename[0]=0;
+	ofn.lpstrFile = filename;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrTitle = "Export to...";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrDefExt = "kml";
+	ofn.Flags =OFN_OVERWRITEPROMPT;
+	ofn.lpstrFilter = "Kml files (*.kml)\0*.kml\0\0";
+
+
+	if (GetSaveFileName(&ofn)==0)
+		return 0;
+
+	printf("Filename:%s\r\n",filename);
 
 	//Create export options
 	memset(&optionsExport, 0, sizeof(optionsExport));
+
+	optionsExport.kmlfilenameinput = filename;
+	sprintf(optionsExport.kmlfilenamefinal, "%s", filename);
+	sprintf(optionsExport.pngfilenamefinal, "%s.png", filename);
+
+	optionsExport.pngfilenameinput = filename;
 
 	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
 	optionsExport.width=atol(&editboxtext[0]);
 	SendMessage(hwndEditExportHeight, WM_GETTEXT, 128,(long)&editboxtext[0]);
 	optionsExport.height=atol(&editboxtext[0]);
-	//get the NSWE from the options
+	//get the NSWE, thickness, dates and colour info from the options
 	optionsExport.nswe.north=o->nswe.north;
 	optionsExport.nswe.south=o->nswe.south;
 	optionsExport.nswe.west=o->nswe.west;
 	optionsExport.nswe.east=o->nswe.east;
+	optionsExport.thickness = o->thickness;
 
-	memcpy(&optionsExport.kmlfilenamefinal, &o->kmlfilenamefinal, sizeof(o->kmlfilenamefinal));
-	memcpy(&optionsExport.pngfilenamefinal, &o->pngfilenamefinal, sizeof(o->kmlfilenamefinal));
+	optionsExport.colourcycle = (60*60*24);
+	optionsExport.totimestamp =-1;
+	optionsExport.zoom=optionsExport.width/(optionsExport.nswe.east-optionsExport.nswe.west);
+	optionsExport.alpha=200;	//default
+	optionsExport.colourby = COLOUR_BY_TIME;
 
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSaveKML, &optionsExport ,0,NULL);
 
@@ -591,7 +630,7 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	int error;
 
 	EnterCriticalSection(&critAccessLocations);
-	RationaliseOptions(options);
+	//RationaliseOptions(options);
 
 	printf("bitmap init %i", options->width);
 	bitmapInit(&exportBM, options, &locationHistory);
@@ -697,7 +736,6 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 {
 	MOVEBARINFO * pMbi;
 	POINT mousePoint;
-	char buffer[256];
 
 	switch (msg) {
 		case WM_SETCURSOR:
@@ -857,7 +895,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditboxesFromOptions(&optionsPreview);
 			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-			SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
 			break;
 
@@ -994,7 +1032,6 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	double longspan;
 	double latspan;
 
-	double fromw, frome, fromn, froms;
 	double zoomfactor;
 
 	POINT mousePoint;
@@ -1223,16 +1260,27 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 			memDC, stretchPreview.nXOriginSrc,stretchPreview.nYOriginSrc,stretchPreview.nWidthSrc, stretchPreview.nHeightSrc, SRCCOPY);
 
 		//fill in the remaining areas
-		if (stretchPreview.nYOriginDest>0)	{
-			Rectangle(hdc,0,0,previewBM.width,stretchPreview.nYOriginDest);
+		int top,bottom,left,right;
+		top = stretchPreview.nYOriginDest;
+		left= stretchPreview.nXOriginDest;
+		bottom = stretchPreview.nYOriginDest+stretchPreview.nHeightDest;
+		right = stretchPreview.nXOriginDest+stretchPreview.nWidthDest;
+
+		//top panels
+		if (top>0)	{
+			Rectangle(hdc,0,0, previewBM.width,top);
 		}
-		if (stretchPreview.nXOriginDest>0)	{
-			Rectangle(hdc,0,0,stretchPreview.nXOriginDest, previewBM.height);
+		if (bottom<previewBM.height)	{
+			Rectangle(hdc,0,bottom, previewBM.width, previewBM.height);
 		}
 
-		//if (stretchPreview.nYOriginDest+stretchPreview.nHeightDest<previewBM.height)	{
-//			Rectangle(hdc,0,stretchPreview.nYOriginDest+stretchPreview.nHeightDest, stretchPreview.nXOriginDest, previewBM.height);
-//		}
+		//side panels
+		if (left>0)	{
+			Rectangle(hdc,0,0, left, previewBM.height);
+		}
+		if (right<previewBM.width)	{
+			Rectangle(hdc,right,0, previewBM.width, previewBM.height);
+		}
 
 
 
@@ -1260,7 +1308,6 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 {
-	RECT clientRect;
 	HBITMAP bitmap;
 	BITMAPINFO bmi;
 	BYTE * bits;
@@ -1358,6 +1405,37 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+ MARGIN;
 		hwndEditPreset = CreateWindow("Edit", "Type a place",  WS_CHILD | WS_VISIBLE|WS_BORDER, x,y,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITPRESET, hInst, NULL);
+
+
+				y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
+
+
+		CreateWindow("Static","From:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditDateFrom = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITDATEFROM, hInst, NULL);
+//		y+=MARGIN+TEXT_HEIGHT;
+		x+=MARGIN+TEXT_WIDTH_QLONG;
+		CreateWindow("Static","To:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditDateTo = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITDATETO, hInst, NULL);
+
+
+
+		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
+		CreateWindow("Static","Thickness:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QSHORT;
+		hwndEditThickness = CreateWindow("Edit","1", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITTHICKNESS, hInst, NULL);
+
+		x+=MARGIN+TEXT_WIDTH_QLONG;
+
+//		y+=MARGIN+TEXT_HEIGHT;
+//		x=MARGIN;
+		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+
+
+
 
 		//Now the right hand side
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;

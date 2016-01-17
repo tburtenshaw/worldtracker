@@ -19,6 +19,7 @@ typedef struct sNswe NSWE;
 
 #define COLOUR_BY_TIME 1
 #define COLOUR_BY_SPEED 2
+#define COLOUR_BY_ACCURACY 3
 
 struct sRGBAColour	{
 	unsigned char R;
@@ -168,6 +169,7 @@ COLOUR HeatmapColour(unsigned char normalisedtemp);
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 COLOUR TimestampToRgb(long ts, long min, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
+COLOUR AccuracyToRgb(int accuracy);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 
