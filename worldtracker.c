@@ -2,6 +2,7 @@
 #include <windowsx.h>
 #include <commctrl.h>
 #include <string.h>
+#include <time.h>
 
 #include "worldtrackerres.h"
 #include "mytrips.h"
@@ -117,6 +118,8 @@ HWND hwndEditDateTo;
 HWND hwndEditDateFrom;
 HWND hwndEditThickness;
 
+HWND hwndDateSlider;
+
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
@@ -157,6 +160,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
 double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
@@ -167,6 +171,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
 
 int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
+
+int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o);
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
@@ -307,6 +313,7 @@ static BOOL InitApplication(void)
 	optionsPreview.nswe.south=-90;
 	optionsPreview.nswe.west=-180;
 	optionsPreview.nswe.east=180;
+	optionsPreview.thickness=1;
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -330,7 +337,7 @@ static BOOL InitApplication(void)
 	wc.lpszClassName = "OverviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
-	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	wc.hIcon = NULL;
 	if (!RegisterClass(&wc))
 		return 0;
 
@@ -343,7 +350,7 @@ static BOOL InitApplication(void)
 	wc.lpszClassName = "PreviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
-	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	wc.hIcon = NULL;
 	if (!RegisterClass(&wc))
 		return 0;
 
@@ -357,7 +364,21 @@ static BOOL InitApplication(void)
 	wc.lpszClassName = "OverviewMovebarClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_SIZEWE);
-	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+	//Date slider
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)DateSliderWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "DateSliderClass";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL,IDC_SIZEWE);
+	wc.hIcon = NULL;
 	if (!RegisterClass(&wc))
 		return 0;
 
@@ -1454,7 +1475,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		CreateWindow("Static","To:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
 		hwndEditDateTo = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITDATETO, hInst, NULL);
+		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
 
+
+		hwndDateSlider = CreateWindow("DateSliderClass",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, NULL, hInst, NULL);
 
 
 		y+=MARGIN+TEXT_HEIGHT;
@@ -1680,4 +1705,73 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return msg.wParam;
 }
 
+
+
+LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+
+	switch (msg) {
+		case WM_PAINT:
+			return PaintDateSlider(hwnd, &locationHistory, &optionsPreview);
+		break;
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+
+	return 0;
+
+}
+
+int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
+{
+    PAINTSTRUCT ps;
+    HDC hdc;
+	char text[64];
+	RECT clientRect;
+
+	int x;
+	unsigned long secondsspan;
+	double	spp;	//seconds per pixel
+	time_t	s;
+	struct tm *time;	//this is stored statically, so not freed
+	int	oldyear,oldmonth;
+
+	GetClientRect(hwnd, &clientRect);
+
+	hdc = BeginPaint(hwnd, &ps);
+    sprintf(text, "w:%i", ps.rcPaint.right);
+	TextOut(hdc, 0, 0, text, strlen(text));
+
+
+	secondsspan = lh->latesttimestamp-lh->earliesttimestamp;
+	spp=secondsspan/clientRect.right;
+
+
+	s=lh->earliesttimestamp;
+	time=localtime(&s);
+	oldyear=time->tm_year;
+	oldmonth=time->tm_mon;
+
+
+	for (x=0;x<clientRect.right;x++)	{
+		s=lh->earliesttimestamp+x*spp;
+
+		time=localtime(&s);
+		if (time->tm_year!=oldyear)	{
+			MoveToEx(hdc, x, 0, (LPPOINT) NULL);
+        	LineTo(hdc, x, clientRect.bottom);
+			oldyear=time->tm_year;
+			oldmonth=time->tm_mon;
+		}
+		else if	(time->tm_mon!=oldmonth)	{
+			MoveToEx(hdc, x, 0, (LPPOINT) NULL);
+        	LineTo(hdc, x, clientRect.bottom/2);
+			oldmonth=time->tm_mon;
+		}
+	}
+
+    EndPaint(hwnd, &ps);
+
+	return 0;
+}
 
