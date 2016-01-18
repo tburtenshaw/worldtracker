@@ -147,10 +147,11 @@ OPTIONS optionsExport;
 //Multithread stuff
 //HANDLE hAccessLocationsMutex;
 CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
+long hbmQueueSize=0;	//this is increased when a thread is created, so the thread can check that nothing was created after it
 
 DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
-DWORD WINAPI ThreadSetHBitmap(LOCATIONHISTORY *lh);
+DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone from the back of the queue
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
@@ -162,7 +163,7 @@ double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
-HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh);
+HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
 
 int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
@@ -630,7 +631,6 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	int error;
 
 	EnterCriticalSection(&critAccessLocations);
-	//RationaliseOptions(options);
 
 	printf("bitmap init %i", options->width);
 	bitmapInit(&exportBM, options, &locationHistory);
@@ -856,7 +856,21 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			memset(&overviewBM, 0, sizeof(overviewBM));
 
 			optionsOverview.height=180;optionsOverview.width=360;
-			RationaliseOptions(&optionsOverview);
+			optionsOverview.thickness = 1;
+
+			optionsOverview.colourcycle = (60*60*24);
+			optionsOverview.totimestamp =-1;
+			optionsOverview.zoom=optionsOverview.width/(optionsOverview.nswe.east-optionsOverview.nswe.west);
+			optionsOverview.alpha=200;	//default
+			optionsOverview.colourby = COLOUR_BY_TIME;
+
+			optionsOverview.nswe.north=90;
+			optionsOverview.nswe.south=-90;
+			optionsOverview.nswe.west=-180;
+			optionsOverview.nswe.east=180;
+
+
+			//RationaliseOptions(&optionsOverview);
 
 			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
 			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
@@ -1062,7 +1076,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	latitude = optionsPreview.nswe.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
+	//printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
 
 	//This shifts the origin to where the mouse was
 	optionsPreview.nswe.west-=longitude;
@@ -1185,7 +1199,8 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			optionsPreview.height = clientRect.bottom;
 //			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
 
-			CloseHandle(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSetHBitmap, &locationHistory ,0,NULL));
+			hbmQueueSize++;
+			CloseHandle(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSetHBitmap, (LPVOID)hbmQueueSize ,0,NULL));
 
 //			stretchPreview.useStretch = FALSE;
 //			InvalidateRect(hwnd, NULL, 0);
@@ -1210,16 +1225,6 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
-	return 0;
-}
-
-DWORD WINAPI ThreadSetHBitmap(LOCATIONHISTORY *lh)
-{
-	hbmPreview = MakeHBitmapPreview(GetDC(hwndPreview), lh);
-	stretchPreview.useStretch = FALSE;
-	InvalidateRect(hwndPreview, NULL, 0);
-
-
 	return 0;
 }
 
@@ -1306,7 +1311,22 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 	return 0;
 }
 
-HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
+DWORD WINAPI ThreadSetHBitmap(long queuechit)
+{
+	if (queuechit<hbmQueueSize)	{
+		printf("\r\nQUEUE SKIPPED!!\r\n");
+		return 0;
+	}
+
+	hbmPreview = MakeHBitmapPreview(GetDC(hwndPreview), &locationHistory, queuechit);
+	stretchPreview.useStretch = FALSE;
+	InvalidateRect(hwndPreview, NULL, 0);
+
+	return 1;
+}
+
+
+HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 {
 	HBITMAP bitmap;
 	BITMAPINFO bmi;
@@ -1322,11 +1342,26 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh)
 
 	EnterCriticalSection(&critAccessLocations);
 
-	if (previewBM.bitmap)	{
+	if (queuechit<hbmQueueSize)	{
+		LeaveCriticalSection(&critAccessLocations);
+		printf("\r\nQUEUE SKIPPED!!\r\n");
+
+		return hbmPreview;
+	}
+
+	if (previewBM.bitmap)	{	//if there's already a BM set, destroy it
 		bitmapDestroy(&previewBM);
 	}
 
-	RationaliseOptions(&optionsPreview);
+	optionsPreview.colourcycle = (60*60*24);
+	optionsPreview.totimestamp =-1;
+	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
+	optionsPreview.alpha=200;	//default
+	optionsPreview.colourby = COLOUR_BY_TIME;
+
+
+
+	//RationaliseOptions(&optionsPreview);
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
 	if (previewBM.lh)	{
 		PlotPaths(&previewBM, &locationHistory, &optionsPreview);

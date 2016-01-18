@@ -49,10 +49,10 @@ int RationaliseOptions(OPTIONS *options)
 	fprintf(stdout, "KML: %s\r\n",options->kmlfilenamefinal);
 
 	//Set the zoom
-	if (((options->zoom<0.1) || (options->zoom>55)) && (options->zoom!=0))	{	//have to decide the limit, i've tested to 55
-		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
-		options->zoom = 0;	//set to zero, then we'll calculate.
-	}
+//	if (((options->zoom<0.1) || (options->zoom>55)) && (options->zoom!=0))	{	//have to decide the limit, i've tested to 55
+//		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
+//		options->zoom = 0;	//set to zero, then we'll calculate.
+//	}
 
 	//if they're the wrong way around
 	if (options->nswe.east<options->nswe.west)	{tempdouble=options->nswe.east; options->nswe.east=options->nswe.west; options->nswe.west=tempdouble;}
@@ -66,7 +66,7 @@ int RationaliseOptions(OPTIONS *options)
 		options->nswe.south=-90;
 	}
 
-
+/*
 	if ((options->height==0) && (options->width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
 		if (options->zoom==0)	{
 			options->zoom=10;
@@ -88,7 +88,7 @@ int RationaliseOptions(OPTIONS *options)
 				options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
 			}
 	}
-
+*/
 
 	//test for strange rounding errors
 	if ((options->width==0) || (options->height==0) || (options->height > MAX_DIMENSION) || (options->width > MAX_DIMENSION))	{
@@ -109,8 +109,8 @@ int RationaliseOptions(OPTIONS *options)
 	}
 
 	//then calculate how many pixels per degree
-	options->zoom=options->width/(options->nswe.east-options->nswe.west);
-	fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
+	//options->zoom=options->width/(options->nswe.east-options->nswe.west);
+	//fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
 
 	//Set the from and to times
 	if (options->totimestamp == 0)
@@ -144,6 +144,8 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	oldlat=1000;oldlon=1000;
 	bm->countPoints=0;
 
+	options->zoom=options->width/(options->nswe.east-options->nswe.west);
+	bm->zoom = options->zoom;
 
 	coord=locationHistory->first;
 	while (coord)	{
