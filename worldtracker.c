@@ -96,6 +96,12 @@ MOVEBARINFO mbiSouth;
 MOVEBARINFO mbiEast;
 MOVEBARINFO mbiWest;
 
+//These are the handles for the crop bar - I don't think they'll need a WindowLong
+HWND hwndPreviewCropbarWest;
+HWND hwndPreviewCropbarEast;
+HWND hwndPreviewCropbarNorth;
+HWND hwndPreviewCropbarSouth;
+
 HWND  hWndStatusbar;
 
 //The dialog hwnds
@@ -143,11 +149,11 @@ POINT previewOriginalPoint;
 NSWE overviewOriginalNSWE;
 NSWE previewOriginalNSWE;
 
-BOOL mouseDragMovebar;
+BOOL mouseDragMovebar;	//in the overview
 BOOL mouseDragOverview;
 BOOL mouseDragPreview;
 int	mouseDragDateSlider;
-
+BOOL mouseDragCropbar;	//in the preview
 
 //Options are still based on the command line program
 OPTIONS optionsOverview;
@@ -188,9 +194,12 @@ int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
 int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-
 int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam);
 int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+int CreateOverviewMovebarWindows(HWND hwnd);
+int CreatePreviewCropbarWindows(HWND hwnd);
 
 int UpdateEditboxesFromOptions(OPTIONS * o);
 int UpdateBarsFromNSWE(NSWE * d);
@@ -239,7 +248,7 @@ LRESULT MsgMenuSelect(HWND hwnd, UINT uMessage, WPARAM wparam, LPARAM lparam)
 
 void InitializeStatusBar(HWND hwndParent,int nrOfParts)
 {
-    const int cSpaceInBetween = 8;
+    //const int cSpaceInBetween = 8;
     int   ptArray[40];   // Array defining the number of parts/sections
     RECT  rect;
     HDC   hDC;
@@ -943,6 +952,30 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 	return 0;
 }
 
+int CreateOverviewMovebarWindows(HWND hwnd)
+{
+
+	hwndOverviewMovebarWest = CreateWindow("OverviewMovebarClass", "West", WS_CHILD|WS_VISIBLE, 10,0,3,180,hwnd, NULL, hInst, NULL);
+	mbiWest.direction = D_WEST;
+	SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
+
+	hwndOverviewMovebarEast = CreateWindow("OverviewMovebarClass", "East", WS_CHILD|WS_VISIBLE, 350,0,3,180,hwnd, NULL, hInst, NULL);
+	mbiEast.direction = D_EAST;
+	SetWindowLongPtr(hwndOverviewMovebarEast, GWL_USERDATA, (LONG)&mbiEast);
+
+	hwndOverviewMovebarNorth = CreateWindow("OverviewMovebarClass", "North", WS_CHILD|WS_VISIBLE, 0,10,360,3,hwnd, NULL, hInst, NULL);
+	mbiNorth.direction = D_NORTH;
+	SetWindowLongPtr(hwndOverviewMovebarNorth, GWL_USERDATA, (LONG)&mbiNorth);
+
+	hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
+	mbiSouth.direction = D_SOUTH;
+	SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
+
+	UpdateBarsFromNSWE(&optionsPreview.nswe);
+
+	return 1;
+}
+
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	POINT mousePoint;
@@ -951,23 +984,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
-			hwndOverviewMovebarWest = CreateWindow("OverviewMovebarClass", "West", WS_CHILD|WS_VISIBLE, 10,0,3,180,hwnd, NULL, hInst, NULL);
-			mbiWest.direction = D_WEST;
-			SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
-
-			hwndOverviewMovebarEast = CreateWindow("OverviewMovebarClass", "East", WS_CHILD|WS_VISIBLE, 350,0,3,180,hwnd, NULL, hInst, NULL);
-			mbiEast.direction = D_EAST;
-			SetWindowLongPtr(hwndOverviewMovebarEast, GWL_USERDATA, (LONG)&mbiEast);
-
-			hwndOverviewMovebarNorth = CreateWindow("OverviewMovebarClass", "North", WS_CHILD|WS_VISIBLE, 0,10,360,3,hwnd, NULL, hInst, NULL);
-			mbiNorth.direction = D_NORTH;
-			SetWindowLongPtr(hwndOverviewMovebarNorth, GWL_USERDATA, (LONG)&mbiNorth);
-
-			hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
-			mbiSouth.direction = D_SOUTH;
-			SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
-
-			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			CreateOverviewMovebarWindows(hwnd);
 			break;
 
 
@@ -1307,6 +1324,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 	switch (msg) {
 		case WM_CREATE:
 			hbmPreview = NULL;
+			CreatePreviewCropbarWindows(hwnd);	//creates the child windows we'll use to help crop the frame
 			break;
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
@@ -1619,7 +1637,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
-		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
 		UpdateEditboxesFromOptions(&optionsPreview);
 		break;
@@ -2016,8 +2034,116 @@ int UpdateDateControlsFromOptions(OPTIONS * o)
 	return 0;
 }
 
+int CreatePreviewCropbarWindows(HWND hwnd)
+{
+	hwndPreviewCropbarWest = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 0,0,10,600,hwnd, NULL, hInst, NULL);
+	hwndPreviewCropbarEast = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 600,0,10,600,hwnd, NULL, hInst, NULL);
+//	mbiWest.direction = D_WEST;
+//	SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
+	return 1;
+}
+
+int ResetCropbarWindowPos(HWND hwnd)
+{
+	if (hwnd==hwndPreviewCropbarWest)	{
+		SetWindowPos(hwnd, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
+		printf("WEST");
+	}
+	else if (hwnd==hwndPreviewCropbarEast)	{
+		SetWindowPos(hwnd, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
+		printf("EAST");
+	}
+
+	return 1;
+
+}
+
+int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+
+	POINT mousePoint;
+	//RECT rect;
+
+	double west,east;
+
+	mousePoint.x = GET_X_LPARAM(lParam);
+	mousePoint.y = GET_Y_LPARAM(lParam);
+
+
+	switch (msg)	{
+		case WM_LBUTTONDOWN:
+			SetCapture(hwnd);
+			mouseDragCropbar=1;
+			InvalidateRect(hwnd, NULL, 0);
+			break;
+		case WM_LBUTTONUP:
+			ReleaseCapture();
+			if (mouseDragCropbar)	{
+				if (hwnd==hwndPreviewCropbarWest)	{
+					optionsPreview.nswe.west=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+				}
+				if (hwnd==hwndPreviewCropbarEast)	{
+					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
+					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					optionsPreview.nswe.east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+				}
+
+
+				ResetCropbarWindowPos(hwnd);
+				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+				SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+				UpdateEditboxesFromOptions(&optionsPreview);
+
+				mouseDragCropbar=0;
+				InvalidateRect(hwnd, NULL, 0);
+			}
+			break;
+		case WM_MOUSEMOVE:
+			if (mouseDragCropbar)	{
+				if	(hwnd==hwndPreviewCropbarWest)	{
+					SetWindowPos(hwnd, NULL, 0,0, mousePoint.x, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
+					west=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+					//printf("x: %i, y: %i %f\r\n",mousePoint.x, mousePoint.y,west);
+				}
+				else if (hwnd==hwndPreviewCropbarEast)	{
+					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
+					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+
+					SetWindowPos(hwnd, NULL, mousePoint.x,0, optionsPreview.width, optionsPreview.height, SWP_NOOWNERZORDER);
+					east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+					//printf("x: %i  %f\r\n",mousePoint.x, east);
+
+				}
+			}
+			//HandlePreviewCropbarMouse(hwnd, msg, wParam, lParam);
+			break;
+
+	}
+	return 0;
+}
+
 
 LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
+
+	switch (msg) {
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_MOUSEMOVE:
+			HandleCropbarMouse(hwnd, msg, wParam, lParam);
+			break;
+		case WM_PAINT:
+			PAINTSTRUCT ps;
+			HDC hdc;
+			hdc=BeginPaint(hwnd, &ps);
+			if (mouseDragCropbar)	{
+				PatBlt(hdc, 0, 0, ps.rcPaint.right, optionsPreview.height, PATINVERT);
+			}
+			break;
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+
+
 	return 0;
 }
