@@ -13,6 +13,7 @@
 #define WT_WM_SIGNALMOUSEWHEEL WM_APP+2	//We shouldn't send WM_MOUSEWHEEL between functions, but send this to down propagate to child window if required
 
 #define IDT_PREVIEWTIMER 1
+#define IDT_OVERVIEWTIMER 2
 
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
@@ -44,6 +45,11 @@
 #define D_SOUTH 180
 #define D_WEST 270
 #define D_EAST 90
+
+//is the mouse on TO control or FROM
+#define MS_DRAGTO 1
+#define MS_DRAGFROM 2
+#define MS_DRAGBOTH 3
 
 //what the aspect ratio is locked to
 //#define LOCK_AR_UNDECLARED 0
@@ -140,6 +146,7 @@ NSWE previewOriginalNSWE;
 BOOL mouseDragMovebar;
 BOOL mouseDragOverview;
 BOOL mouseDragPreview;
+int	mouseDragDateSlider;
 
 
 //Options are still based on the command line program
@@ -160,6 +167,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
@@ -352,7 +360,7 @@ static BOOL InitApplication(void)
 	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
 	wc.lpszClassName = "PreviewClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
-	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
+	wc.hCursor = LoadCursor(NULL,IDC_HAND);
 	wc.hIcon = NULL;
 	if (!RegisterClass(&wc))
 		return 0;
@@ -371,6 +379,20 @@ static BOOL InitApplication(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+	//PreviewCrop bars	(dragged from the side of the preview to crop it)
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)PreviewCropbarWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "PreviewCropbarClass";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL,IDC_SIZEWE);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
 	//Date slider
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_DBLCLKS ;
@@ -380,7 +402,7 @@ static BOOL InitApplication(void)
 	wc.cbWndExtra = 4;
 	wc.lpszClassName = "DateSliderClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
-	wc.hCursor = LoadCursor(NULL,IDC_SIZEWE);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.hIcon = NULL;
 	if (!RegisterClass(&wc))
 		return 0;
@@ -476,6 +498,7 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 	UpdateDateControlsFromOptions(&optionsPreview);
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+	InvalidateRect(hwndDateSlider, NULL, 0);
 	return 0;
 }
 
@@ -535,7 +558,14 @@ int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		time.tm_year = year-1900;
 		time.tm_mon = month-1;
 		time.tm_mday = day;
- 		time.tm_sec = time.tm_min = time.tm_hour = 0;
+		if (id == ID_EDITDATEFROM)	{
+	 		time.tm_sec = time.tm_min = time.tm_hour = 0;
+		}
+		else if (id == ID_EDITDATETO)	{	//we want to go all the way to the end of the day
+			time.tm_hour = 23;
+			time.tm_min = 59;
+	 		time.tm_sec=59;
+		}
 
 		t=mktime(&time);
 
@@ -557,7 +587,7 @@ int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		if (redraw==1)	{
 			InvalidateRect(hwndDateSlider, NULL, 0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-			SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 		}
 	}
 
@@ -940,6 +970,14 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			break;
 
+
+		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
+			KillTimer(hwnd, IDT_OVERVIEWTIMER);
+			SetTimer(hwnd, IDT_OVERVIEWTIMER, 50, NULL);	//shorter time for the overview, as I want it more responsive and it's less intensive
+			return 1;
+			break;
+		case WM_TIMER:
+			KillTimer(hwnd, IDT_OVERVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
 			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
 			memset(&overviewBM, 0, sizeof(overviewBM));
@@ -1800,7 +1838,6 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 {
     PAINTSTRUCT ps;
     HDC hdc;
-	char text[64];
 	RECT clientRect;
 
 	HPEN hPenBlack;
@@ -1815,10 +1852,7 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	int	oldyear,oldmonth;
 
 	GetClientRect(hwnd, &clientRect);
-
 	hdc = BeginPaint(hwnd, &ps);
-    sprintf(text, "w:%i", ps.rcPaint.right);
-	TextOut(hdc, 0, 0, text, strlen(text));
 
 
 	secondsspan = lh->latesttimestamp - lh->earliesttimestamp;
@@ -1882,6 +1916,10 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	unsigned long timeclicked;
 
+	int redraw;
+
+	int xfrom,xto;
+
 	mousePoint.x = GET_X_LPARAM(lParam);
 	mousePoint.y = GET_Y_LPARAM(lParam);
 
@@ -1890,13 +1928,73 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	spp=secondsspan/clientRect.right;
 	timeclicked = locationHistory.earliesttimestamp + mousePoint.x*spp;
 
+	if (timeclicked<locationHistory.earliesttimestamp)	//constrain min
+		timeclicked = locationHistory.earliesttimestamp;
+
+	if (timeclicked>locationHistory.latesttimestamp)	//constrain max
+		timeclicked = locationHistory.latesttimestamp;
+
+	xfrom = (optionsPreview.fromtimestamp-locationHistory.earliesttimestamp)/spp;
+	xto = (optionsPreview.totimestamp-locationHistory.earliesttimestamp)/spp;
+
 	switch (msg) {
 		case WM_LBUTTONDOWN:
-			printf("D %i; ",timeclicked);
-			optionsPreview.fromtimestamp = timeclicked;
-			InvalidateRect(hwnd, NULL, 0);	//invalidate itself
-			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-			UpdateDateControlsFromOptions(&optionsPreview);
+			SetFocus(hwnd);
+			if ((mousePoint.x+10 > xfrom) &&(mousePoint.x-10 < xfrom) && (mousePoint.x+10 > xto) &&(mousePoint.x-10 < xto))	{	//if it's in the grabbing ranges of both
+				if (abs(mousePoint.x-xfrom) < abs(xto-mousePoint.x))
+					mouseDragDateSlider=MS_DRAGFROM;
+				else
+					mouseDragDateSlider=MS_DRAGTO;
+			}
+			else if ((mousePoint.x+10 > xfrom) &&(mousePoint.x-10 < xfrom))	{
+				mouseDragDateSlider=MS_DRAGFROM;
+				SetCapture(hwnd);
+			}
+			else if ((mousePoint.x+10 > xto) &&(mousePoint.x-10 < xto))	{
+				mouseDragDateSlider=MS_DRAGTO;
+				SetCapture(hwnd);
+			}
+
+		case WM_MOUSEMOVE:
+			if (mouseDragDateSlider)	{
+				SetCursor(LoadCursor(NULL,IDC_SIZEWE));
+				redraw=0;
+				if (mouseDragDateSlider == MS_DRAGFROM)	{
+					if (optionsPreview.fromtimestamp != timeclicked)	{
+						optionsPreview.fromtimestamp = timeclicked;
+						redraw=1;
+					}
+				}
+
+				if (mouseDragDateSlider == MS_DRAGTO)	{
+					if (optionsPreview.totimestamp != timeclicked)	{	//if there's a change
+						optionsPreview.totimestamp = timeclicked;
+						redraw=1;
+					}
+				}
+
+				//Redraw if set above
+				if (redraw)	{
+					InvalidateRect(hwnd, NULL, 0);	//invalidate itself
+					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+					UpdateDateControlsFromOptions(&optionsPreview);
+				}
+			}
+			else	{	//if we're not dragging, then change cursor if we're on a drag
+				if ((mousePoint.x+10 > xfrom) &&(mousePoint.x-10 < xfrom))	{
+					SetCursor(LoadCursor(NULL,IDC_SIZEWE));
+				}
+				else if ((mousePoint.x+10 > xto) &&(mousePoint.x-10 < xto))	{
+					SetCursor(LoadCursor(NULL,IDC_SIZEWE));
+				}
+
+			}
+			break;
+
+		case WM_LBUTTONUP:
+			mouseDragDateSlider=0;
+			ReleaseCapture();
 			break;
 	}
 	return 0;
@@ -1915,7 +2013,11 @@ int UpdateDateControlsFromOptions(OPTIONS * o)
 	time=localtime(&o->totimestamp);
 	strftime (buffer, 256, "%Y-%m-%d", time);	//ISO8601YYYY-MM-DD
 	SetWindowText(hwndEditDateTo, buffer);
-	printf("buffer %s",buffer);
 	return 0;
 }
 
+
+LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	return 0;
+}
