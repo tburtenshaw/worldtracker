@@ -176,6 +176,10 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o);
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+
+int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 
 int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam);
 int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -183,8 +187,7 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 int UpdateEditboxesFromOptions(OPTIONS * o);
 int UpdateBarsFromNSWE(NSWE * d);
 int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
-
-
+int UpdateDateControlsFromOptions(OPTIONS * o);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -420,7 +423,6 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 //			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
-
 			UpdateEditboxesFromOptions(&optionsPreview);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
@@ -445,6 +447,11 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITTHICKNESS:
 			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
 		break;
+
+		case ID_EDITDATETO:
+		case ID_EDITDATEFROM:
+			HandleEditDateControls(hwnd, id, hwndCtl, codeNotify);
+		break;
 	}
 }
 
@@ -462,6 +469,11 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 
 	//Once loaded, tell the windows they can update
 //    UpdateStatusBar("Ready", 0, 0);
+
+	optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
+	optionsPreview.totimestamp = locationHistory.latesttimestamp;
+
+	UpdateDateControlsFromOptions(&optionsPreview);
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 	return 0;
@@ -495,6 +507,61 @@ int UpdateBarsFromNSWE(NSWE * d)
 
 	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
 	return 0;
+}
+
+int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	char szText[128];
+	char *pEnd;
+	int year, month, day;
+
+	struct tm time;
+	time_t	t;
+
+	int redraw;
+
+	if (codeNotify == EN_KILLFOCUS)	{
+		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+
+		//pch = strtok (szText,".-/");
+
+		year = strtoul(szText,&pEnd,10);
+		month = strtoul(pEnd,&pEnd,10);
+		day = strtoul(pEnd,&pEnd,10);
+
+		if (month<0) month*=-1;
+		if (day<0) day*=-1;
+
+		time.tm_year = year-1900;
+		time.tm_mon = month-1;
+		time.tm_mday = day;
+ 		time.tm_sec = time.tm_min = time.tm_hour = 0;
+
+		t=mktime(&time);
+
+		redraw=0;
+		if (id == ID_EDITDATEFROM)	{
+			if (optionsPreview.fromtimestamp!=t)	{
+				optionsPreview.fromtimestamp=t;
+				redraw=1;
+			}
+		}
+		if (id == ID_EDITDATETO)	{
+			if (optionsPreview.totimestamp!=t)	{	//if there's a change
+				optionsPreview.totimestamp=t;
+				redraw =1;
+			}
+		}
+
+		//Redraw appropriate areas
+		if (redraw==1)	{
+			InvalidateRect(hwndDateSlider, NULL, 0);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
+		}
+	}
+
+	return	0;
 }
 
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
@@ -570,7 +637,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 
 	}
-	else if (codeNotify== EN_KILLFOCUS)	{
+	else if (codeNotify == EN_KILLFOCUS)	{
 		switch (id)	{
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
@@ -636,7 +703,8 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	optionsExport.thickness = o->thickness;
 
 	optionsExport.colourcycle = (60*60*24);
-	optionsExport.totimestamp =-1;
+	optionsExport.totimestamp =o->totimestamp;
+	optionsExport.fromtimestamp =o->fromtimestamp;
 	optionsExport.zoom=optionsExport.width/(optionsExport.nswe.east-optionsExport.nswe.west);
 	optionsExport.alpha=200;	//default
 	optionsExport.colourby = COLOUR_BY_TIME;
@@ -880,7 +948,8 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsOverview.thickness = 1;
 
 			optionsOverview.colourcycle = (60*60*24);
-			optionsOverview.totimestamp =-1;
+			optionsOverview.totimestamp = optionsPreview.totimestamp;
+			optionsOverview.fromtimestamp = optionsPreview.fromtimestamp;
 			optionsOverview.zoom=optionsOverview.width/(optionsOverview.nswe.east-optionsOverview.nswe.west);
 			optionsOverview.alpha=200;	//default
 			optionsOverview.colourby = COLOUR_BY_TIME;
@@ -1208,10 +1277,10 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			GetClientRect(hWndMain, &clientRect);
 			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
 			InvalidateRect(hwnd, NULL, 0);	//trigger a WM_PAINT, as we may be able to stretch or translate
+			hbmQueueSize++;
 			return 1;
 			break;
 		case WM_TIMER:
-			printf("timer");
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
 			printf("**********recalc******\r\n");
@@ -1220,7 +1289,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			optionsPreview.height = clientRect.bottom;
 //			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
 
-			hbmQueueSize++;
+//			hbmQueueSize++;
 			CloseHandle(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSetHBitmap, (LPVOID)hbmQueueSize ,0,NULL));
 
 //			stretchPreview.useStretch = FALSE;
@@ -1375,7 +1444,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	}
 
 	optionsPreview.colourcycle = (60*60*24);
-	optionsPreview.totimestamp =-1;
+	//optionsPreview.totimestamp =-1;
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
 	optionsPreview.colourby = COLOUR_BY_TIME;
@@ -1714,6 +1783,11 @@ LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		case WM_PAINT:
 			return PaintDateSlider(hwnd, &locationHistory, &optionsPreview);
 		break;
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_MOUSEMOVE:
+			HandleSliderMouse(hwnd, msg, wParam, lParam);
+		break;
 		default:
 			return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
@@ -1729,7 +1803,11 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	char text[64];
 	RECT clientRect;
 
-	int x;
+	HPEN hPenBlack;
+	HPEN hPenGrey;
+	HPEN hPenWhite;
+
+	int x,y;
 	unsigned long secondsspan;
 	double	spp;	//seconds per pixel
 	time_t	s;
@@ -1743,7 +1821,7 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	TextOut(hdc, 0, 0, text, strlen(text));
 
 
-	secondsspan = lh->latesttimestamp-lh->earliesttimestamp;
+	secondsspan = lh->latesttimestamp - lh->earliesttimestamp;
 	spp=secondsspan/clientRect.right;
 
 
@@ -1752,26 +1830,92 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	oldyear=time->tm_year;
 	oldmonth=time->tm_mon;
 
+	hPenBlack = CreatePen(PS_SOLID, 1, RGB(0,0,0));
+	hPenGrey = CreatePen(PS_SOLID, 1, RGB(192,192,192));
+	hPenWhite = CreatePen(PS_SOLID, 1, RGB(255,255,255));
 
 	for (x=0;x<clientRect.right;x++)	{
 		s=lh->earliesttimestamp+x*spp;
 
 		time=localtime(&s);
+		y=0;
+		MoveToEx(hdc, x, y, (LPPOINT) NULL);
 		if (time->tm_year!=oldyear)	{
-			MoveToEx(hdc, x, 0, (LPPOINT) NULL);
-        	LineTo(hdc, x, clientRect.bottom);
+			SelectObject(hdc, hPenBlack);
+			y=clientRect.bottom;
+        	LineTo(hdc, x, y);
 			oldyear=time->tm_year;
 			oldmonth=time->tm_mon;
 		}
 		else if	(time->tm_mon!=oldmonth)	{
-			MoveToEx(hdc, x, 0, (LPPOINT) NULL);
-        	LineTo(hdc, x, clientRect.bottom/2);
+			SelectObject(hdc, hPenBlack);
+        	y=clientRect.bottom/2;
+			LineTo(hdc, x, y);
 			oldmonth=time->tm_mon;
 		}
+		if (y<clientRect.bottom)	{
+			if ((s < o->fromtimestamp)	|| (s > o->totimestamp))
+				SelectObject(hdc, hPenGrey);
+			else
+				SelectObject(hdc, hPenWhite);
+			y=clientRect.bottom;
+			LineTo(hdc, x,y);
+		}
+
 	}
+	DeleteObject(hPenBlack);
+	DeleteObject(hPenGrey);
+	DeleteObject(hPenWhite);
 
     EndPaint(hwnd, &ps);
 
+	return 0;
+}
+
+int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	POINT mousePoint;
+	RECT clientRect;
+
+	unsigned long secondsspan;
+	double	spp;	//seconds per pixel
+
+	unsigned long timeclicked;
+
+	mousePoint.x = GET_X_LPARAM(lParam);
+	mousePoint.y = GET_Y_LPARAM(lParam);
+
+	GetClientRect(hwnd, &clientRect);
+	secondsspan = locationHistory.latesttimestamp - locationHistory.earliesttimestamp;
+	spp=secondsspan/clientRect.right;
+	timeclicked = locationHistory.earliesttimestamp + mousePoint.x*spp;
+
+	switch (msg) {
+		case WM_LBUTTONDOWN:
+			printf("D %i; ",timeclicked);
+			optionsPreview.fromtimestamp = timeclicked;
+			InvalidateRect(hwnd, NULL, 0);	//invalidate itself
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			UpdateDateControlsFromOptions(&optionsPreview);
+			break;
+	}
+	return 0;
+}
+
+
+int UpdateDateControlsFromOptions(OPTIONS * o)
+{
+	char buffer[256];
+	struct tm *time;
+
+	time=localtime(&o->fromtimestamp);
+	strftime (buffer, 256, "%Y-%m-%d", time);	//ISO8601YYYY-MM-DD
+	SetWindowText(hwndEditDateFrom, buffer);
+
+	time=localtime(&o->totimestamp);
+	strftime (buffer, 256, "%Y-%m-%d", time);	//ISO8601YYYY-MM-DD
+	SetWindowText(hwndEditDateTo, buffer);
+	printf("buffer %s",buffer);
 	return 0;
 }
 
