@@ -17,6 +17,9 @@
 
 #define OVERVIEW_WIDTH 360
 #define OVERVIEW_HEIGHT 180
+#define OVB_RESTINGWIDTH 4	//overviewbar width when not adjusting
+#define OVB_MOVINGWIDTH 2
+
 #define MARGIN 12
 #define TEXT_HEIGHT 20
 #define TEXT_WIDTH_QUARTER (OVERVIEW_WIDTH-3*MARGIN)/4
@@ -536,16 +539,6 @@ int UpdateEditNSWEControls(NSWE * d)
 	return 0;
 }
 
-int UpdateBarsFromNSWE(NSWE * d)
-{
-	MoveWindow(hwndOverviewMovebarWest, 180 + d->west , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarEast, 180 + d->east , 0, 3,180,TRUE);
-	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - d->north, 360,3,TRUE);
-	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - d->south, 360,3,TRUE);
-
-	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
-	return 0;
-}
 
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
@@ -866,6 +859,20 @@ int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 	return 0;
 }
 
+
+int UpdateBarsFromNSWE(NSWE * d)
+{
+	MoveWindow(hwndOverviewMovebarWest, 180 + d->west-OVB_RESTINGWIDTH/2 , 0, OVB_RESTINGWIDTH,180,TRUE);
+	MoveWindow(hwndOverviewMovebarEast, 180 + d->east-OVB_RESTINGWIDTH/2, 0, OVB_RESTINGWIDTH,180,TRUE);
+	MoveWindow(hwndOverviewMovebarNorth, 0, 90 - d->north-OVB_RESTINGWIDTH/2, 360,OVB_RESTINGWIDTH,TRUE);
+	MoveWindow(hwndOverviewMovebarSouth, 0, 90 - d->south-OVB_RESTINGWIDTH/2, 360,OVB_RESTINGWIDTH,TRUE);
+
+	InvalidateRect(hwndOverview,0,FALSE);	//this doesn't always work
+	return 0;
+}
+
+
+
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	MOVEBARINFO * pMbi;
@@ -898,14 +905,14 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			if ((pMbi->direction == D_NORTH)||(pMbi->direction == D_SOUTH))	{
 				if (mousePoint.y<0)	mousePoint.y=0;
 				if (mousePoint.y>180)	mousePoint.y=180;
-				MoveWindow(hwnd, 0, mousePoint.y, 360,3,TRUE);
+				MoveWindow(hwnd, 0, mousePoint.y-OVB_MOVINGWIDTH/2, 360, OVB_MOVINGWIDTH, TRUE);
 			}
 
 
 			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
 				if (mousePoint.x<-1)	mousePoint.x=-1;
 				if (mousePoint.x>359)	mousePoint.x=359;
-				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
+				MoveWindow(hwnd, mousePoint.x-OVB_MOVINGWIDTH/2, 0, OVB_MOVINGWIDTH, 180, TRUE);
 			}
 
 		break;
@@ -922,14 +929,14 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			if ((pMbi->direction == D_NORTH)||(pMbi->direction == D_SOUTH))	{
 				if (mousePoint.y<0)	mousePoint.y=0;
 				if (mousePoint.y>180)	mousePoint.y=180;
-				MoveWindow(hwnd, 0, mousePoint.y, 360,3,TRUE);
+				MoveWindow(hwnd, 0, mousePoint.y-OVB_RESTINGWIDTH/2, 360,OVB_RESTINGWIDTH,TRUE);
 			}
 
 
 			if ((pMbi->direction == D_WEST)||(pMbi->direction == D_EAST))	{
-				if (mousePoint.x<-1)	mousePoint.x=-1;
+				if (mousePoint.x<0)	mousePoint.x=0;
 				if (mousePoint.x>359)	mousePoint.x=359;
-				MoveWindow(hwnd, mousePoint.x, 0, 3,180,TRUE);
+				MoveWindow(hwnd, mousePoint.x-1, 0, 2,180,TRUE);
 			}
 
 			if (pMbi->direction == D_WEST)	{
@@ -961,19 +968,19 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 int CreateOverviewMovebarWindows(HWND hwnd)
 {
 
-	hwndOverviewMovebarWest = CreateWindow("OverviewMovebarClass", "West", WS_CHILD|WS_VISIBLE, 10,0,3,180,hwnd, NULL, hInst, NULL);
+	hwndOverviewMovebarWest = CreateWindow("OverviewMovebarClass", "West", WS_CHILD|WS_VISIBLE, 10,0,OVB_RESTINGWIDTH,180,hwnd, NULL, hInst, NULL);
 	mbiWest.direction = D_WEST;
 	SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
 
-	hwndOverviewMovebarEast = CreateWindow("OverviewMovebarClass", "East", WS_CHILD|WS_VISIBLE, 350,0,3,180,hwnd, NULL, hInst, NULL);
+	hwndOverviewMovebarEast = CreateWindow("OverviewMovebarClass", "East", WS_CHILD|WS_VISIBLE, 350,0,OVB_RESTINGWIDTH,180,hwnd, NULL, hInst, NULL);
 	mbiEast.direction = D_EAST;
 	SetWindowLongPtr(hwndOverviewMovebarEast, GWL_USERDATA, (LONG)&mbiEast);
 
-	hwndOverviewMovebarNorth = CreateWindow("OverviewMovebarClass", "North", WS_CHILD|WS_VISIBLE, 0,10,360,3,hwnd, NULL, hInst, NULL);
+	hwndOverviewMovebarNorth = CreateWindow("OverviewMovebarClass", "North", WS_CHILD|WS_VISIBLE, 0,10,360,OVB_RESTINGWIDTH,hwnd, NULL, hInst, NULL);
 	mbiNorth.direction = D_NORTH;
 	SetWindowLongPtr(hwndOverviewMovebarNorth, GWL_USERDATA, (LONG)&mbiNorth);
 
-	hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,3,hwnd, NULL, hInst, NULL);
+	hwndOverviewMovebarSouth = CreateWindow("OverviewMovebarClass", "South", WS_CHILD|WS_VISIBLE, 0,20,360,OVB_RESTINGWIDTH,hwnd, NULL, hInst, NULL);
 	mbiSouth.direction = D_SOUTH;
 	SetWindowLongPtr(hwndOverviewMovebarSouth, GWL_USERDATA, (LONG)&mbiSouth);
 
@@ -1041,10 +1048,6 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
 			GetCursorPos(&overviewOriginalPoint);
 			CopyNSWE(&overviewOriginalNSWE, &optionsPreview.nswe);
-			//overviewOriginalNSWE.north = optionsOverview.north;
-			//overviewOriginalNSWE.south = optionsOverview.south;
-			//overviewOriginalNSWE.west = optionsOverview.west;
-			//overviewOriginalNSWE.east = optionsOverview.east;
 
 			mouseDragOverview=TRUE;
 			SetCapture(hwnd);
@@ -2120,7 +2123,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
 					optionsPreview.nswe.east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
 				}
-				else if	(hwnd==hwndPreviewCropbarNorth)	{
+				else if	((hwnd==hwndPreviewCropbarNorth)&&(mousePoint.y>0))	{
 					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					north=optionsPreview.nswe.north + dpp* mousePoint.y;
 					optionsPreview.nswe.north=TruncateByDegreesPerPixel(north, dpp);
