@@ -200,11 +200,17 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 int CreateOverviewMovebarWindows(HWND hwnd);
 int CreatePreviewCropbarWindows(HWND hwnd);
+int ResetCropbarWindowPos(HWND hwnd);
 
-int UpdateEditboxesFromOptions(OPTIONS * o);
+int UpdateEditNSWEControls(NSWE * d);
 int UpdateBarsFromNSWE(NSWE * d);
 int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
 int UpdateDateControlsFromOptions(OPTIONS * o);
+
+
+int SignificantDecimals(double d);
+double TruncateByDegreesPerPixel(double d, double spp);
+
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -454,7 +460,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 //			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
-			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
 
@@ -468,12 +474,14 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		PostMessage(hwnd,WM_CLOSE,0,0);
 		break;
 
-		case ID_EDITEXPORTHEIGHT:
-		case ID_EDITEXPORTWIDTH:
 		case ID_EDITNORTH:
 		case ID_EDITSOUTH:
 		case ID_EDITEAST:
 		case ID_EDITWEST:
+			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
+		break;
+		case ID_EDITEXPORTHEIGHT:
+		case ID_EDITEXPORTWIDTH:
 		case ID_EDITPRESET:
 		case ID_EDITTHICKNESS:
 			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
@@ -512,19 +520,17 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 }
 
 
-int UpdateEditboxesFromOptions(OPTIONS * o)
+int UpdateEditNSWEControls(NSWE * d)
 {
 	char buffer[256];
-	sprintf(buffer,"%s", o->jsonfilenamefinal);
-	SetWindowText(hwndStaticFilename, buffer);
 
-	sprintf(buffer,"%f", o->nswe.north);
+	sprintf(buffer,"%f", d->north);
 	SetWindowText(hwndEditNorth, buffer);
-	sprintf(buffer,"%f", o->nswe.south);
+	sprintf(buffer,"%f", d->south);
 	SetWindowText(hwndEditSouth, buffer);
-	sprintf(buffer,"%f", o->nswe.west);
+	sprintf(buffer,"%f", d->west);
 	SetWindowText(hwndEditWest, buffer);
-	sprintf(buffer,"%f", o->nswe.east);
+	sprintf(buffer,"%f", d->east);
 	SetWindowText(hwndEditEast, buffer);
 
 	return 0;
@@ -681,7 +687,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
 				LoadPreset(&optionsPreview, szText);
-				UpdateEditboxesFromOptions(&optionsPreview);
+				UpdateEditNSWEControls(&optionsPreview.nswe);
 				UpdateBarsFromNSWE(&optionsPreview.nswe);
 				UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 				InvalidateRect(hwndOverview, NULL, FALSE);
@@ -938,7 +944,7 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			if (pMbi->direction == D_SOUTH)	{
 				optionsPreview.nswe.south =90-mousePoint.y;
 			}
-			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
@@ -1052,7 +1058,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsPreview.nswe.west=overviewOriginalNSWE.west+mousePoint.x-overviewOriginalPoint.x;
 			optionsPreview.nswe.east=overviewOriginalNSWE.east+mousePoint.x-overviewOriginalPoint.x;
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
@@ -1163,7 +1169,7 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 //			previewOriginalPoint.x=mousePoint.x;
 //			previewOriginalPoint.y=mousePoint.y;
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			UpdateEditboxesFromOptions(&optionsPreview);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 
 
@@ -1309,7 +1315,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 
 	UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-	UpdateEditboxesFromOptions(&optionsPreview);
+	UpdateEditNSWEControls(&optionsPreview.nswe);
 	UpdateBarsFromNSWE(&optionsPreview.nswe);
 
 	SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
@@ -1639,7 +1645,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
-		UpdateEditboxesFromOptions(&optionsPreview);
+		UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
 
 	case WM_SIZE:
@@ -2037,14 +2043,26 @@ int UpdateDateControlsFromOptions(OPTIONS * o)
 int CreatePreviewCropbarWindows(HWND hwnd)
 {
 	hwndPreviewCropbarWest = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 0,0,10,600,hwnd, NULL, hInst, NULL);
-	hwndPreviewCropbarEast = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 600,0,10,600,hwnd, NULL, hInst, NULL);
-//	mbiWest.direction = D_WEST;
-//	SetWindowLongPtr(hwndOverviewMovebarWest, GWL_USERDATA, (LONG)&mbiWest);
+//	hwndPreviewCropbarEast = CreateWindow("PreviewCropbarClass", "East", WS_CHILD|WS_VISIBLE, 600,0,10,600,hwnd, NULL, hInst, NULL);
+
+	hwndPreviewCropbarNorth = CreateWindow("PreviewCropbarClass", "North", WS_CHILD|WS_VISIBLE, 0,0,600,10,hwnd, NULL, hInst, NULL);
+//	hwndPreviewCropbarSouth = CreateWindow("PreviewCropbarClass", "South", WS_CHILD|WS_VISIBLE, 0,600,600,610,hwnd, NULL, hInst, NULL);
+
+
+
 	return 1;
 }
 
 int ResetCropbarWindowPos(HWND hwnd)
 {
+	//if (hwnd==NULL)	{
+//		SetWindowPos(hwndPreviewCropbarWest, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
+//		SetWindowPos(hwndPreviewCropbarEast, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
+//		SetWindowPos(hwndPreviewCropbarNorth, NULL, 0,0,optionsPreview.width,10, SWP_NOOWNERZORDER);
+//		SetWindowPos(hwndPreviewCropbarSouth, NULL, 0, optionsPreview.height-10,optionsPreview.width,10, SWP_NOOWNERZORDER);
+//		printf("NSWE");
+//	}
+
 	if (hwnd==hwndPreviewCropbarWest)	{
 		SetWindowPos(hwnd, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
 		printf("WEST");
@@ -2053,24 +2071,38 @@ int ResetCropbarWindowPos(HWND hwnd)
 		SetWindowPos(hwnd, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
 		printf("EAST");
 	}
+	else if (hwnd==hwndPreviewCropbarNorth)	{
+		SetWindowPos(hwnd, NULL, 0,0,optionsPreview.width,10, SWP_NOOWNERZORDER);
+		printf("NORTH");
+	}
+	else if (hwnd==hwndPreviewCropbarSouth)	{
+		SetWindowPos(hwnd, NULL, 0, optionsPreview.height-10,optionsPreview.width,10, SWP_NOOWNERZORDER);
+		printf("SOUTH");
+	}
 
 	return 1;
-
 }
 
 int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 
 	POINT mousePoint;
-	//RECT rect;
+	NSWE EditNSWE;
 
-	double west,east;
+	double east, north, south;
+	double	dpp;	//degrees per pixel
 
 	mousePoint.x = GET_X_LPARAM(lParam);
 	mousePoint.y = GET_Y_LPARAM(lParam);
 
 
 	switch (msg)	{
+		case WM_SETCURSOR:
+			if ((hwnd==hwndPreviewCropbarNorth) || (hwnd==hwndPreviewCropbarSouth))
+				SetCursor(LoadCursor(NULL,IDC_SIZENS));
+			else
+				SetCursor(LoadCursor(NULL,IDC_SIZEWE));
+			break;
 		case WM_LBUTTONDOWN:
 			SetCapture(hwnd);
 			mouseDragCropbar=1;
@@ -2079,31 +2111,48 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		case WM_LBUTTONUP:
 			ReleaseCapture();
 			if (mouseDragCropbar)	{
-				if (hwnd==hwndPreviewCropbarWest)	{
-					optionsPreview.nswe.west=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+				if ((hwnd==hwndPreviewCropbarWest)&&(mousePoint.x>0))	{
+					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
+					optionsPreview.nswe.west=TruncateByDegreesPerPixel(optionsPreview.nswe.west + dpp* mousePoint.x, dpp);
 				}
-				if (hwnd==hwndPreviewCropbarEast)	{
+				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
 					optionsPreview.nswe.east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+				}
+				else if	(hwnd==hwndPreviewCropbarNorth)	{
+					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
+					north=optionsPreview.nswe.north + dpp* mousePoint.y;
+					optionsPreview.nswe.north=TruncateByDegreesPerPixel(north, dpp);
+
+					printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,north,dpp);
+					//optionsPreview.nswe.north = optionsPreview.nswe.north + (optionsPreview.nswe.south-optionsPreview.nswe.north)* mousePoint.y/optionsPreview.height;
 				}
 
 
 				ResetCropbarWindowPos(hwnd);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
-				UpdateEditboxesFromOptions(&optionsPreview);
-
+				UpdateEditNSWEControls(&optionsPreview.nswe);
+				UpdateBarsFromNSWE(&optionsPreview.nswe);
 				mouseDragCropbar=0;
 				InvalidateRect(hwnd, NULL, 0);
 			}
 			break;
 		case WM_MOUSEMOVE:
 			if (mouseDragCropbar)	{
+				CopyNSWE(&EditNSWE, &optionsPreview.nswe);
 				if	(hwnd==hwndPreviewCropbarWest)	{
+					if (mousePoint.x<0)
+						mousePoint.x=0;
 					SetWindowPos(hwnd, NULL, 0,0, mousePoint.x, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
-					west=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
-					//printf("x: %i, y: %i %f\r\n",mousePoint.x, mousePoint.y,west);
+					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
+
+
+					EditNSWE.west=optionsPreview.nswe.west + dpp* mousePoint.x;
+					EditNSWE.west=TruncateByDegreesPerPixel(EditNSWE.west, dpp);
+
+					//printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,EditNSWE.west,dpp);
 				}
 				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
@@ -2112,8 +2161,18 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					SetWindowPos(hwnd, NULL, mousePoint.x,0, optionsPreview.width, optionsPreview.height, SWP_NOOWNERZORDER);
 					east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
 					//printf("x: %i  %f\r\n",mousePoint.x, east);
-
 				}
+				else if (hwnd==hwndPreviewCropbarNorth)	{
+					if (mousePoint.y<0)
+						mousePoint.y=0;
+					SetWindowPos(hwnd, NULL, 0,0, optionsPreview.width, mousePoint.y, SWP_NOMOVE|SWP_NOOWNERZORDER);
+					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
+					EditNSWE.north=optionsPreview.nswe.north + dpp* mousePoint.y;
+					EditNSWE.north=TruncateByDegreesPerPixel(EditNSWE.north, dpp);
+					//printf("x: %i, y: %i %f\r\n",mousePoint.x, mousePoint.y,north);
+				}
+				UpdateEditNSWEControls(&EditNSWE);
+				UpdateBarsFromNSWE(&EditNSWE);
 			}
 			//HandlePreviewCropbarMouse(hwnd, msg, wParam, lParam);
 			break;
@@ -2127,6 +2186,7 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 {
 
 	switch (msg) {
+		case WM_SETCURSOR:
 		case WM_LBUTTONDOWN:
 		case WM_LBUTTONUP:
 		case WM_MOUSEMOVE:
@@ -2146,4 +2206,37 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 
 	return 0;
+}
+
+int SignificantDecimals(double d)	//**NB: not a general algorithm, just for use in avoiding over-precise coords
+{
+	//this takes the degrees per pixel, and returns the amount to multiple by, then rounding, before dividing by the same number
+	//so if every pixed was 0.04 degrees, we'd mulitply by 1000, round, then divide by 1000 to get a sane number of sig figs
+
+	if (d<0)	d*=-1;
+
+	if (d>1)	return 10;
+	if (d>0.1)	return 100;
+	if (d>0.01) return 1000;
+	if (d>0.001) return 10000;
+	if (d>0.0001) return 100000;
+	if (d>0.00001) return 1000000;
+	if (d>0.000001) return 10000000;
+
+	return 100000000;
+}
+
+double TruncateByDegreesPerPixel(double d, double spp)
+{
+	long l;
+	int roundfactor;
+
+	roundfactor=SignificantDecimals(spp);
+
+	d*=roundfactor;
+	l=(long)d;
+
+	d=(double)l / roundfactor;
+
+	return d;
 }
