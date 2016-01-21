@@ -8,6 +8,9 @@
 #include "mytrips.h"
 #include "lodepng.h"
 
+#define MAX_ASPECT_RATIO 20
+#define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
+
 #define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations - this will do it as soon as message received
 #define WT_WM_QUEUERECALC WM_APP+1	//Signal that the map needs to be replotted (essentially this starts a timer) so we don't waste time
 #define WT_WM_SIGNALMOUSEWHEEL WM_APP+2	//We shouldn't send WM_MOUSEWHEEL between functions, but send this to down propagate to child window if required
@@ -19,6 +22,8 @@
 #define OVERVIEW_HEIGHT 180
 #define OVB_RESTINGWIDTH 4	//overviewbar width when not adjusting
 #define OVB_MOVINGWIDTH 2
+#define PCB_GRABWIDTH 10	//Preview Cropbar - the invisible size of the edges
+
 
 #define MARGIN 12
 #define TEXT_HEIGHT 20
@@ -1112,6 +1117,14 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			optionsPreview.nswe.north= previewOriginalNSWE.north + dpp*(mousePoint.y-previewOriginalPoint.y);
 			optionsPreview.nswe.south= previewOriginalNSWE.south + dpp*(mousePoint.y-previewOriginalPoint.y);
 
+			//Round to appropriate amount
+			optionsPreview.nswe.east = TruncateByDegreesPerPixel(optionsPreview.nswe.east, dpp);
+			optionsPreview.nswe.west = TruncateByDegreesPerPixel(optionsPreview.nswe.west, dpp);
+			optionsPreview.nswe.south = TruncateByDegreesPerPixel(optionsPreview.nswe.south, dpp);
+			optionsPreview.nswe.north = TruncateByDegreesPerPixel(optionsPreview.nswe.north, dpp);
+
+
+
 			stretchPreview.nXOriginSrc=0;
 			stretchPreview.nYOriginSrc=0;
 			stretchPreview.nWidthSrc=optionsPreview.width;
@@ -1364,6 +1377,12 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
 			//printf("***size***\r\n");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+	ResetCropbarWindowPos(hwndPreviewCropbarWest);
+	ResetCropbarWindowPos(hwndPreviewCropbarEast);
+	ResetCropbarWindowPos(hwndPreviewCropbarNorth);
+	ResetCropbarWindowPos(hwndPreviewCropbarSouth);
+
+
 			InvalidateRect(hwnd, NULL, 0);
 			break;
 		case WM_PAINT:
@@ -2045,19 +2064,30 @@ int UpdateDateControlsFromOptions(OPTIONS * o)
 
 int CreatePreviewCropbarWindows(HWND hwnd)
 {
-	hwndPreviewCropbarWest = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 0,0,10,600,hwnd, NULL, hInst, NULL);
-//	hwndPreviewCropbarEast = CreateWindow("PreviewCropbarClass", "East", WS_CHILD|WS_VISIBLE, 600,0,10,600,hwnd, NULL, hInst, NULL);
+	RECT rect;
+	GetWindowRect(hwnd, &rect);	//get the parent rect
 
-	hwndPreviewCropbarNorth = CreateWindow("PreviewCropbarClass", "North", WS_CHILD|WS_VISIBLE, 0,0,600,10,hwnd, NULL, hInst, NULL);
-//	hwndPreviewCropbarSouth = CreateWindow("PreviewCropbarClass", "South", WS_CHILD|WS_VISIBLE, 0,600,600,610,hwnd, NULL, hInst, NULL);
+	hwndPreviewCropbarWest = CreateWindow("PreviewCropbarClass", "West", WS_CHILD|WS_VISIBLE, 0,0,PCB_GRABWIDTH,600,hwnd, NULL, hInst, NULL);
+	hwndPreviewCropbarEast = CreateWindow("PreviewCropbarClass", "East", WS_CHILD|WS_VISIBLE, 600,0,PCB_GRABWIDTH,600,hwnd, NULL, hInst, NULL);
 
-
+	hwndPreviewCropbarNorth = CreateWindow("PreviewCropbarClass", "North", WS_CHILD|WS_VISIBLE, 0,0,600,PCB_GRABWIDTH,hwnd, NULL, hInst, NULL);
+	hwndPreviewCropbarSouth = CreateWindow("PreviewCropbarClass", "South", WS_CHILD|WS_VISIBLE, 0,600,600,610,hwnd, NULL, hInst, NULL);
 
 	return 1;
 }
 
 int ResetCropbarWindowPos(HWND hwnd)
 {
+	RECT rect;
+	int w, h;
+
+	GetWindowRect(GetParent(hwnd), &rect);
+	w=rect.right-rect.left;
+	h=rect.bottom-rect.top;
+
+
+	printf("\r\nw %i, h%i\r\n", w, h);
+
 	//if (hwnd==NULL)	{
 //		SetWindowPos(hwndPreviewCropbarWest, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
 //		SetWindowPos(hwndPreviewCropbarEast, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
@@ -2067,19 +2097,19 @@ int ResetCropbarWindowPos(HWND hwnd)
 //	}
 
 	if (hwnd==hwndPreviewCropbarWest)	{
-		SetWindowPos(hwnd, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
+		SetWindowPos(hwnd, NULL, 0,0, 10, h, SWP_NOMOVE|SWP_NOOWNERZORDER);
 		printf("WEST");
 	}
 	else if (hwnd==hwndPreviewCropbarEast)	{
-		SetWindowPos(hwnd, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
+		SetWindowPos(hwnd, NULL, w - PCB_GRABWIDTH,0, PCB_GRABWIDTH, optionsPreview.height, SWP_NOOWNERZORDER);
 		printf("EAST");
 	}
 	else if (hwnd==hwndPreviewCropbarNorth)	{
-		SetWindowPos(hwnd, NULL, 0,0,optionsPreview.width,10, SWP_NOOWNERZORDER);
+		SetWindowPos(hwnd, NULL, 0,0,w,PCB_GRABWIDTH, SWP_NOOWNERZORDER);
 		printf("NORTH");
 	}
 	else if (hwnd==hwndPreviewCropbarSouth)	{
-		SetWindowPos(hwnd, NULL, 0, optionsPreview.height-10,optionsPreview.width,10, SWP_NOOWNERZORDER);
+		SetWindowPos(hwnd, NULL, 0, h-PCB_GRABWIDTH, optionsPreview.width,PCB_GRABWIDTH, SWP_NOOWNERZORDER);
 		printf("SOUTH");
 	}
 
@@ -2131,6 +2161,14 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,north,dpp);
 					//optionsPreview.nswe.north = optionsPreview.nswe.north + (optionsPreview.nswe.south-optionsPreview.nswe.north)* mousePoint.y/optionsPreview.height;
 				}
+				else if (hwnd==hwndPreviewCropbarSouth)	{
+					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
+					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
+
+					south=optionsPreview.nswe.north + dpp* mousePoint.y;
+					optionsPreview.nswe.south=TruncateByDegreesPerPixel(south, dpp);
+				}
 
 
 				ResetCropbarWindowPos(hwnd);
@@ -2160,9 +2198,10 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
-
 					SetWindowPos(hwnd, NULL, mousePoint.x,0, optionsPreview.width, optionsPreview.height, SWP_NOOWNERZORDER);
-					east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
+					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
+					EditNSWE.east=optionsPreview.nswe.west + dpp* mousePoint.x;
+					EditNSWE.east=TruncateByDegreesPerPixel(EditNSWE.east, dpp);
 					//printf("x: %i  %f\r\n",mousePoint.x, east);
 				}
 				else if (hwnd==hwndPreviewCropbarNorth)	{
@@ -2174,6 +2213,17 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					EditNSWE.north=TruncateByDegreesPerPixel(EditNSWE.north, dpp);
 					//printf("x: %i, y: %i %f\r\n",mousePoint.x, mousePoint.y,north);
 				}
+				else if (hwnd==hwndPreviewCropbarSouth)	{
+					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
+					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
+					SetWindowPos(hwnd, NULL, 0,mousePoint.y, optionsPreview.width, optionsPreview.height-mousePoint.y, SWP_NOMOVE|SWP_NOOWNERZORDER);
+					EditNSWE.south=optionsPreview.nswe.north + dpp* mousePoint.y;
+					EditNSWE.south=TruncateByDegreesPerPixel(EditNSWE.south, dpp);
+				}
+
+
+
 				UpdateEditNSWEControls(&EditNSWE);
 				UpdateBarsFromNSWE(&EditNSWE);
 			}
