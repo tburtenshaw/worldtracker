@@ -454,8 +454,7 @@ BOOL _stdcall AboutDlg(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 
 void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
-{	char JSONfilename[MAX_PATH];
-
+{
 	switch(id) {
 		case IDM_ABOUT:
 			DialogBox(hInst,MAKEINTRESOURCE(IDD_ABOUT),
@@ -463,11 +462,11 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 
 		case IDM_OPEN:
-			if (GetFileName(JSONfilename,sizeof(JSONfilename))==0)
+			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal))==0)
 				return;
 
 //			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &JSONfilename ,0,NULL);
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
@@ -1214,6 +1213,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	double latspan;
 
 	double zoomfactor;
+	double dpp;
 
 	POINT mousePoint;
 
@@ -1224,7 +1224,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 		zDelta -=65536;
 	}
 
-	zoomfactor = 12/(double)zDelta;
+	zoomfactor = pow(0.9, zDelta/120);	//0.9 ^ zDelta/120, zDelta is usually 120 on a standard mouse wheel
 
 	longspan = optionsPreview.nswe.east - optionsPreview.nswe.west;
 	latspan = optionsPreview.nswe.north - optionsPreview.nswe.south;
@@ -1238,12 +1238,13 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	mousePoint.y = GET_Y_LPARAM(lParam);
 	ScreenToClient(hwnd, &mousePoint);
 
+	dpp = longspan/optionsPreview.width;
 
 	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.nswe.west;
 	latitude = optionsPreview.nswe.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
 	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-	//printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
+//	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
 
 	//This shifts the origin to where the mouse was
 	optionsPreview.nswe.west-=longitude;
@@ -1251,10 +1252,10 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	optionsPreview.nswe.east-=longitude;
 	optionsPreview.nswe.south-=latitude;
 	//resizes
-	optionsPreview.nswe.west*=(1-zoomfactor);
-	optionsPreview.nswe.north*=(1-zoomfactor);
-	optionsPreview.nswe.east*=(1-zoomfactor);
-	optionsPreview.nswe.south*=(1-zoomfactor);
+	optionsPreview.nswe.west*=(zoomfactor);
+	optionsPreview.nswe.north*=(zoomfactor);
+	optionsPreview.nswe.east*=(zoomfactor);
+	optionsPreview.nswe.south*=(zoomfactor);
 	//then moves the origin back
 	optionsPreview.nswe.west+=longitude;
 	optionsPreview.nswe.north+=latitude;
@@ -1262,7 +1263,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	optionsPreview.nswe.south+=latitude;
 
 	//Now we set the coords for the StretchBlt if required
-	if (zoomfactor>0)	{	//if we're zooming in
+	if (zoomfactor<1)	{	//if we're zooming in
 		//we'll stretch the centre to the whole window
 		stretchPreview.nXOriginDest=0;
 		stretchPreview.nYOriginDest=0;
@@ -1277,14 +1278,14 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 			stretchPreview.nHeightSrc=optionsPreview.height;
 		}
 
-		stretchPreview.nWidthSrc*=(1-zoomfactor);
-		stretchPreview.nHeightSrc*=(1-zoomfactor);
+		stretchPreview.nWidthSrc*=zoomfactor;
+		stretchPreview.nHeightSrc*=zoomfactor;
 
 		stretchPreview.nXOriginSrc-=mousePoint.x;
 		stretchPreview.nYOriginSrc-=mousePoint.y;
 
-		stretchPreview.nXOriginSrc*=(1-zoomfactor);
-		stretchPreview.nYOriginSrc*=(1-zoomfactor);
+		stretchPreview.nXOriginSrc*=zoomfactor;
+		stretchPreview.nYOriginSrc*=zoomfactor;
 
 		stretchPreview.nXOriginSrc+=mousePoint.x;
 		stretchPreview.nYOriginSrc+=mousePoint.y;
@@ -1310,15 +1311,15 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 		}
 
 		//then scale size
-		stretchPreview.nWidthDest/=(1-zoomfactor);
-		stretchPreview.nHeightDest/=(1-zoomfactor);
+		stretchPreview.nWidthDest/=zoomfactor;
+		stretchPreview.nHeightDest/=zoomfactor;
 
 		//translating so the origin is at the mouse point
 		stretchPreview.nXOriginDest-=mousePoint.x;
 		stretchPreview.nYOriginDest-=mousePoint.y;
 
-		stretchPreview.nXOriginDest/=(1-zoomfactor);
-		stretchPreview.nYOriginDest/=(1-zoomfactor);
+		stretchPreview.nXOriginDest/=zoomfactor;
+		stretchPreview.nYOriginDest/=zoomfactor;
 
 		stretchPreview.nXOriginDest+=mousePoint.x;
 		stretchPreview.nYOriginDest+=mousePoint.y;
@@ -1326,9 +1327,13 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 		stretchPreview.useStretch = TRUE;
 
 
-
 	}
 
+
+	optionsPreview.nswe.north = TruncateByDegreesPerPixel(optionsPreview.nswe.north, dpp);
+	optionsPreview.nswe.south = TruncateByDegreesPerPixel(optionsPreview.nswe.south, dpp);
+	optionsPreview.nswe.west = TruncateByDegreesPerPixel(optionsPreview.nswe.west, dpp);
+	optionsPreview.nswe.east = TruncateByDegreesPerPixel(optionsPreview.nswe.east, dpp);
 
 	UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 	UpdateEditNSWEControls(&optionsPreview.nswe);
@@ -1528,7 +1533,6 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	}
 
 	optionsPreview.colourcycle = (60*60*24);
-	//optionsPreview.totimestamp =-1;
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
 	optionsPreview.colourby = COLOUR_BY_TIME;
@@ -1786,15 +1790,13 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 	RECT previewRect;
 	POINT previewPoint;
 
-	//mainheight = HIWORD(lParam);
-	//mainwidth = LOWORD(lParam);
 
 	GetWindowRect(hwndPreview, &previewRect);
 	previewPoint.x=previewRect.left;
 	previewPoint.y=previewRect.top;
 	ScreenToClient(hwnd, &previewPoint);
 
-	//Get status bar heigh
+	//Get status bar height
 	GetClientRect(hWndStatusbar, &statusbarRect);
 
 	availableheight = mainheight - previewPoint.y - MARGIN-statusbarRect.bottom;
@@ -1804,24 +1806,17 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 
 	//printf("ht:%i avail:%i top:%i %i\r\n", mainheight, availableheight,previewRect.top, previewPoint.y);
 
-	if (aspectratio == 0)	{	//fit to screen
+	if (availableheight*aspectratio > availablewidth)	{	//width limited
+		endheight = availablewidth/aspectratio;
 		endwidth =  availablewidth;
+	} else	{
+		endwidth =  availableheight*aspectratio;
 		endheight = availableheight;
-		if (endwidth<320) endwidth=320;
 	}
-	else	{
-		if (availableheight*aspectratio > availablewidth)	{	//width limited
-			endheight = availablewidth/aspectratio;
-			endwidth =  availablewidth;
-		} else	{
-			endwidth =  availableheight*aspectratio;
-			endheight = availableheight;
-		}
 
-		if (endwidth<360)	{
-			endwidth=360;
-			endheight = availablewidth/aspectratio;
-		}
+	if (endwidth<20)	{
+		endwidth=20;
+		endheight = availablewidth/aspectratio;
 	}
 
 	optionsPreview.width=endwidth;
@@ -1831,7 +1826,7 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 	SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
 
 
-	printf("ht: %i, wt: %i\r\n", endheight, endwidth);
+	//printf("ht: %i, wt: %i\r\n", endheight, endwidth);
 
 	return 0;
 }
