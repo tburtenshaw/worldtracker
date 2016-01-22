@@ -46,6 +46,7 @@
 #define ID_EDITDATETO 1009
 #define ID_EDITTHICKNESS 1010
 #define ID_EDITCOLOURBY 1011
+#define ID_EDITCOLOURCYCLE 1012
 
 
 //these don't really need to be the bearing, but I thought it would be easier
@@ -137,6 +138,7 @@ HWND hwndEditExportHeight;
 HWND hwndEditDateTo;
 HWND hwndEditDateFrom;
 HWND hwndEditThickness;
+HWND hwndEditColourCycle;
 
 HWND hwndDateSlider;
 
@@ -348,6 +350,7 @@ static BOOL InitApplication(void)
 	optionsPreview.nswe.west=-180;
 	optionsPreview.nswe.east=180;
 	optionsPreview.thickness=1;
+	optionsPreview.colourcycle=60*60*24*7;
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -469,7 +472,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
+			//UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
 
 		break;
 
@@ -491,6 +494,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITEXPORTWIDTH:
 		case ID_EDITPRESET:
 		case ID_EDITTHICKNESS:
+		case ID_EDITCOLOURCYCLE:
 			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
 		break;
 
@@ -660,15 +664,22 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 		case ID_EDITEXPORTHEIGHT:
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 1);
+			optionsPreview.forceheight=1;
 			break;
 		case ID_EDITEXPORTWIDTH:
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
+			optionsPreview.forceheight=0;
 			break;
 
 		case ID_EDITTHICKNESS:
 			optionsPreview.thickness=value;
 			needsRedraw=1;
 			break;
+		case ID_EDITCOLOURCYCLE:
+			optionsPreview.colourcycle=value;
+			needsRedraw=1;
+			break;
+
 
 		}
 
@@ -686,7 +697,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				LoadPreset(&optionsPreview, szText);
 				UpdateEditNSWEControls(&optionsPreview.nswe);
 				UpdateBarsFromNSWE(&optionsPreview.nswe);
-				UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+				//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				break;
@@ -744,7 +755,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	optionsExport.nswe.east=o->nswe.east;
 	optionsExport.thickness = o->thickness;
 
-	optionsExport.colourcycle = (60*60*24);
+	optionsExport.colourcycle = optionsPreview.colourcycle;
 	optionsExport.totimestamp =o->totimestamp;
 	optionsExport.fromtimestamp =o->fromtimestamp;
 	optionsExport.zoom=optionsExport.width/(optionsExport.nswe.east-optionsExport.nswe.west);
@@ -956,7 +967,7 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 				optionsPreview.nswe.south =90-mousePoint.y;
 			}
 			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
@@ -1019,7 +1030,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsOverview.height=180;optionsOverview.width=360;
 			optionsOverview.thickness = 1;
 
-			optionsOverview.colourcycle = (60*60*24);
+			optionsOverview.colourcycle = optionsPreview.colourcycle;
 			optionsOverview.totimestamp = optionsPreview.totimestamp;
 			optionsOverview.fromtimestamp = optionsPreview.fromtimestamp;
 			optionsOverview.zoom=optionsOverview.width/(optionsOverview.nswe.east-optionsOverview.nswe.west);
@@ -1066,7 +1077,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsPreview.nswe.east=overviewOriginalNSWE.east+mousePoint.x-overviewOriginalPoint.x;
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 
 			break;
@@ -1185,7 +1196,7 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 //			previewOriginalPoint.y=mousePoint.y;
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+//			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 
 
 		break;
@@ -1335,7 +1346,7 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	optionsPreview.nswe.west = TruncateByDegreesPerPixel(optionsPreview.nswe.west, dpp);
 	optionsPreview.nswe.east = TruncateByDegreesPerPixel(optionsPreview.nswe.east, dpp);
 
-	UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+	//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
 	UpdateEditNSWEControls(&optionsPreview.nswe);
 	UpdateBarsFromNSWE(&optionsPreview.nswe);
 
@@ -1386,7 +1397,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 	ResetCropbarWindowPos(hwndPreviewCropbarEast);
 	ResetCropbarWindowPos(hwndPreviewCropbarNorth);
 	ResetCropbarWindowPos(hwndPreviewCropbarSouth);
-
+	UpdateExportAspectRatioFromOptions(&optionsPreview, optionsPreview.forceheight);
 
 			InvalidateRect(hwnd, NULL, 0);
 			break;
@@ -1532,7 +1543,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 		bitmapDestroy(&previewBM);
 	}
 
-	optionsPreview.colourcycle = (60*60*24);
+	//optionsPreview.colourcycle = (60*60*24);
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
 	optionsPreview.colourby = COLOUR_BY_TIME;
@@ -1647,9 +1658,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		x+=MARGIN+TEXT_WIDTH_QLONG;
 
-//		y+=MARGIN+TEXT_HEIGHT;
-//		x=MARGIN;
 		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+
+		y+=MARGIN+TEXT_HEIGHT;
+		x=MARGIN;
+		hwndEditColourCycle = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
 
 
 
@@ -1681,10 +1694,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		break;
 	case WM_MENUSELECT:
 		return MsgMenuSelect(hwnd,msg,wParam,lParam);
+		break;
 	case WM_MOUSEWHEEL:
 		//if it's within the Preview message box, send it there
 		GetWindowRect(hwndPreview, &rect);
-		printf("Rectleft %i, rectright %i, mousex %i, mousey %i. \r\n",rect.left, rect.right, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		//printf("Rectleft %i, rectright %i, mousex %i, mousey %i. \r\n",rect.left, rect.right, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		if ((GET_X_LPARAM(lParam)>=rect.left) && (GET_X_LPARAM(lParam)<=rect.right) && (GET_Y_LPARAM(lParam)>=rect.top) && (GET_Y_LPARAM(lParam)<=rect.bottom))	{
 			SendMessage(hwndPreview, WT_WM_SIGNALMOUSEWHEEL, wParam, lParam);
 		}
@@ -2133,6 +2147,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			break;
 		case WM_LBUTTONDOWN:
 			SetCapture(hwnd);
+			SetFocus(hwnd);
 			mouseDragCropbar=1;
 			InvalidateRect(hwnd, NULL, 0);
 			break;
@@ -2140,27 +2155,50 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			ReleaseCapture();
 			if (mouseDragCropbar)	{
 				if ((hwnd==hwndPreviewCropbarWest)&&(mousePoint.x>0))	{
+					if (mousePoint.x > optionsPreview.width - optionsPreview.height/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.x = optionsPreview.width - optionsPreview.height/MAX_ASPECT_RATIO;
+					if (mousePoint.x > optionsPreview.width - PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.x = optionsPreview.width - PCB_GRABWIDTH*2;
+
 					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
 					optionsPreview.nswe.west=TruncateByDegreesPerPixel(optionsPreview.nswe.west + dpp* mousePoint.x, dpp);
 				}
 				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					if (mousePoint.x>optionsPreview.width)
+						mousePoint.x = optionsPreview.width;
+					if (mousePoint.x < optionsPreview.height/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.x = optionsPreview.height/MAX_ASPECT_RATIO;
+					if (mousePoint.x < PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.x = PCB_GRABWIDTH*2;
+
 					optionsPreview.nswe.east=optionsPreview.nswe.west + (optionsPreview.nswe.east-optionsPreview.nswe.west)* mousePoint.x/optionsPreview.width;
 				}
 				else if	((hwnd==hwndPreviewCropbarNorth)&&(mousePoint.y>0))	{
+					if (mousePoint.y > optionsPreview.height - optionsPreview.width/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.y = optionsPreview.height - optionsPreview.width/MAX_ASPECT_RATIO;
+					if (mousePoint.y > optionsPreview.height - PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.y = optionsPreview.height - PCB_GRABWIDTH*2;
 					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					north=optionsPreview.nswe.north + dpp* mousePoint.y;
 					optionsPreview.nswe.north=TruncateByDegreesPerPixel(north, dpp);
 
-					printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,north,dpp);
+//					printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,north,dpp);
 					//optionsPreview.nswe.north = optionsPreview.nswe.north + (optionsPreview.nswe.south-optionsPreview.nswe.north)* mousePoint.y/optionsPreview.height;
 				}
 				else if (hwnd==hwndPreviewCropbarSouth)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
-					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
+					if (mousePoint.y>optionsPreview.height)
+						mousePoint.y = optionsPreview.height;
+					if (mousePoint.y < optionsPreview.width/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.y = optionsPreview.width/MAX_ASPECT_RATIO;
+					if (mousePoint.y < PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.y = PCB_GRABWIDTH*2;
 
+
+					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					south=optionsPreview.nswe.north + dpp* mousePoint.y;
 					optionsPreview.nswe.south=TruncateByDegreesPerPixel(south, dpp);
 				}
@@ -2181,6 +2219,12 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				if	(hwnd==hwndPreviewCropbarWest)	{
 					if (mousePoint.x<0)
 						mousePoint.x=0;
+					if (mousePoint.x > optionsPreview.width - optionsPreview.height/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.x = optionsPreview.width - optionsPreview.height/MAX_ASPECT_RATIO;
+					if (mousePoint.x > optionsPreview.width - PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.x = optionsPreview.width - PCB_GRABWIDTH*2;
+
+
 					SetWindowPos(hwnd, NULL, 0,0, mousePoint.x, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
 					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
 
@@ -2193,6 +2237,16 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+
+					if (mousePoint.x>optionsPreview.width)
+						mousePoint.x = optionsPreview.width;
+					if (mousePoint.x < optionsPreview.height/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.x = optionsPreview.height/MAX_ASPECT_RATIO;
+					if (mousePoint.x < PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.x = PCB_GRABWIDTH*2;
+
+
+
 					SetWindowPos(hwnd, NULL, mousePoint.x,0, optionsPreview.width, optionsPreview.height, SWP_NOOWNERZORDER);
 					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
 					EditNSWE.east=optionsPreview.nswe.west + dpp* mousePoint.x;
@@ -2202,6 +2256,13 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				else if (hwnd==hwndPreviewCropbarNorth)	{
 					if (mousePoint.y<0)
 						mousePoint.y=0;
+					if (mousePoint.y > optionsPreview.height - optionsPreview.width/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.y = optionsPreview.height - optionsPreview.width/MAX_ASPECT_RATIO;
+					if (mousePoint.y > optionsPreview.height - PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.y = optionsPreview.height - PCB_GRABWIDTH*2;
+
+
+
 					SetWindowPos(hwnd, NULL, 0,0, optionsPreview.width, mousePoint.y, SWP_NOMOVE|SWP_NOOWNERZORDER);
 					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					EditNSWE.north=optionsPreview.nswe.north + dpp* mousePoint.y;
@@ -2211,6 +2272,14 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				else if (hwnd==hwndPreviewCropbarSouth)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					if (mousePoint.y>optionsPreview.height)
+						mousePoint.y = optionsPreview.height;
+					if (mousePoint.y < optionsPreview.width/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio
+						mousePoint.y = optionsPreview.width/MAX_ASPECT_RATIO;
+					if (mousePoint.y < PCB_GRABWIDTH*2)		//then also constrain to a usable size
+						mousePoint.y = PCB_GRABWIDTH*2;
+
+
 					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					SetWindowPos(hwnd, NULL, 0,mousePoint.y, optionsPreview.width, optionsPreview.height-mousePoint.y, SWP_NOMOVE|SWP_NOOWNERZORDER);
 					EditNSWE.south=optionsPreview.nswe.north + dpp* mousePoint.y;
@@ -2282,6 +2351,7 @@ double TruncateByDegreesPerPixel(double d, double spp)
 	roundfactor=SignificantDecimals(spp);
 
 	d*=roundfactor;
+	d+=0.5;
 	l=(long)d;
 
 	d=(double)l / roundfactor;
