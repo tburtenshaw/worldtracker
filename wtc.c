@@ -1,4 +1,4 @@
-#define VERSION 0.37
+#define VERSION 0.20160118
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -166,7 +166,7 @@ int HandleCLIOptions(int argc,char *argv[], OPTIONS *options)
 					}
 					break;
 
-
+/* //I've stopped using zoom as an argument
 				case 'z':
 				case 'Z':
 					if (i+1<argc)	{
@@ -174,6 +174,7 @@ int HandleCLIOptions(int argc,char *argv[], OPTIONS *options)
 						i++;	//move to the next variable, we've got a zoom
 					}
 					break;
+					*/
 				case 'g':	//the grid
 				case 'G':
 					if (i+1<argc)	{

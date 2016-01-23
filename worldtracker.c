@@ -218,6 +218,7 @@ int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
 int UpdateDateControlsFromOptions(OPTIONS * o);
 
 
+void ConstrainNSWE(NSWE * d);
 int SignificantDecimals(double d);
 double TruncateByDegreesPerPixel(double d, double spp);
 
@@ -361,7 +362,7 @@ static BOOL InitApplication(void)
 	wc.lpszClassName = "worldtrackerWndClass";
 	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
 	wc.hCursor = LoadCursor(NULL,IDC_ARROW);
-	wc.hIcon = LoadIcon(NULL,IDI_APPLICATION);
+	wc.hIcon = LoadIcon(hInst,MAKEINTRESOURCE(IDI_WORLDTRACKER));
 	if (!RegisterClass(&wc))
 		return 0;
 
@@ -1075,6 +1076,8 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsPreview.nswe.south=overviewOriginalNSWE.south-mousePoint.y+overviewOriginalPoint.y;
 			optionsPreview.nswe.west=overviewOriginalNSWE.west+mousePoint.x-overviewOriginalPoint.x;
 			optionsPreview.nswe.east=overviewOriginalNSWE.east+mousePoint.x-overviewOriginalPoint.x;
+
+			ConstrainNSWE(&optionsPreview.nswe);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
 			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
@@ -1190,14 +1193,9 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 
 
-
-
-//			previewOriginalPoint.x=mousePoint.x;
-//			previewOriginalPoint.y=mousePoint.y;
+			ConstrainNSWE(&optionsPreview.nswe);		//rather than constrain after the move, I need to stop while moving
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
-//			UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-
 
 		break;
 		case WM_LBUTTONUP:
@@ -1346,7 +1344,8 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	optionsPreview.nswe.west = TruncateByDegreesPerPixel(optionsPreview.nswe.west, dpp);
 	optionsPreview.nswe.east = TruncateByDegreesPerPixel(optionsPreview.nswe.east, dpp);
 
-	//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+
+	ConstrainNSWE(&optionsPreview.nswe);
 	UpdateEditNSWEControls(&optionsPreview.nswe);
 	UpdateBarsFromNSWE(&optionsPreview.nswe);
 
@@ -1716,50 +1715,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
-/*
-double PreviewFixParamsToLock(int lockedPart, OPTIONS * o)
-{
-	int dlat,dlong;
-
-	if ((o->width==0) || (o->height==0))	{
-
-	}
-
-	switch (lockedPart)	{
-		case LOCK_AR_WINDOW:
-			dlong = o->nswe.east - o->nswe.west;
-			dlat = o->nswe.north - o->nswe.south;
-
-			if ((o->nswe.west+dlat*o->aspectratio) > o->nswe.east)
-				o->nswe.east = (o->nswe.west+dlat*o->aspectratio);
-
-			else if ((o->nswe.north-dlong/o->aspectratio)>o->nswe.south)
-				o->nswe.south =(o->nswe.north-dlong/o->aspectratio);
-			break;
-	}
-
-	if (o->nswe.south < -90) o->nswe.south=-90;
-	if (o->nswe.south > 90) o->nswe.south=90;
-
-	if (o->nswe.north > 90) o->nswe.north=90;
-	if (o->nswe.north < -90) o->nswe.north=-90;
-
-	if (o->nswe.west > 180) o->nswe.west=180;
-	if (o->nswe.west < -180) o->nswe.west=-180;
-
-	if (o->nswe.east > 180) o->nswe.east=180;
-	if (o->nswe.east < -180) o->nswe.east=-180;
-
-
-	o->zoom=o->width/(o->nswe.east - o->nswe.west);
-
-	UpdateEditboxesFromOptions(&optionsPreview);
-	UpdateBarsFromOptions(&optionsPreview);
-
-
-	return 1;
-}
-*/
 
 int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
 {
@@ -2095,8 +2050,6 @@ int ResetCropbarWindowPos(HWND hwnd)
 	h=rect.bottom-rect.top;
 
 
-	printf("\r\nw %i, h%i\r\n", w, h);
-
 	//if (hwnd==NULL)	{
 //		SetWindowPos(hwndPreviewCropbarWest, NULL, 0,0, 10, optionsPreview.height, SWP_NOMOVE|SWP_NOOWNERZORDER);
 //		SetWindowPos(hwndPreviewCropbarEast, NULL, optionsPreview.width-10,0, 10, optionsPreview.height, SWP_NOOWNERZORDER);
@@ -2107,19 +2060,15 @@ int ResetCropbarWindowPos(HWND hwnd)
 
 	if (hwnd==hwndPreviewCropbarWest)	{
 		SetWindowPos(hwnd, NULL, 0,0, 10, h, SWP_NOMOVE|SWP_NOOWNERZORDER);
-		printf("WEST");
 	}
 	else if (hwnd==hwndPreviewCropbarEast)	{
 		SetWindowPos(hwnd, NULL, w - PCB_GRABWIDTH,0, PCB_GRABWIDTH, optionsPreview.height, SWP_NOOWNERZORDER);
-		printf("EAST");
 	}
 	else if (hwnd==hwndPreviewCropbarNorth)	{
 		SetWindowPos(hwnd, NULL, 0,0,w,PCB_GRABWIDTH, SWP_NOOWNERZORDER);
-		printf("NORTH");
 	}
 	else if (hwnd==hwndPreviewCropbarSouth)	{
 		SetWindowPos(hwnd, NULL, 0, h-PCB_GRABWIDTH, optionsPreview.width,PCB_GRABWIDTH, SWP_NOOWNERZORDER);
-		printf("SOUTH");
 	}
 
 	return 1;
@@ -2204,7 +2153,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				}
 
 
-				ResetCropbarWindowPos(hwnd);
+				//ResetCropbarWindowPos(hwnd);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 				UpdateEditNSWEControls(&optionsPreview.nswe);
@@ -2357,4 +2306,17 @@ double TruncateByDegreesPerPixel(double d, double spp)
 	d=(double)l / roundfactor;
 
 	return d;
+}
+
+void ConstrainNSWE(NSWE * d)
+{
+
+	if (d->north > 90)	d->north=90;
+	if (d->south < -90)	d->south=-90;
+
+	//I might allow W/E wrapping, so will change to -180 to 360
+	if (d->west <-180)	d->west=-180;
+	if (d->east >180)	d->east=180;
+
+	return;
 }

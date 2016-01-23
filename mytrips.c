@@ -1053,15 +1053,18 @@ int WriteKMLFile(BM* bm)
 	char sStartTime[80];
 	char sEndTime[80];
 
-	strftime (sStartTime,80,"%B %Y",localtime(&bm->lh->earliesttimestamp));
-	strftime (sEndTime,80,"%B %Y",localtime(&bm->lh->latesttimestamp));
+	strftime (sStartTime,80,"%B %Y",localtime(&bm->options->fromtimestamp));
+	strftime (sEndTime,80,"%B %Y",localtime(&bm->options->totimestamp));
 
 	kml=fopen(bm->options->kmlfilenamefinal,"w");
 	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
 	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
 	fprintf(kml, "<GroundOverlay>\r\n");
-	fprintf(kml, "<name>Your journey - %s</name>\r\n",bm->options->title);
-	fprintf(kml, "<description>From %s to %s</description>\r\n", sStartTime, sEndTime);
+	fprintf(kml, "<name>WorldTracker - %s</name>\r\n",bm->options->title);
+	fprintf(kml, "<description>");
+	fprintf(kml, "From %s to %s.\r\n", sStartTime, sEndTime);
+	fprintf(kml, "Plotted %i points.\r\n", bm->countPoints);
+	fprintf(kml, "</description>\r\n");
 	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->options->pngfilenamefinal);
     fprintf(kml, "<LatLonBox>\r\n");
 	fprintf(kml, "<north>%f</north>\r\n",bm->options->nswe.north);

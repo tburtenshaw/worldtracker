@@ -20,7 +20,10 @@
 #define	IDM_STATUSBAR	3000
 #define	IDACCEL	10000
 
-#define IDB_OVERVIEW 1
+#define IDI_WORLDTRACKER 1
+#define IDB_OVERVIEW 2
+#define IDI_LOCK 3
+#define IDB_LOGO 4
 
 /*@ Prototypes @*/
 #ifndef WEDIT_PROTOTYPES
