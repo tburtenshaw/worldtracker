@@ -7,7 +7,7 @@
 IDI_WORLDTRACKER ICON "worldtracker.ico"
 IDB_OVERVIEW BITMAP "world.topo.200412.3x360x180.bmp"
 IDB_LOGO BITMAP "worldtrackerlogo.bmp"
-IDI_LOCK ICON "stock_lock.ico"
+IDI_LOCK ICON "padlock16.ico"
 
 IDD_ABOUT DIALOG 6, 18, 254, 180
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
@@ -20,7 +20,8 @@ BEGIN
    LTEXT "Copyright © 2016 Tristan Burtenshaw",IDC_STATIC, 7, 77, 141, 10
    LTEXT "Download your Google Location History JSON and view them. Export to Google Maps .KML files to view them on the globe.", IDC_STATIC, 7, 97, 244, 42
    LTEXT "https://github.com/tburtenshaw/worldtracker", IDC_STATIC, 7, 125, 239, 18
-   LTEXT "Build: Jan 2016", IDC_STATIC, 7, 163, 60, 10
+   LTEXT __DATE__ , IDC_STATIC, 7, 163, 60, 10
+
 
 
 	DEFPUSHBUTTON   "OK", IDOK, 209, 159, 40, 14

@@ -7,6 +7,7 @@
 #include "worldtrackerres.h"
 #include "mytrips.h"
 #include "lodepng.h"
+#include "worldtracker.h"
 
 #define MAX_ASPECT_RATIO 20
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
@@ -45,8 +46,9 @@
 #define ID_EDITDATEFROM 1008
 #define ID_EDITDATETO 1009
 #define ID_EDITTHICKNESS 1010
-#define ID_EDITCOLOURBY 1011
+#define ID_EDITCOLOURBY 1011	//not used
 #define ID_EDITCOLOURCYCLE 1012
+#define ID_COMBOCOLOURBY 1013
 
 
 //these don't really need to be the bearing, but I thought it would be easier
@@ -88,9 +90,7 @@ struct sStretch	{
 };
 
 
-LOCATIONHISTORY locationHistory;
-HINSTANCE hInst;		// Instance handle
-HWND hWndMain;		//Main window handle
+
 HWND hwndOverview;	//The overview is also used to hold the positions to be drawn and exported
 HWND hwndPreview;
 
@@ -111,36 +111,8 @@ HWND hwndPreviewCropbarEast;
 HWND hwndPreviewCropbarNorth;
 HWND hwndPreviewCropbarSouth;
 
-HWND  hWndStatusbar;
 
-//The dialog hwnds
-HWND hwndStaticFilename;
 
-HWND hwndStaticNorth;
-HWND hwndStaticSouth;
-HWND hwndStaticWest;
-HWND hwndStaticEast;
-
-HWND hwndEditNorth;
-HWND hwndEditSouth;
-HWND hwndEditWest;
-HWND hwndEditEast;
-
-HWND hwndStaticPreset;
-HWND hwndEditPreset;
-
-HWND hwndStaticExportHeading;
-HWND hwndStaticExportWidth;
-HWND hwndEditExportWidth;
-HWND hwndStaticExportHeight;
-HWND hwndEditExportHeight;
-
-HWND hwndEditDateTo;
-HWND hwndEditDateFrom;
-HWND hwndEditThickness;
-HWND hwndEditColourCycle;
-
-HWND hwndDateSlider;
 
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
@@ -162,32 +134,16 @@ NSWE previewOriginalNSWE;
 BOOL mouseDragMovebar;	//in the overview
 BOOL mouseDragOverview;
 BOOL mouseDragPreview;
-int	mouseDragDateSlider;
 BOOL mouseDragCropbar;	//in the preview
 
 //Options are still based on the command line program
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
-OPTIONS optionsExport;
-
-//Multithread stuff
-//HANDLE hAccessLocationsMutex;
-CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
-long hbmQueueSize=0;	//this is increased when a thread is created, so the thread can check that nothing was created after it
-
-DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
-DWORD WINAPI ThreadSaveKML(OPTIONS *info);
-DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone from the back of the queue
-
-LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
-int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
-double PreviewFixParamsToLock(int lockedPart, OPTIONS * o);
 
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
@@ -196,11 +152,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
 int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 
-int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o);
 
-int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
-int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
-int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
 int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -212,15 +164,7 @@ int CreateOverviewMovebarWindows(HWND hwnd);
 int CreatePreviewCropbarWindows(HWND hwnd);
 int ResetCropbarWindowPos(HWND hwnd);
 
-int UpdateEditNSWEControls(NSWE * d);
-int UpdateBarsFromNSWE(NSWE * d);
-int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
-int UpdateDateControlsFromOptions(OPTIONS * o);
 
-
-void ConstrainNSWE(NSWE * d);
-int SignificantDecimals(double d);
-double TruncateByDegreesPerPixel(double d, double spp);
 
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
@@ -266,7 +210,7 @@ LRESULT MsgMenuSelect(HWND hwnd, UINT uMessage, WPARAM wparam, LPARAM lparam)
 void InitializeStatusBar(HWND hwndParent,int nrOfParts)
 {
     //const int cSpaceInBetween = 8;
-    int   ptArray[40];   // Array defining the number of parts/sections
+	int   ptArray[40];   // Array defining the number of parts/sections
     RECT  rect;
     HDC   hDC;
 
@@ -275,12 +219,13 @@ void InitializeStatusBar(HWND hwndParent,int nrOfParts)
     hDC = GetDC(hwndParent);
     GetClientRect(hwndParent, &rect);
 
-    ptArray[nrOfParts-1] = rect.right;
+    ptArray[0] = rect.right/2;
+    ptArray[1] = rect.right;
     //---TODO--- Add code to calculate the size of each part of the status
     // bar here.
 
     ReleaseDC(hwndParent, hDC);
-    //SendMessage(hWndStatusbar, SB_SETPARTS, nrOfParts, LPARAM)(LPINT)ptArray);
+    SendMessage(hWndStatusbar, SB_SETPARTS, nrOfParts, (LPARAM)(LPINT)ptArray);
     UpdateStatusBar("Ready", 0, 0);
     //---TODO--- Add code to update all fields of the status bar here.
     // As an example, look at the calls commented out below.
@@ -352,6 +297,7 @@ static BOOL InitApplication(void)
 	optionsPreview.nswe.east=180;
 	optionsPreview.thickness=1;
 	optionsPreview.colourcycle=60*60*24*7;
+	optionsPreview.colourby = COLOUR_BY_TIME;
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -503,23 +449,32 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITDATEFROM:
 			HandleEditDateControls(hwnd, id, hwndCtl, codeNotify);
 		break;
+		case ID_COMBOCOLOURBY:
+			HandleComboColourBy(hwnd, id, hwndCtl, codeNotify);
+		break;
 	}
+}
+
+void test(int l)	//dummy for the progress bar
+{
+	printf("%i ",l);
+	return;
 }
 
 //This is the thread that loads the file
 DWORD WINAPI LoadKMLThread(void *JSONfilename)
 {
-//	UpdateStatusBar("Loading file...", 0, 0);
+	UpdateStatusBar("Loading file...", 0, 0);
 
     EnterCriticalSection(&critAccessLocations);
 
 	FreeLocations(&locationHistory);	//first free any locations
-	LoadLocations(&locationHistory, JSONfilename);
+	LoadLocations(&locationHistory, JSONfilename, test);
 
 	LeaveCriticalSection(&critAccessLocations);
 
 	//Once loaded, tell the windows they can update
-//    UpdateStatusBar("Ready", 0, 0);
+    UpdateStatusBar("Ready", 0, 0);
 
 	optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
 	optionsPreview.totimestamp = locationHistory.latesttimestamp;
@@ -548,6 +503,23 @@ int UpdateEditNSWEControls(NSWE * d)
 	return 0;
 }
 
+
+int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	int index;
+	if (codeNotify == CBN_SELCHANGE)	{
+		index = SendMessage((HWND) hwndCtl, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
+		printf("combo %i, ", index);
+		if (optionsPreview.colourby != index)	{
+			optionsPreview.colourby = index;
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+
+		}
+	}
+
+	return 0;
+}
 
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
@@ -678,6 +650,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 		case ID_EDITCOLOURCYCLE:
 			optionsPreview.colourcycle=value;
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 			needsRedraw=1;
 			break;
 
@@ -761,7 +734,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	optionsExport.fromtimestamp =o->fromtimestamp;
 	optionsExport.zoom=optionsExport.width/(optionsExport.nswe.east-optionsExport.nswe.west);
 	optionsExport.alpha=200;	//default
-	optionsExport.colourby = COLOUR_BY_TIME;
+	optionsExport.colourby = optionsPreview.colourby;
 
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSaveKML, &optionsExport ,0,NULL);
 
@@ -772,6 +745,8 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 {
 	BM exportBM;
 	int error;
+
+	UpdateStatusBar("Exporting...", 0, 0);
 
 	EnterCriticalSection(&critAccessLocations);
 
@@ -790,6 +765,7 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	bitmapDestroy(&exportBM);
 
 	LeaveCriticalSection(&critAccessLocations);
+    UpdateStatusBar("Ready", 0, 0);
 
 	return 0;
 }
@@ -1036,7 +1012,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsOverview.fromtimestamp = optionsPreview.fromtimestamp;
 			optionsOverview.zoom=optionsOverview.width/(optionsOverview.nswe.east-optionsOverview.nswe.west);
 			optionsOverview.alpha=200;	//default
-			optionsOverview.colourby = COLOUR_BY_TIME;
+			optionsOverview.colourby = optionsPreview.colourby;
 
 			optionsOverview.nswe.north=90;
 			optionsOverview.nswe.south=-90;
@@ -1125,10 +1101,21 @@ int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			mouseDeltaX = mousePoint.x-previewOriginalPoint.x;
 			mouseDeltaY = mousePoint.y-previewOriginalPoint.y;
 
+			//Confine the coords of the box
+			if (previewOriginalNSWE.east - dpp*(mouseDeltaX)>180)
+				mouseDeltaX=(previewOriginalNSWE.east - 180)/dpp;
+			if (previewOriginalNSWE.west - dpp*(mouseDeltaX)<-180)
+				mouseDeltaX=(previewOriginalNSWE.west + 180)/dpp;
+			if (previewOriginalNSWE.north + dpp*(mouseDeltaY)>90)
+				mouseDeltaY = (90 - previewOriginalNSWE.north)/dpp;
+			if (previewOriginalNSWE.south + dpp*(mouseDeltaY)<-90)
+				mouseDeltaY = (-90 - previewOriginalNSWE.south)/dpp;
+
+
 			optionsPreview.nswe.east= previewOriginalNSWE.east - dpp*(mouseDeltaX);
 			optionsPreview.nswe.west= previewOriginalNSWE.west - dpp*(mouseDeltaX);
-			optionsPreview.nswe.north= previewOriginalNSWE.north + dpp*(mousePoint.y-previewOriginalPoint.y);
-			optionsPreview.nswe.south= previewOriginalNSWE.south + dpp*(mousePoint.y-previewOriginalPoint.y);
+			optionsPreview.nswe.north= previewOriginalNSWE.north + dpp*(mouseDeltaY);
+			optionsPreview.nswe.south= previewOriginalNSWE.south + dpp*(mouseDeltaY);
 
 			//Round to appropriate amount
 			optionsPreview.nswe.east = TruncateByDegreesPerPixel(optionsPreview.nswe.east, dpp);
@@ -1545,7 +1532,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	//optionsPreview.colourcycle = (60*60*24);
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
-	optionsPreview.colourby = COLOUR_BY_TIME;
+	//optionsPreview.colourby = COLOUR_BY_DAYOFWEEK;
 
 
 
@@ -1652,12 +1639,20 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
 		CreateWindow("Static","Thickness:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		x+=MARGIN+TEXT_WIDTH_QUARTER;
+		hwndEditThickness = CreateWindow("Edit","1", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITTHICKNESS, hInst, NULL);
+
+		x+=MARGIN+TEXT_WIDTH_QUARTER;
+
+		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
-		hwndEditThickness = CreateWindow("Edit","1", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITTHICKNESS, hInst, NULL);
+		hwndComboboxColourBy = CreateWindow("ComboBox","Date",	  CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE, x,y,TEXT_WIDTH_QLONG, TEXT_HEIGHT*10, hwnd, (HMENU)ID_COMBOCOLOURBY, hInst, NULL);
 
-		x+=MARGIN+TEXT_WIDTH_QLONG;
-
-		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Date\0");
+		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Speed\0");
+		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Accuracy\0");
+		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Weekday\0");
+		SendMessage(hwndComboboxColourBy, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
@@ -1811,7 +1806,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	InitializeCriticalSection(&critAccessLocations);
 	hAccelTable = LoadAccelerators(hInst,MAKEINTRESOURCE(IDACCEL));
 	hWndMain = CreateWindow("worldtrackerWndClass","WorldTracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
-	CreateSBar(hWndMain,"Ready",1);
+	CreateSBar(hWndMain,"Ready",2);
 	ShowWindow(hWndMain,SW_SHOW);
 	while (GetMessage(&msg,NULL,0,0)) {
 		if (!TranslateAccelerator(msg.hwnd,hAccelTable,&msg)) {

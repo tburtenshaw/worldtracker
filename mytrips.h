@@ -17,9 +17,10 @@ typedef struct sNswe NSWE;
 #define PI 3.14159265
 #define EARTH_MEAN_RADIUS_KM 6371
 
-#define COLOUR_BY_TIME 1
-#define COLOUR_BY_SPEED 2
-#define COLOUR_BY_ACCURACY 3
+#define COLOUR_BY_TIME 0
+#define COLOUR_BY_SPEED 1
+#define COLOUR_BY_ACCURACY 2
+#define COLOUR_BY_DAYOFWEEK 3
 
 struct sRGBAColour	{
 	unsigned char R;
@@ -121,7 +122,10 @@ struct sLocation	{
 
 struct sLocationHistory	{
 	FILE *json;
+	unsigned long	filesize;
+	unsigned long	filepos;
 	//char *jsonfilename;
+
 
 	unsigned long	numPoints;
 	unsigned long	earliesttimestamp;
@@ -131,7 +135,10 @@ struct sLocationHistory	{
 };
 
 
-int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
+//int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
+//The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
+//It can be Null, and it is ignored. It is NOT PRECISE.
+int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int));
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
@@ -170,6 +177,7 @@ COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char 
 COLOUR TimestampToRgb(long ts, long min, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
 COLOUR AccuracyToRgb(int accuracy);
+COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay);	//needs to be an array of 7
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 

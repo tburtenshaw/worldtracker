@@ -151,7 +151,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	while (coord)	{
 
 		//Set the colour to draw the line.
-
+		c.A=options->alpha;
 		if (options->colourby == COLOUR_BY_TIME)	{
 			c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
 		}
@@ -161,8 +161,11 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		else if (options->colourby == COLOUR_BY_ACCURACY)	{
 			c=AccuracyToRgb(coord->accuracy);
 		}
+		else if (options->colourby == COLOUR_BY_DAYOFWEEK)	{
+			c=DayOfWeekToRgb(coord->timestampS, NULL);
+		}
 
-		c.A=options->alpha;
+
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
@@ -183,7 +186,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	return 0;
 }
 
-int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
+int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int))
 {
 	LOCATION *coord;
 	LOCATION *prevCoord;
@@ -220,7 +223,27 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename)
 	waitingFor1000 = coord;
 	waitingFor10000 = coord;
 
+	int progress=0;
+	long twofiftysixth;
+	fseek(locationHistory->json,0, SEEK_END);
+	locationHistory->filesize = ftell(locationHistory->json);
+	rewind(locationHistory->json);
+	locationHistory->filepos=0;
+
+	twofiftysixth = locationHistory->filesize/256;
+
 	while (ReadLocation(locationHistory, coord)==1)	{
+		//printf(" %i", ftell(locationHistory->json));
+
+
+		if (progressfn)	{
+			if (locationHistory->filepos > twofiftysixth * progress)	{
+				progress++;
+				(*progressfn)(progress);
+			}
+		}
+
+
 		//get the timestamp max and min
 		if (coord->timestampS > locationHistory->latesttimestamp)
 			locationHistory->latesttimestamp = coord->timestampS;
@@ -311,6 +334,7 @@ int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
 
 	step=0;
 	while (fgets(buffer, 256, lh->json) != NULL)	{
+		lh->filepos+=strlen(buffer);
 		if (step==0)	{
 			x=strstr(buffer, "timestampMs");
 			if (x)	{
@@ -580,12 +604,13 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	// handle first endpoint
 
+	/*
 	if (steep)	{
 		bitmapFilledCircle(bm,y0,x0,thickness/2,c);
 	}
 	else
 		bitmapFilledCircle(bm,x0,y0,thickness/2,c);
-
+*/
 
     xend = x0;
     yend = y0 + gradient * (xend - x0);
@@ -988,6 +1013,28 @@ COLOUR AccuracyToRgb(int accuracy)
 
 }
 
+COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay)
+{
+	struct tm time;
+	localtime_s(&ts, &time);
+
+	if (colourPerDay==NULL)	{
+		COLOUR cpd[7];
+		cpd[0].R=0x32;	cpd[0].G=0x51;	cpd[0].B=0xA7;	cpd[0].A=0x00;
+		cpd[1].R=0xc0;	cpd[1].G=0x46;	cpd[1].B=0x54;	cpd[1].A=0x00;
+		cpd[2].R=0xe1;	cpd[2].G=0x60;	cpd[2].B=0x3d;	cpd[2].A=0xFF;
+		cpd[3].R=0xe4;	cpd[3].G=0xb7;	cpd[3].B=0x4a;	cpd[3].A=0x00;
+		cpd[4].R=0xc2;	cpd[4].G=0xc3;	cpd[4].B=0x44;	cpd[4].A=0x00;
+		cpd[5].R=0x96;	cpd[5].G=0x54;	cpd[5].B=0xa9;	cpd[5].A=0x00;
+		cpd[6].R=0x00;	cpd[6].G=0x82;	cpd[6].B=0x94;	cpd[6].A=0x00;
+
+
+		return cpd[time.tm_wday];
+
+	}
+
+	return colourPerDay[time.tm_wday];
+}
 
 
 int DrawGrid(BM* bm)
@@ -1053,6 +1100,12 @@ int WriteKMLFile(BM* bm)
 	char sStartTime[80];
 	char sEndTime[80];
 
+	char *pngnameNoDirectory;
+
+	pngnameNoDirectory = strrchr(bm->options->pngfilenamefinal, '\\')+1;
+	if (!pngnameNoDirectory)
+		pngnameNoDirectory=bm->options->pngfilenamefinal;
+
 	strftime (sStartTime,80,"%B %Y",localtime(&bm->options->fromtimestamp));
 	strftime (sEndTime,80,"%B %Y",localtime(&bm->options->totimestamp));
 
@@ -1065,7 +1118,7 @@ int WriteKMLFile(BM* bm)
 	fprintf(kml, "From %s to %s.\r\n", sStartTime, sEndTime);
 	fprintf(kml, "Plotted %i points.\r\n", bm->countPoints);
 	fprintf(kml, "</description>\r\n");
-	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",bm->options->pngfilenamefinal);
+	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",pngnameNoDirectory);
     fprintf(kml, "<LatLonBox>\r\n");
 	fprintf(kml, "<north>%f</north>\r\n",bm->options->nswe.north);
 	fprintf(kml, "<south>%f</south>\r\n",bm->options->nswe.south);
