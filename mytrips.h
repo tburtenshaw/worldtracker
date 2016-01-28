@@ -21,6 +21,7 @@ typedef struct sNswe NSWE;
 #define COLOUR_BY_SPEED 1
 #define COLOUR_BY_ACCURACY 2
 #define COLOUR_BY_DAYOFWEEK 3
+#define COLOUR_BY_HOUR 4
 
 struct sRGBAColour	{
 	unsigned char R;
@@ -82,6 +83,7 @@ struct sOptions	{	//what we can get from the command line
 
 	int colourby;		//it'll be a COLOUR_BY_..., default COLOUR_BY_TIME
 	long colourcycle;	//number of seconds before going red to red. Defaults to six months
+	void* colourextra;
 };
 
 
@@ -178,6 +180,7 @@ COLOUR TimestampToRgb(long ts, long min, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
 COLOUR AccuracyToRgb(int accuracy);
 COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay);	//needs to be an array of 7
+COLOUR HourToRgb(long ts, COLOUR *cMidnight, COLOUR *cNoon);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 

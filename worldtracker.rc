@@ -1,4 +1,3 @@
-/* Wedit generated resource file */
 #ifdef __LCC__
 #include <windows.h>
 #endif
@@ -31,8 +30,9 @@ BEGIN
     POPUP "&File"
         BEGIN
         MENUITEM "&New", IDM_NEW
-        MENUITEM "&Open", IDM_OPEN
-        MENUITEM "&Export", IDM_SAVE
+        MENUITEM "&Open...\t(Ctrl+O)", IDM_OPEN
+        MENUITEM "&Export...", IDM_SAVE
+        MENUITEM "&Close", IDM_CLOSE
         MENUITEM "E&xit", IDM_EXIT
         END
     POPUP "&Help"
@@ -46,13 +46,12 @@ BEGIN
 END
 STRINGTABLE
 BEGIN
-    200, "Creates a new document"
-    210, "Opens an existing document"
-    220, "Saves the active document"
-    230, "Saves the active document under a different name"
-    240, "Closes the active document"
-    300, "Quits this application"
-    500, "Displays information about this application"
+    IDM_NEW, "Creates a new document"
+    IDM_OPEN, "Opens a JSON for viewing"
+    IDM_SAVE, "Exports the current viewpoint to a Google KML file"
+    IDM_CLOSE, "Closes the current JSON"
+    IDM_EXIT, "Quits WorldTracker"
+    IDM_ABOUT, "Displays information about WorldTracker"
     2000, "Create, open, save, or print documents"
     2010, "Get help"
 END

@@ -164,7 +164,12 @@ int CreateOverviewMovebarWindows(HWND hwnd);
 int CreatePreviewCropbarWindows(HWND hwnd);
 int ResetCropbarWindowPos(HWND hwnd);
 
+char* szDayOfWeek[7];
 
+OPTIONS optionsBackground;
+HBITMAP hbmBackground;
+int BltNsweFromBackground(HDC hdc, NSWE * d, int height, int width, OPTIONS * oBkgrnd);
+int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * lh);
 
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
@@ -298,6 +303,17 @@ static BOOL InitApplication(void)
 	optionsPreview.thickness=1;
 	optionsPreview.colourcycle=60*60*24*7;
 	optionsPreview.colourby = COLOUR_BY_TIME;
+	optionsPreview.colourextra = cDaySwatch;
+
+		cDaySwatch[0].R=0x32;	cDaySwatch[0].G=0x51;	cDaySwatch[0].B=0xA7;	cDaySwatch[0].A=0xFF;
+		cDaySwatch[1].R=0xc0;	cDaySwatch[1].G=0x46;	cDaySwatch[1].B=0x54;	cDaySwatch[1].A=0xFF;
+		cDaySwatch[2].R=0xe1;	cDaySwatch[2].G=0x60;	cDaySwatch[2].B=0x3d;	cDaySwatch[2].A=0xFF;
+		cDaySwatch[3].R=0xe4;	cDaySwatch[3].G=0xb7;	cDaySwatch[3].B=0x4a;	cDaySwatch[3].A=0xFF;
+		cDaySwatch[4].R=0xa1;	cDaySwatch[4].G=0xfc;	cDaySwatch[4].B=0x58;	cDaySwatch[4].A=0xFF;
+		cDaySwatch[5].R=0x96;	cDaySwatch[5].G=0x54;	cDaySwatch[5].B=0xa9;	cDaySwatch[5].A=0xFF;
+		cDaySwatch[6].R=0x00;	cDaySwatch[6].G=0x82;	cDaySwatch[6].B=0x94;	cDaySwatch[6].A=0xFF;
+
+
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -380,6 +396,21 @@ static BOOL InitApplication(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+	//Colour swatch
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)ColourSwatchWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "ColourSwatchClass";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+
 
 	return 1;
 }
@@ -414,17 +445,16 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case IDM_OPEN:
 			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal))==0)
 				return;
-
-//			hAccessLocationsMutex = CreateMutex(NULL, FALSE, "accesslocations");
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
-			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			//UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
-
 		break;
 
 		case IDM_SAVE:
 			ExportKMLDialogAndComplete(hwnd, &optionsPreview, &locationHistory);
+		break;
+
+		case IDM_CLOSE:
+			FreeLocations(&locationHistory);
+			memset(&locationHistory,0,sizeof(locationHistory));
 		break;
 
 		case IDM_EXIT:
@@ -788,6 +818,11 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 		DeleteObject(hbmOverview);
 	}
 
+	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
+	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
+
+
+
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
 	memset(&bi, 0, sizeof(bi));
 	bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
@@ -796,9 +831,9 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	result = GetDIBits(hdc, bitmap, 0, 180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
-	printf("bi.height: %i\t", bi.bmiHeader.biHeight);
-	printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
-	printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
+	//printf("\r\nOverview\r\nbi.height: %i\t", bi.bmiHeader.biHeight);
+	//printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
+	//printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
 
 
 	bits=malloc(bi.bmiHeader.biSizeImage);
@@ -825,7 +860,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
 	free(&bits);
-
+	bitmapDestroy(&overviewBM);	//importantly, I missed this ?was it causing crashes.
 
 	return bitmap;
 }
@@ -845,7 +880,8 @@ int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
 	SelectObject(memDC, oldBitmap);
 
 
-	DeleteDC(hdc);
+	DeleteDC(memDC);
+	DeleteObject(oldBitmap);
 	EndPaint(hwnd, &ps);
 
 	return 0;
@@ -1022,8 +1058,6 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 			//RationaliseOptions(&optionsOverview);
 
-			bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
-			PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
 			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
 
 			printf("recalc'd overview BM");
@@ -1288,8 +1322,8 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 		stretchPreview.useStretch = TRUE;
 
-		printf("Stretch dest:(%i,%i,%i,%i)", stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest);
-		printf(" from src (%i,%i,%i,%i)\r\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
+		//printf("Stretch dest:(%i,%i,%i,%i)", stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest);
+		//printf(" from src (%i,%i,%i,%i)\r\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
 	}
 	else	{
 		//when zooming out the src wile be the whole window, and we'll compress it to a smaller area
@@ -1363,17 +1397,12 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WM_TIMER:
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
-			printf("**********recalc******\r\n");
+			printf("\r\n*Recalc Preview*");
 			GetClientRect(hwnd, &clientRect);
-			optionsPreview.width = clientRect.right;
-			optionsPreview.height = clientRect.bottom;
-//			hbmPreview = MakeHBitmapPreview(GetDC(hwnd), &locationHistory);
-
-//			hbmQueueSize++;
+//			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
+//			optionsPreview.width = clientRect.right;
+//			optionsPreview.height = clientRect.bottom;
 			CloseHandle(CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ThreadSetHBitmap, (LPVOID)hbmQueueSize ,0,NULL));
-
-//			stretchPreview.useStretch = FALSE;
-//			InvalidateRect(hwnd, NULL, 0);
     		return 1;
 			break;
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
@@ -1417,24 +1446,26 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 
 	GetClientRect(hwnd, &clientRect);
-	width=clientRect.right;
-	height=clientRect.bottom;
-
+	width=clientRect.right+2;
+	height=clientRect.bottom+2;
 
 //	optionsPreview.width = clientRect.right;
 //	optionsPreview.height = clientRect.bottom;
 
-	if (!previewBM.bitmap)	{
-		hdc= BeginPaint(hwnd, &ps);
+//	if (!previewBM.bitmap)	{
+//		hdc= BeginPaint(hwnd, &ps);
 
-		DeleteDC(hdc);
-		EndPaint(hwnd, &ps);
-	}
+//		DeleteDC(hdc);
+//		EndPaint(hwnd, &ps);
+//	}
 
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
 
+	EnterCriticalSection(&critAccessPreviewHBitmap);
+
 	oldBitmap = SelectObject(memDC, hbmPreview);
+
 	if (stretchPreview.useStretch)	{
 		SetStretchBltMode(hdc, HALFTONE);
 		StretchBlt(hdc, stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest,
@@ -1467,7 +1498,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	}
 	else if ((width!=previewBM.width) || (height!=previewBM.height))	{
-		printf("width not the same");
+		printf("\r\nwidth not the same %i vs %i, ht: %i vs %i",width, previewBM.width, height, previewBM.height);
 		SetStretchBltMode(hdc, HALFTONE);
 		StretchBlt(hdc,0,0,width, height, memDC, 0,0,previewBM.width, previewBM.height, SRCCOPY);
 	}
@@ -1480,7 +1511,12 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	SelectObject(memDC, oldBitmap);
 
-	DeleteDC(hdc);
+	LeaveCriticalSection(&critAccessPreviewHBitmap);
+
+
+	DeleteDC(memDC);
+	DeleteObject(oldBitmap);
+
 	EndPaint(hwnd, &ps);
 
 
@@ -1489,13 +1525,21 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 DWORD WINAPI ThreadSetHBitmap(long queuechit)
 {
+	HDC hdc;
+
+
 	if (queuechit<hbmQueueSize)	{
-		printf("\r\nQUEUE SKIPPED!!\r\n");
+		printf("\r\nQUEUE SKIPPED start thread!!");
 		return 0;
 	}
 
-	hbmPreview = MakeHBitmapPreview(GetDC(hwndPreview), &locationHistory, queuechit);
+
+	//EnterCriticalSection(&critAccessPreviewHBitmap);
+	hdc = GetDC(hwndPreview);
+	hbmPreview = MakeHBitmapPreview(hdc, &locationHistory, queuechit);
+	//ReleaseDC(hwndPreview, hdc);
 	stretchPreview.useStretch = FALSE;
+	//LeaveCriticalSection(&critAccessPreviewHBitmap);
 	InvalidateRect(hwndPreview, NULL, 0);
 
 	return 1;
@@ -1513,40 +1557,34 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	COLOUR c;
 	COLOUR d;	//window colour
 
-	height = optionsPreview.height;
+	height = optionsPreview.height;	//just in case these are changed halfway through the processing
 	width = optionsPreview.width;
 
-	EnterCriticalSection(&critAccessLocations);
 
 	if (queuechit<hbmQueueSize)	{
-		LeaveCriticalSection(&critAccessLocations);
-		printf("\r\nQUEUE SKIPPED!!\r\n");
-
+		printf("\r\nQUEUE SKIPPED in thread!!");
 		return hbmPreview;
-	}
-
-	if (previewBM.bitmap)	{	//if there's already a BM set, destroy it
-		bitmapDestroy(&previewBM);
 	}
 
 	//optionsPreview.colourcycle = (60*60*24);
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
-	//optionsPreview.colourby = COLOUR_BY_DAYOFWEEK;
 
 
 
 	//RationaliseOptions(&optionsPreview);
+	EnterCriticalSection(&critAccessLocations);
+	//printf("bi");
+
+	if (!previewBM.bitmap)	{
+		bitmapDestroy(&previewBM);
+	}
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
-	if (previewBM.lh)	{
-		PlotPaths(&previewBM, &locationHistory, &optionsPreview);
-	}
+	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
-	if (hbmPreview!=NULL)	{
-		DeleteObject(hbmPreview);
-	}
+	LeaveCriticalSection(&critAccessLocations);
 
-	printf("Creating bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
+	//printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = width;
@@ -1560,16 +1598,25 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	for (y=0;y<height;y++)	{
 		for (x=0;x<width;x++)	{
 			c= bitmapPixelGet(&previewBM, x, y);
-			d.R=d.G=d.B=0;
+			d.R = d.G =d.B =0;
 			mixColours(&d, &c);
 			bits[b] =d.B;	b++;
 			bits[b] =d.G;	b++;
 			bits[b] =d.R;	b++;
 		}
-		b=(b+3) & ~3;	//round to next WORD alignment
+		b=(b+3) & ~3;	//round to next WORD alignment at end of line
 	}
 
-	LeaveCriticalSection(&critAccessLocations);
+
+
+	EnterCriticalSection(&critAccessPreviewHBitmap);
+	if (hbmPreview!=NULL)	{
+		DeleteObject(hbmPreview);
+	}
+	hbmPreview=bitmap;	//this probably needs to happen in the critical section, making the return value useless
+	LeaveCriticalSection(&critAccessPreviewHBitmap);
+	ReleaseDC(hwndPreview, hdc);
+
 	return bitmap;
 }
 
@@ -1652,14 +1699,29 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Speed\0");
 		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Accuracy\0");
 		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Weekday\0");
+		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Hour\0");
 		SendMessage(hwndComboboxColourBy, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
-		hwndEditColourCycle = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+		//hwndEditColourCycle = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QLONG, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+
+szDayOfWeek[0]="Sun";
+szDayOfWeek[1]="Mon";
+szDayOfWeek[2]="Tue";
+szDayOfWeek[3]="Wed";
+szDayOfWeek[4]="Thu";
+szDayOfWeek[5]="Fri";
+szDayOfWeek[6]="Sat";
 
 
+		for (int i=0;i<7;i++)	{
 
+			hwndColourSwatchDay[i] = CreateWindow("ColourSwatchClass",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, 41, 20, hwnd, NULL, hInst, NULL);
+			SetWindowLong(hwndColourSwatchDay[i], 0, i);
+			CreateWindow("Static",szDayOfWeek[i],WS_CHILD | WS_VISIBLE | WS_BORDER,x,y+18, 41,20, hwnd, NULL, hInst, NULL);
+			x+=41+MARGIN;
+		}
 
 		//Now the right hand side
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
@@ -1783,14 +1845,16 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 		endheight = availablewidth/aspectratio;
 	}
 
+	EnterCriticalSection(&critAccessLocations);
 	optionsPreview.width=endwidth;
 	optionsPreview.height=endheight;
 	optionsPreview.aspectratio=aspectratio;
+	LeaveCriticalSection(&critAccessLocations);
 
 	SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
 
 
-	//printf("ht: %i, wt: %i\r\n", endheight, endwidth);
+	//printf("endwt: %i, endht: %i\r\n", endwidth, endheight);
 
 	return 0;
 }
@@ -1804,6 +1868,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (!InitApplication())
 		return 0;
 	InitializeCriticalSection(&critAccessLocations);
+	InitializeCriticalSection(&critAccessPreviewHBitmap);
 	hAccelTable = LoadAccelerators(hInst,MAKEINTRESOURCE(IDACCEL));
 	hWndMain = CreateWindow("worldtrackerWndClass","WorldTracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
 	CreateSBar(hWndMain,"Ready",2);
@@ -2150,7 +2215,6 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 				//ResetCropbarWindowPos(hwnd);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-				SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 				UpdateEditNSWEControls(&optionsPreview.nswe);
 				UpdateBarsFromNSWE(&optionsPreview.nswe);
 				mouseDragCropbar=0;
@@ -2260,6 +2324,7 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 			if (mouseDragCropbar)	{
 				PatBlt(hdc, 0, 0, ps.rcPaint.right, optionsPreview.height, PATINVERT);
 			}
+			EndPaint(hwnd, &ps);
 			break;
 		default:
 			return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -2268,6 +2333,60 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 	return 0;
 }
+
+LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	int swatchNum;
+
+	switch (msg) {
+		case WM_PAINT:
+			COLORREF swatchColour;
+
+			PAINTSTRUCT ps;
+			HDC hdc;
+			hdc=BeginPaint(hwnd, &ps);
+			swatchNum = GetWindowLong(hwnd, 0);
+			swatchColour = RGB(cDaySwatch[swatchNum].R, cDaySwatch[swatchNum].G, cDaySwatch[swatchNum].B);
+			SetBkColor(hdc, swatchColour);
+			ExtTextOut(hdc, 0,0, ETO_CLIPPED|ETO_OPAQUE, &ps.rcPaint, "", 0, NULL);
+			EndPaint(hwnd, &ps);
+		break;
+		case WM_LBUTTONDOWN:
+			COLORREF acrCustClr[16];
+
+			CHOOSECOLOR	cc;
+			memset(&cc, 0, sizeof(cc));
+			cc.lStructSize = sizeof(cc);
+			cc.hwndOwner = hwnd;
+			cc.hInstance = hInst;
+			cc.Flags = 0x00000100;
+			cc.lpCustColors = acrCustClr;
+			cc.rgbResult = GetWindowLong(hwnd, 0);
+
+			for (int i=0; i<7; i++)	{
+				acrCustClr[i] = RGB(cDaySwatch[i].R, cDaySwatch[i].G, cDaySwatch[i].B);
+			}
+
+			if (ChooseColor(&cc))	{
+				swatchNum = GetWindowLong(hwnd, 0);
+				cDaySwatch[swatchNum].R = GetRValue(cc.rgbResult);
+				cDaySwatch[swatchNum].G = GetGValue(cc.rgbResult);
+				cDaySwatch[swatchNum].B = GetBValue(cc.rgbResult);
+				cDaySwatch[swatchNum].A = 255;
+				InvalidateRect(hwnd, 0, 0);
+				SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
+				SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+			}
+
+		break;
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+
+	}
+		return 0;
+}
+
+
 
 int SignificantDecimals(double d)	//**NB: not a general algorithm, just for use in avoiding over-precise coords
 {
@@ -2314,4 +2433,58 @@ void ConstrainNSWE(NSWE * d)
 	if (d->east >180)	d->east=180;
 
 	return;
+}
+
+int BltNsweFromBackground(HDC hdc, NSWE * d, int height, int width, OPTIONS * oSrc)
+{
+	HDC memDC;
+	HGDIOBJ hOldBitmap;
+
+	int destX, destY, destWidth, destHeight;
+	int srcX, srcY, srcWidth, srcHeight;
+
+	double srcLongSpan, srcLatSpan;
+	double srcPpdX, srcPpdY;	//pixels per degree in x axis (should be the same)
+
+	NSWE *s;	//the src (aka background) nswe
+
+	s=&oSrc->nswe;
+
+	srcLongSpan = oSrc->nswe.east - oSrc->nswe.west;
+	srcLatSpan = oSrc->nswe.south - oSrc->nswe.north;
+
+	srcPpdX = oSrc->width / srcLongSpan;
+	srcPpdY = oSrc->height / srcLatSpan;
+
+
+	srcX = (d->west - s->west) * srcPpdX;
+	srcY = (d->south - s->south) * srcPpdY;
+
+	srcWidth = srcLongSpan * srcPpdX;
+	srcHeight = srcLatSpan * srcPpdY;
+	destX =0; destY = 0;
+	destWidth = width;	destHeight = height;
+
+	memDC = CreateCompatibleDC(hdc);
+	hOldBitmap=SelectObject(memDC, hbmBackground);
+
+
+	SetStretchBltMode(hdc, HALFTONE);
+	StretchBlt(hdc, destX, destY, destWidth, destHeight, memDC, srcX, srcY, srcWidth, srcHeight, SRCCOPY);
+	SelectObject(memDC, hOldBitmap);
+
+	DeleteDC(memDC);
+	return 0;
+}
+
+
+int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * lh)
+{
+	BM backgroundBM;
+
+	bitmapInit(&backgroundBM, oB, lh);
+	PlotPaths(&backgroundBM, lh, oB);
+
+
+	return 0;
 }

@@ -141,6 +141,9 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	double oldlat, oldlon;
 	LOCATION *coord;
 
+
+	if (locationHistory==NULL)
+		return 0;
 	oldlat=1000;oldlon=1000;
 	bm->countPoints=0;
 
@@ -149,23 +152,26 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	coord=locationHistory->first;
 	while (coord)	{
-
 		//Set the colour to draw the line.
 		c.A=options->alpha;
 		if (options->colourby == COLOUR_BY_TIME)	{
 			c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
 		}
 		else if (options->colourby == COLOUR_BY_SPEED)	{
-			c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
+			if (coord->secondsfromprev!=0)	{
+				c = SpeedToRgb(coord->distancefromprev/(double)coord->secondsfromprev, 30);
+			}
+			else {c.R=255; c.G=255; c.B =255; c.A=255;}
 		}
 		else if (options->colourby == COLOUR_BY_ACCURACY)	{
 			c=AccuracyToRgb(coord->accuracy);
 		}
 		else if (options->colourby == COLOUR_BY_DAYOFWEEK)	{
-			c=DayOfWeekToRgb(coord->timestampS, NULL);
+			c=DayOfWeekToRgb(coord->timestampS, options->colourextra);
 		}
-
-
+		else if (options->colourby == COLOUR_BY_HOUR)	{
+			c=HourToRgb(coord->timestampS, NULL, NULL);
+		}
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
@@ -181,6 +187,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		else if (bm->zoom>10) coord=coord->next100ppd;
 		else if (bm->zoom>1) coord=coord->next10ppd;
 		else coord=coord->next1ppd;
+
 	}
 
 	return 0;
@@ -395,7 +402,7 @@ int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
 
-	printf("New bitmap width: %i, height: %i\r\n", options->width, options->height);
+	//printf("\r\nNew bitmap initiated. Width: %i, height: %i", options->width, options->height);
 
 	bm->bitmap=bitmap;
 	bm->options=options;
@@ -610,6 +617,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	}
 	else
 		bitmapFilledCircle(bm,x0,y0,thickness/2,c);
+
 */
 
     xend = x0;
@@ -1013,27 +1021,55 @@ COLOUR AccuracyToRgb(int accuracy)
 
 }
 
-COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay)
+COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDayArrayOfSeven)
 {
 	struct tm time;
 	localtime_s(&ts, &time);
 
-	if (colourPerDay==NULL)	{
+	if (colourPerDayArrayOfSeven==NULL)	{
 		COLOUR cpd[7];
-		cpd[0].R=0x32;	cpd[0].G=0x51;	cpd[0].B=0xA7;	cpd[0].A=0x00;
-		cpd[1].R=0xc0;	cpd[1].G=0x46;	cpd[1].B=0x54;	cpd[1].A=0x00;
+		cpd[0].R=0x32;	cpd[0].G=0x51;	cpd[0].B=0xA7;	cpd[0].A=0xFF;
+		cpd[1].R=0xc0;	cpd[1].G=0x46;	cpd[1].B=0x54;	cpd[1].A=0xFF;
 		cpd[2].R=0xe1;	cpd[2].G=0x60;	cpd[2].B=0x3d;	cpd[2].A=0xFF;
-		cpd[3].R=0xe4;	cpd[3].G=0xb7;	cpd[3].B=0x4a;	cpd[3].A=0x00;
-		cpd[4].R=0xc2;	cpd[4].G=0xc3;	cpd[4].B=0x44;	cpd[4].A=0x00;
-		cpd[5].R=0x96;	cpd[5].G=0x54;	cpd[5].B=0xa9;	cpd[5].A=0x00;
-		cpd[6].R=0x00;	cpd[6].G=0x82;	cpd[6].B=0x94;	cpd[6].A=0x00;
-
-
+		cpd[3].R=0xe4;	cpd[3].G=0xb7;	cpd[3].B=0x4a;	cpd[3].A=0xFF;
+		cpd[4].R=0xa1;	cpd[4].G=0xfc;	cpd[4].B=0x58;	cpd[4].A=0xFF;
+		cpd[5].R=0x96;	cpd[5].G=0x54;	cpd[5].B=0xa9;	cpd[5].A=0xFF;
+		cpd[6].R=0x00;	cpd[6].G=0x82;	cpd[6].B=0x94;	cpd[6].A=0xFF;
 		return cpd[time.tm_wday];
 
 	}
+	return colourPerDayArrayOfSeven[time.tm_wday];
+}
 
-	return colourPerDay[time.tm_wday];
+COLOUR HourToRgb(long ts, COLOUR *cMidnight, COLOUR *cNoon)
+{
+	COLOUR defaultMidnight;
+	COLOUR defaultNoon;
+
+	COLOUR mixedColour;
+
+	struct tm time;
+	localtime_s(&ts, &time);
+
+	int hour;
+
+	defaultMidnight.R = 0x08;	defaultMidnight.G = 0x00;	defaultMidnight.B = 0x42;defaultMidnight.A = 0xFF;
+	defaultNoon.R = 0x90;	defaultNoon.G = 0xDC;	defaultNoon.B = 0xFF;defaultNoon.A = 0xFF;
+
+	if (cMidnight == NULL)
+		cMidnight = &defaultMidnight;
+	if (cNoon == NULL)
+		cNoon = &defaultNoon;
+
+	hour = abs(time.tm_hour-12);
+	//returns absolute value of -12 to +11
+	mixedColour.R = (cNoon->R * (12-hour) + cMidnight->R * (hour))/12;
+	mixedColour.G = (cNoon->G * (12-hour) + cMidnight->G * (hour))/12;
+	mixedColour.B = (cNoon->B * (12-hour) + cMidnight->B * (hour))/12;
+	mixedColour.A = (cNoon->A * (12-hour) + cMidnight->A * (hour))/12;
+
+
+	return mixedColour;
 }
 
 

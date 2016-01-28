@@ -34,13 +34,17 @@ HWND hwndComboboxColourBy;
 
 HWND hwndDateSlider;
 
+HWND hwndColourSwatchDay[7];
+COLOUR cDaySwatch[7];
 
 OPTIONS optionsExport;
 
 //Multithread stuff
-//HANDLE hAccessLocationsMutex;
 CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
 long hbmQueueSize=0;	//this is increased when a thread is created, so the thread can check that nothing was created after it
+
+CRITICAL_SECTION critAccessLocations;
+CRITICAL_SECTION critAccessPreviewHBitmap;
 
 DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
@@ -48,6 +52,7 @@ DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone f
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 int	mouseDragDateSlider;
 
