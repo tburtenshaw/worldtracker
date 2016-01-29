@@ -176,7 +176,8 @@ COLOUR HeatmapColour(unsigned char normalisedtemp);
 
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
-COLOUR TimestampToRgb(long ts, long min, long max);
+//COLOUR TimestampToRgb(long ts, long min, long max);
+COLOUR TimestampToRgb(long ts, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
 COLOUR AccuracyToRgb(int accuracy);
 COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay);	//needs to be an array of 7

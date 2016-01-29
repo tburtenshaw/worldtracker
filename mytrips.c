@@ -155,7 +155,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		//Set the colour to draw the line.
 		c.A=options->alpha;
 		if (options->colourby == COLOUR_BY_TIME)	{
-			c = TimestampToRgb(coord->timestampS, 0, options->colourcycle);		//based on timestamp
+			c = TimestampToRgb(coord->timestampS, options->colourcycle);		//based on timestamp
 		}
 		else if (options->colourby == COLOUR_BY_SPEED)	{
 			if (coord->secondsfromprev!=0)	{
@@ -970,15 +970,13 @@ COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char 
 
 
 
-COLOUR TimestampToRgb(long ts, long min, long max)
+COLOUR TimestampToRgb(long ts, long max)
 {
 	double hue;
-	long diff;
 
-	diff=max-min;
-	if (diff)	{		//avoid dividing by zero
-		hue=(ts-min);
-		hue=hue/diff;
+	if (max)	{		//avoid dividing by zero
+		hue=ts;
+		hue=hue/ max;
 		hue=hue*255;
 	}
 	else

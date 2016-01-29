@@ -30,7 +30,7 @@ BEGIN
     POPUP "&File"
         BEGIN
         MENUITEM "&New", IDM_NEW
-        MENUITEM "&Open...\t(Ctrl+O)", IDM_OPEN
+        MENUITEM "&Open...\tCtrl+O", IDM_OPEN
         MENUITEM "&Export...", IDM_SAVE
         MENUITEM "&Close", IDM_CLOSE
         MENUITEM "E&xit", IDM_EXIT
@@ -40,9 +40,9 @@ BEGIN
         MENUITEM "&About", IDM_ABOUT
         END
 END
-300 ACCELERATORS
+IDACCEL ACCELERATORS
 BEGIN
-    81, 300, VIRTKEY, CONTROL
+    "O", IDM_OPEN, VIRTKEY, CONTROL
 END
 STRINGTABLE
 BEGIN
@@ -52,6 +52,13 @@ BEGIN
     IDM_CLOSE, "Closes the current JSON"
     IDM_EXIT, "Quits WorldTracker"
     IDM_ABOUT, "Displays information about WorldTracker"
-    2000, "Create, open, save, or print documents"
-    2010, "Get help"
+    IDS_FILEMENU, "Create, open, save, or print documents"
+    IDS_HELPMENU, "Get help"
+	ID_EDITNORTH, "Enter the latitude of the North border"
+	ID_EDITSOUTH, "Enter the latitude of the South border"
+	ID_EDITWEST, "Enter the latitude of the West border"
+	ID_EDITEAST, "Enter the latitude of the East border"
+	ID_EDITPRESET, "Enter a preset to load a preset location"
+	ID_EDITDATEFROM, "Enter the first date to display (YYYY-MM-DD format)"
+	ID_EDITCOLOURCYCLE, "Enter the number of seconds that it should take to cycle through the spectrum"
 END

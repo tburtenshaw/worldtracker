@@ -34,6 +34,9 @@ HWND hwndComboboxColourBy;
 
 HWND hwndDateSlider;
 
+HWND hwndColourByDate;
+HWND hwndColourByWeekday;
+
 HWND hwndColourSwatchDay[7];
 COLOUR cDaySwatch[7];
 
@@ -53,6 +56,9 @@ DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone f
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
+LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK ColourByWeekdayWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 int	mouseDragDateSlider;
 
