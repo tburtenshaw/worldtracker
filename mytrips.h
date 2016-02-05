@@ -22,6 +22,9 @@ typedef struct sNswe NSWE;
 #define COLOUR_BY_ACCURACY 2
 #define COLOUR_BY_DAYOFWEEK 3
 #define COLOUR_BY_HOUR 4
+#define COLOUR_BY_MONTH 5
+
+#define MAX_COLOURBY_OPTION COLOUR_BY_MONTH
 
 struct sRGBAColour	{
 	unsigned char R;
@@ -180,8 +183,9 @@ COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char 
 COLOUR TimestampToRgb(long ts, long max);
 COLOUR SpeedToRgb(double speed, double maxspeed);
 COLOUR AccuracyToRgb(int accuracy);
-COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDay);	//needs to be an array of 7
+COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDayArrayOfSeven);	//needs to be an array of 7
 COLOUR HourToRgb(long ts, COLOUR *cMidnight, COLOUR *cNoon);
+COLOUR MonthToRgb(long ts, COLOUR *colourPerMonthArrayOfTwelve);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 

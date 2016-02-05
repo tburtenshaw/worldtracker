@@ -7,133 +7,9 @@
 #include "lodepng.h"
 #include "mytrips.h"
 
-int RationaliseOptions(OPTIONS *options)
-{
+COLOUR cpm[12];
+COLOUR cpd[7];
 
-	double tempdouble;
-	int testwidth;
-	char noext[MAX_PATH];
-	char *period;
-
-
-	if (options->colourcycle==0) options->colourcycle = (60*60*24);//(60*60*24*183);
-
-	//Load appropriate filenames
-/*
-	if ((options->pngfilenameinput==NULL) && (options->kmlfilenameinput))	{	//if there's a kml, no png named
-		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "trips.kml", "kml");
-
-		strcpy(&noext[0], options->kmlfilenamefinal);	//copy the finalised png filename
-		period=strrchr(noext,'.');			//find the final period
-		*period=0;								//replace it with a null to end it
-
-		sprintf(options->pngfilenameinput, "%s.png", noext);
-	}
-*/
-	MakeProperFilename(options->pngfilenamefinal, options->pngfilenameinput, "trips.png", "png");
-
-
-	if (options->kmlfilenameinput==NULL)	{
-		strcpy(&noext[0], options->pngfilenamefinal);	//copy the finalised png filename
-		period=strrchr(noext,'.');			//find the final period
-		*period=0;								//replace it with a null to end it
-		fprintf(stdout, "KML no ext: %s\r\n",noext);
-		MakeProperFilename(options->kmlfilenamefinal, noext, "fallback.kml", "kml");
-	} else
-	{
-		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "fallback.kml", "kml");
-	}
-
-	MakeProperFilename(options->jsonfilenamefinal, options->jsonfilenameinput, "LocationHistory.json", "json");
-	fprintf(stdout, "JSON: %s\r\n",options->jsonfilenamefinal);
-	fprintf(stdout, "KML: %s\r\n",options->kmlfilenamefinal);
-
-	//Set the zoom
-//	if (((options->zoom<0.1) || (options->zoom>55)) && (options->zoom!=0))	{	//have to decide the limit, i've tested to 55
-//		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
-//		options->zoom = 0;	//set to zero, then we'll calculate.
-//	}
-
-	//if they're the wrong way around
-	if (options->nswe.east<options->nswe.west)	{tempdouble=options->nswe.east; options->nswe.east=options->nswe.west; options->nswe.west=tempdouble;}
-	if (options->nswe.north<options->nswe.south)	{tempdouble=options->nswe.north; options->nswe.north=options->nswe.south; options->nswe.south=tempdouble;}
-
-	//if they're strange
-	if ((options->nswe.east-options->nswe.west == 0) || (options->nswe.north-options->nswe.south==0) || (options->nswe.east-options->nswe.west>360) || (options->nswe.north-options->nswe.south>360))	{
-		options->nswe.west=-180;
-		options->nswe.east=180;
-		options->nswe.north=90;
-		options->nswe.south=-90;
-	}
-
-/*
-	if ((options->height==0) && (options->width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
-		if (options->zoom==0)	{
-			options->zoom=10;
-		}	//default zoom
-		options->width=360*options->zoom;
-		options->height= 180*options->zoom;
-	}	else
-	if (options->width==0)	{	//the haven't specified a width (but have a height)
-		options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
-		if (options->width > MAX_DIMENSION)	{	//if we're oversizing it
-			options->width = MAX_DIMENSION;
-			options->height = options->width*(options->nswe.north - options->nswe.south)/(options->nswe.east - options->nswe.west);
-		}
-	}	else
-	if (options->height==0)	{	//the haven't specified a height (but have a width)
-			options->height=options->width*(options->nswe.north-options->nswe.south)/(options->nswe.east-options->nswe.west);
-			if (options->height > MAX_DIMENSION)	{	//if we're oversizing it
-				options->height = MAX_DIMENSION;
-				options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
-			}
-	}
-*/
-
-	//test for strange rounding errors
-	if ((options->width==0) || (options->height==0) || (options->height > MAX_DIMENSION) || (options->width > MAX_DIMENSION))	{
-		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", options->width, options->height);
-		options->nswe.west=-180;
-		options->nswe.east=180;
-		options->nswe.north=90;
-		options->nswe.south=-90;
-		options->height=180;
-		options->width=360;
-	}
-
-	//if the aspect ratio of coords is different, set the width to be related to the
-	testwidth=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
-	if (testwidth != options->width)	{
-		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, options->width);
-		options->width=testwidth;
-	}
-
-	//then calculate how many pixels per degree
-	//options->zoom=options->width/(options->nswe.east-options->nswe.west);
-	//fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
-
-	//Set the from and to times
-	if (options->totimestamp == 0)
-		options->totimestamp =-1;
-
-	//Set the thickness
-	if (options->thickness == 0)
-		options->thickness=1;
-
-	//options->thickness = 1+options->width/1000;
-
-	//Set the alpha of the line
-	options->alpha=200;	//default
-
-
-	//Grid colour
-	options->gridcolour.R=192;options->gridcolour.G=192;options->gridcolour.B=192;options->gridcolour.A=128;
-
-	options->colourby = COLOUR_BY_TIME;
-	options->forceheight = 0;
-
-	return 0;
-}
 
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 {
@@ -151,6 +27,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	bm->zoom = options->zoom;
 
 	coord=locationHistory->first;
+
 	while (coord)	{
 		//Set the colour to draw the line.
 		c.A=options->alpha;
@@ -172,6 +49,10 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		else if (options->colourby == COLOUR_BY_HOUR)	{
 			c=HourToRgb(coord->timestampS, NULL, NULL);
 		}
+		else if (options->colourby == COLOUR_BY_MONTH)	{
+			c=MonthToRgb(coord->timestampS, options->colourextra);
+		}
+
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
@@ -402,7 +283,7 @@ int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
 
-	//printf("\r\nNew bitmap initiated. Width: %i, height: %i", options->width, options->height);
+//	printf("\r\nBitmap initiated %i. Width: %i, height: %i", bitmap, options->width, options->height);
 
 	bm->bitmap=bitmap;
 	bm->options=options;
@@ -426,6 +307,7 @@ COLOUR bitmapPixelGet(BM* bm, int x, int y)
 	c.G = bm->bitmap[(x+y* bm->width) *4+1];
 	c.B = bm->bitmap[(x+y* bm->width) *4+2];
 	c.A = bm->bitmap[(x+y* bm->width) *4+3];
+
 
 	return c;
 }
@@ -1019,13 +901,42 @@ COLOUR AccuracyToRgb(int accuracy)
 
 }
 
+
+COLOUR MonthToRgb(long ts, COLOUR *colourPerMonthArrayOfTwelve)
+{
+	struct tm time;
+	localtime_s(&ts, &time);
+
+	if (colourPerMonthArrayOfTwelve==NULL)	{
+		cpm[0x0].R=0xF1;	cpm[0x0].G=0xD5;	cpm[0x0].B=0x45;	cpm[0x0].A=0xFF;
+		cpm[0x1].R=0xCE;	cpm[0x1].G=0x8B;	cpm[0x1].B=0x22;	cpm[0x1].A=0xFF;
+		cpm[0x2].R=0xA7;	cpm[0x2].G=0x45;	cpm[0x2].B=0x05;	cpm[0x2].A=0xFF;
+		cpm[0x3].R=0x8C;	cpm[0x3].G=0x2F;	cpm[0x3].B=0x0C;	cpm[0x3].A=0xFF;
+		cpm[0x4].R=0x79;	cpm[0x4].G=0x42;	cpm[0x4].B=0x3D;	cpm[0x4].A=0xFF;
+		cpm[0x5].R=0x6A;	cpm[0x5].G=0x63;	cpm[0x5].B=0x6D;	cpm[0x5].A=0xFF;
+		cpm[0x6].R=0x59;	cpm[0x6].G=0x72;	cpm[0x6].B=0x6D;	cpm[0x6].A=0xFF;
+		cpm[0x7].R=0x52;	cpm[0x7].G=0x72;	cpm[0x7].B=0x3E;	cpm[0x7].A=0xFF;
+		cpm[0x8].R=0x52;	cpm[0x8].G=0x75;	cpm[0x8].B=0x0C;	cpm[0x8].A=0xFF;
+		cpm[0x9].R=0x69;	cpm[0x9].G=0x8D;	cpm[0x9].B=0x05;	cpm[0x9].A=0xFF;
+		cpm[0xA].R=0xA9;	cpm[0xA].G=0xB9;	cpm[0xA].B=0x23;	cpm[0xA].A=0xFF;
+		cpm[0xB].R=0xEA;	cpm[0xB].G=0xE3;	cpm[0xB].B=0x47;	cpm[0xB].A=0xFF;
+
+
+		return cpm[time.tm_mon];
+	}
+	return colourPerMonthArrayOfTwelve[time.tm_mon];
+
+
+}
+
+
 COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDayArrayOfSeven)
 {
 	struct tm time;
 	localtime_s(&ts, &time);
 
 	if (colourPerDayArrayOfSeven==NULL)	{
-		COLOUR cpd[7];
+
 		cpd[0].R=0x32;	cpd[0].G=0x51;	cpd[0].B=0xA7;	cpd[0].A=0xFF;
 		cpd[1].R=0xc0;	cpd[1].G=0x46;	cpd[1].B=0x54;	cpd[1].A=0xFF;
 		cpd[2].R=0xe1;	cpd[2].G=0x60;	cpd[2].B=0x3d;	cpd[2].A=0xFF;

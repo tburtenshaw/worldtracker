@@ -36,9 +36,13 @@ HWND hwndDateSlider;
 
 HWND hwndColourByDate;
 HWND hwndColourByWeekday;
+HWND hwndColourByMonth;
 
 HWND hwndColourSwatchDay[7];
+HWND hwndColourSwatchMonth[12];
 COLOUR cDaySwatch[7];
+COLOUR cMonthSwatch[12];
+
 
 OPTIONS optionsExport;
 
@@ -59,6 +63,7 @@ LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 
 LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourByWeekdayWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+LRESULT CALLBACK ColourByMonthWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 int	mouseDragDateSlider;
 
@@ -75,6 +80,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+int HandleColourCycleRadiobuttons(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 
 void ConstrainNSWE(NSWE * d);
 int SignificantDecimals(double d);

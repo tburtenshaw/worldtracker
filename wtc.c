@@ -275,3 +275,133 @@ void PrintOptions(OPTIONS *options)
 	fprintf(stdout, "\r\n");
 	return;
 }
+
+int RationaliseOptions(OPTIONS *options)
+{
+
+	double tempdouble;
+	int testwidth;
+	char noext[MAX_PATH];
+	char *period;
+
+
+	if (options->colourcycle==0) options->colourcycle = (60*60*24);//(60*60*24*183);
+
+	//Load appropriate filenames
+/*
+	if ((options->pngfilenameinput==NULL) && (options->kmlfilenameinput))	{	//if there's a kml, no png named
+		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "trips.kml", "kml");
+
+		strcpy(&noext[0], options->kmlfilenamefinal);	//copy the finalised png filename
+		period=strrchr(noext,'.');			//find the final period
+		*period=0;								//replace it with a null to end it
+
+		sprintf(options->pngfilenameinput, "%s.png", noext);
+	}
+*/
+	MakeProperFilename(options->pngfilenamefinal, options->pngfilenameinput, "trips.png", "png");
+
+
+	if (options->kmlfilenameinput==NULL)	{
+		strcpy(&noext[0], options->pngfilenamefinal);	//copy the finalised png filename
+		period=strrchr(noext,'.');			//find the final period
+		*period=0;								//replace it with a null to end it
+		fprintf(stdout, "KML no ext: %s\r\n",noext);
+		MakeProperFilename(options->kmlfilenamefinal, noext, "fallback.kml", "kml");
+	} else
+	{
+		MakeProperFilename(options->kmlfilenamefinal, options->kmlfilenameinput, "fallback.kml", "kml");
+	}
+
+	MakeProperFilename(options->jsonfilenamefinal, options->jsonfilenameinput, "LocationHistory.json", "json");
+	fprintf(stdout, "JSON: %s\r\n",options->jsonfilenamefinal);
+	fprintf(stdout, "KML: %s\r\n",options->kmlfilenamefinal);
+
+	//Set the zoom
+//	if (((options->zoom<0.1) || (options->zoom>55)) && (options->zoom!=0))	{	//have to decide the limit, i've tested to 55
+//		if (options->zoom) fprintf(stderr, "Zoom must be between 0.1 and 55\r\n");	//if they've entered something silly
+//		options->zoom = 0;	//set to zero, then we'll calculate.
+//	}
+
+	//if they're the wrong way around
+	if (options->nswe.east<options->nswe.west)	{tempdouble=options->nswe.east; options->nswe.east=options->nswe.west; options->nswe.west=tempdouble;}
+	if (options->nswe.north<options->nswe.south)	{tempdouble=options->nswe.north; options->nswe.north=options->nswe.south; options->nswe.south=tempdouble;}
+
+	//if they're strange
+	if ((options->nswe.east-options->nswe.west == 0) || (options->nswe.north-options->nswe.south==0) || (options->nswe.east-options->nswe.west>360) || (options->nswe.north-options->nswe.south>360))	{
+		options->nswe.west=-180;
+		options->nswe.east=180;
+		options->nswe.north=90;
+		options->nswe.south=-90;
+	}
+
+/*
+	if ((options->height==0) && (options->width == 0))	{	//if no height or width specified, we'll base it on zoom (or default zoom)
+		if (options->zoom==0)	{
+			options->zoom=10;
+		}	//default zoom
+		options->width=360*options->zoom;
+		options->height= 180*options->zoom;
+	}	else
+	if (options->width==0)	{	//the haven't specified a width (but have a height)
+		options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
+		if (options->width > MAX_DIMENSION)	{	//if we're oversizing it
+			options->width = MAX_DIMENSION;
+			options->height = options->width*(options->nswe.north - options->nswe.south)/(options->nswe.east - options->nswe.west);
+		}
+	}	else
+	if (options->height==0)	{	//the haven't specified a height (but have a width)
+			options->height=options->width*(options->nswe.north-options->nswe.south)/(options->nswe.east-options->nswe.west);
+			if (options->height > MAX_DIMENSION)	{	//if we're oversizing it
+				options->height = MAX_DIMENSION;
+				options->width=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
+			}
+	}
+*/
+
+	//test for strange rounding errors
+	if ((options->width==0) || (options->height==0) || (options->height > MAX_DIMENSION) || (options->width > MAX_DIMENSION))	{
+		fprintf(stderr, "Problem with dimensions (%i x %i). Loading small default size.\r\n", options->width, options->height);
+		options->nswe.west=-180;
+		options->nswe.east=180;
+		options->nswe.north=90;
+		options->nswe.south=-90;
+		options->height=180;
+		options->width=360;
+	}
+
+	//if the aspect ratio of coords is different, set the width to be related to the
+	testwidth=options->height*(options->nswe.east-options->nswe.west)/(options->nswe.north-options->nswe.south);
+	if (testwidth != options->width)	{
+		printf("Fixing aspect ratio. tw: %i, w: %i\r\n", testwidth, options->width);
+		options->width=testwidth;
+	}
+
+	//then calculate how many pixels per degree
+	//options->zoom=options->width/(options->nswe.east-options->nswe.west);
+	//fprintf(stdout, "Zoom: %4.2f\r\n", options->zoom);
+
+	//Set the from and to times
+	if (options->totimestamp == 0)
+		options->totimestamp =-1;
+
+	//Set the thickness
+	if (options->thickness == 0)
+		options->thickness=1;
+
+	//options->thickness = 1+options->width/1000;
+
+	//Set the alpha of the line
+	options->alpha=200;	//default
+
+
+	//Grid colour
+	options->gridcolour.R=192;options->gridcolour.G=192;options->gridcolour.B=192;options->gridcolour.A=128;
+
+	options->colourby = COLOUR_BY_TIME;
+	options->forceheight = 0;
+
+	return 0;
+}
+
+

@@ -35,6 +35,10 @@
 #define TEXT_WIDTH_QLONG TEXT_WIDTH_QUARTER+MARGIN
 #define TEXT_WIDTH_THREEQUARTERS (OVERVIEW_WIDTH-TEXT_WIDTH_QUARTER-MARGIN)
 
+#define SWATCH_WIDTH_DAY (OVERVIEW_WIDTH-(MARGIN*6))/7
+#define SWATCH_WIDTH_MONTH (OVERVIEW_WIDTH-(MARGIN*11))/12
+
+
 //these don't really need to be the bearing, but I thought it would be easier
 #define D_NORTH 0
 #define D_SOUTH 180
@@ -46,11 +50,8 @@
 #define MS_DRAGFROM 2
 #define MS_DRAGBOTH 3
 
-//what the aspect ratio is locked to
-//#define LOCK_AR_UNDECLARED 0
-//#define LOCK_AR_NSWE 1
-//#define LOCK_AR_EXPORTSIZE 2
-//#define LOCK_AR_WINDOW 3
+#define CS_MONTH 0x100
+
 
 typedef struct sMovebar MOVEBARINFO;
 typedef struct sStretch STRETCH;
@@ -133,7 +134,7 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
 HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
 
-int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh);
+int PaintOverview(HWND hwnd);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 
 
@@ -149,12 +150,17 @@ int CreatePreviewCropbarWindows(HWND hwnd);
 int ResetCropbarWindowPos(HWND hwnd);
 
 char* szDayOfWeek[7];
+char* szMonthLetter[12];
+char *szColourByOption[MAX_COLOURBY_OPTION+1];
 
 OPTIONS optionsBackground;
 HBITMAP hbmBackground;
 int BltNsweFromBackground(HDC hdc, NSWE * d, int height, int width, OPTIONS * oBkgrnd);
 int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * lh);
 
+
+time_t RoundTimeUp(time_t s);
+time_t RoundTimeDown(time_t s);
 
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
@@ -199,7 +205,7 @@ LRESULT MsgMenuSelect(HWND hwnd, UINT uMessage, WPARAM wparam, LPARAM lparam)
 void InitializeStatusBar(HWND hwndParent,int nrOfParts)
 {
     //const int cSpaceInBetween = 8;
-	int   ptArray[40];   // Array defining the number of parts/sections
+	int   ptArray[3];   // Array defining the number of parts/sections
     RECT  rect;
     HDC   hDC;
 
@@ -288,6 +294,8 @@ static BOOL InitApplication(void)
 	optionsPreview.colourcycle=60*60*24*7;
 	optionsPreview.colourby = COLOUR_BY_TIME;
 	optionsPreview.colourextra = cDaySwatch;
+
+
 		cDaySwatch[0].R=0x32;	cDaySwatch[0].G=0x51;	cDaySwatch[0].B=0xA7;	cDaySwatch[0].A=0xFF;
 		cDaySwatch[1].R=0xc0;	cDaySwatch[1].G=0x46;	cDaySwatch[1].B=0x54;	cDaySwatch[1].A=0xFF;
 		cDaySwatch[2].R=0xe1;	cDaySwatch[2].G=0x60;	cDaySwatch[2].B=0x3d;	cDaySwatch[2].A=0xFF;
@@ -295,6 +303,20 @@ static BOOL InitApplication(void)
 		cDaySwatch[4].R=0xa1;	cDaySwatch[4].G=0xfc;	cDaySwatch[4].B=0x58;	cDaySwatch[4].A=0xFF;
 		cDaySwatch[5].R=0x96;	cDaySwatch[5].G=0x54;	cDaySwatch[5].B=0xa9;	cDaySwatch[5].A=0xFF;
 		cDaySwatch[6].R=0x00;	cDaySwatch[6].G=0x82;	cDaySwatch[6].B=0x94;	cDaySwatch[6].A=0xFF;
+
+
+	szMonthLetter[0]="J";
+	szMonthLetter[1]="F";
+	szMonthLetter[2]="M";
+	szMonthLetter[3]="A";
+	szMonthLetter[4]="M";
+	szMonthLetter[5]="J";
+	szMonthLetter[6]="J";
+	szMonthLetter[7]="A";
+	szMonthLetter[8]="S";
+	szMonthLetter[9]="O";
+	szMonthLetter[10]="N";
+	szMonthLetter[11]="D";
 
 
 
@@ -305,6 +327,13 @@ szDayOfWeek[3]="Wed";
 szDayOfWeek[4]="Thu";
 szDayOfWeek[5]="Fri";
 szDayOfWeek[6]="Sat";
+
+szColourByOption[COLOUR_BY_TIME]="Time";
+szColourByOption[COLOUR_BY_SPEED]="Speed";
+szColourByOption[COLOUR_BY_ACCURACY]="Accuracy";
+szColourByOption[COLOUR_BY_DAYOFWEEK]="Day";
+szColourByOption[COLOUR_BY_HOUR]="Hour";
+szColourByOption[COLOUR_BY_MONTH]="Month";
 
 
 
@@ -417,6 +446,20 @@ szDayOfWeek[6]="Sat";
 	if (!RegisterClass(&wc))
 		return 0;
 
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)ColourByMonthWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "ColourByMonth";
+	wc.lpszMenuName = MAKEINTRESOURCE(IDMAINMENU);
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_DBLCLKS ;
 	wc.lpfnWndProc = (WNDPROC)ColourByDateWndProc;
@@ -492,9 +535,16 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case ID_EDITEXPORTWIDTH:
 		case ID_EDITPRESET:
 		case ID_EDITTHICKNESS:
-		case ID_EDITCOLOURCYCLE:
 			HandleEditControls(hwnd, id, hwndCtl, codeNotify);
 		break;
+
+		case ID_EDITCOLOURCYCLE:
+		case ID_EDITONEHOUR:
+		case ID_EDITONEDAY:
+		case ID_EDITONEWEEK:
+		case ID_EDITONEYEAR:
+			HandleColourCycleRadiobuttons(hwnd, id, hwndCtl, codeNotify);
+			break;
 
 		case ID_EDITDATETO:
 		case ID_EDITDATEFROM:
@@ -504,6 +554,77 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			HandleComboColourBy(hwnd, id, hwndCtl, codeNotify);
 		break;
 	}
+}
+
+int HandleColourCycleRadiobuttons(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	int bst;
+	long seconds;
+	char secondsstring[128];
+
+	if ((id == ID_EDITCOLOURCYCLE) && codeNotify==EN_CHANGE)	{
+		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&secondsstring[0]);
+		seconds=atof(secondsstring);
+
+		if (seconds>0)	{
+			optionsPreview.colourcycle=seconds;
+		}
+		if (seconds==3600)
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEHOUR), BM_SETCHECK, BST_CHECKED,0);
+		else
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEHOUR), BM_SETCHECK, BST_UNCHECKED,0);
+
+		if (seconds==3600*24)
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEDAY), BM_SETCHECK, BST_CHECKED,0);
+		else
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEDAY), BM_SETCHECK, BST_UNCHECKED,0);
+
+		if (seconds==3600*24*7)
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEWEEK), BM_SETCHECK, BST_CHECKED,0);
+		else
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEWEEK), BM_SETCHECK, BST_UNCHECKED,0);
+
+		if (seconds==3600*24*365.2425)
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEYEAR), BM_SETCHECK, BST_CHECKED,0);
+		else
+			SendMessage(GetDlgItem(GetParent(hwndCtl), ID_EDITONEYEAR), BM_SETCHECK, BST_UNCHECKED,0);
+
+
+
+		SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+		SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+		return 0;
+	}
+
+
+
+	if (codeNotify == BN_CLICKED)	{
+		bst = SendMessage(hwndCtl, BM_GETCHECK, 0, 0);
+		if (bst == BST_UNCHECKED)	{
+			SendMessage(hwndCtl, BM_SETCHECK, BST_CHECKED,0);
+			if (id == ID_EDITONEHOUR)
+				seconds = 3600;
+			if (id == ID_EDITONEDAY)
+				seconds = 3600*24;
+			if (id == ID_EDITONEWEEK)
+				seconds = 3600*24*7;
+			if (id == ID_EDITONEYEAR)
+				seconds = 3600*24*365.2425;
+
+			optionsPreview.colourcycle=seconds;
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			sprintf(secondsstring, "%i", seconds);
+			SetWindowText(hwndEditColourCycle, secondsstring);
+
+			for (int i=ID_EDITONEHOUR; i<=ID_EDITONEYEAR; i++)	{	//go through all the checkboxes
+				if (i!=id)	{	//except for the clicked one
+					SendMessage(GetDlgItem(GetParent(hwndCtl), i), BM_SETCHECK, BST_UNCHECKED,0);	//and uncheck them
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 void UpdateProgressBar(int progress)	//dummy for the progress bar
@@ -562,6 +683,8 @@ int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
 	int index;
 	int show;
+
+
 	if (codeNotify == CBN_SELCHANGE)	{
 		index = SendMessage((HWND) hwndCtl, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
 		printf("combo %i, ", index);
@@ -577,11 +700,21 @@ int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				show = SW_HIDE;
 			ShowWindow(hwndColourByDate, show);
 
-			if (index == COLOUR_BY_DAYOFWEEK)
+			if (index == COLOUR_BY_DAYOFWEEK)	{
 				show = SW_SHOW;
+				optionsPreview.colourextra = cDaySwatch;
+			}
 			else
 				show = SW_HIDE;
 			ShowWindow(hwndColourByWeekday, show);
+
+			if (index == COLOUR_BY_MONTH)	{
+				show = SW_SHOW;
+				optionsPreview.colourextra = cMonthSwatch;
+			}
+			else
+				show = SW_HIDE;
+			ShowWindow(hwndColourByMonth, show);
 
 
 
@@ -674,8 +807,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 	if (codeNotify==EN_CHANGE)	{
 	//If not in focus we shouldn't do anything with the change
-	if (hwndCtl!=GetFocus())
-		return 0;
+		if (hwndCtl!=GetFocus())
+			return 0;
 
 		needsRedraw=0;
 		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
@@ -727,11 +860,6 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 		case ID_EDITTHICKNESS:
 			optionsPreview.thickness=value;
-			needsRedraw=1;
-			break;
-		case ID_EDITCOLOURCYCLE:
-			optionsPreview.colourcycle=value;
-			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 			needsRedraw=1;
 			break;
 
@@ -810,6 +938,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 	optionsExport.nswe.east=o->nswe.east;
 	optionsExport.thickness = o->thickness;
 
+	optionsExport.colourextra = optionsPreview.colourextra;
 	optionsExport.colourcycle = optionsPreview.colourcycle;
 	optionsExport.totimestamp =o->totimestamp;
 	optionsExport.fromtimestamp =o->fromtimestamp;
@@ -869,17 +998,19 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 		DeleteObject(hbmOverview);
 	}
 
-	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
-	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
-
-
 
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
-	printf("%x", (unsigned long)bitmap);
+	printf("\r\nBMO:%x", (unsigned long)bitmap);
+
+	//If there's no locations loaded, don't bother with the rest
+	if (lh->first==NULL)	return bitmap;
+
+
+
 	memset(&bi, 0, sizeof(bi));
 	bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
 
-	if (lh->first==NULL)	return bitmap;
+
 
 	result = GetDIBits(hdc, bitmap, 0, 180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
@@ -887,10 +1018,13 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	//printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
 	//printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
 
-
 	bits=malloc(bi.bmiHeader.biSizeImage);
-
 	result = GetDIBits(hdc, bitmap, 0, 180, bits, &bi, DIB_RGB_COLORS);	//get the bitmap location
+
+	memset(&overviewBM, 0, sizeof(overviewBM));
+	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
+	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
+
 
 	for (y=0;y<180;y++)	{
 		for (x=0;x<360;x++)	{
@@ -917,7 +1051,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	return bitmap;
 }
 
-int PaintOverview(HWND hwnd, LOCATIONHISTORY * lh)
+int PaintOverview(HWND hwnd)
 {
 	HDC hdc;
 	HDC memDC;
@@ -1072,12 +1206,17 @@ int CreateOverviewMovebarWindows(HWND hwnd)
 LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	POINT mousePoint;
+	HDC hdc;
 
 	switch (msg) {
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
-			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
+			//hdc = GetDC(hwnd);
+			//hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
+			//ReleaseDC(hwnd, hdc);
+			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
 			CreateOverviewMovebarWindows(hwnd);
+
 			break;
 
 
@@ -1090,7 +1229,6 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			KillTimer(hwnd, IDT_OVERVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
 			memset(&optionsOverview, 0, sizeof(optionsOverview));	//set all the option results to 0
-			memset(&overviewBM, 0, sizeof(overviewBM));
 
 			optionsOverview.height=180;optionsOverview.width=360;
 			optionsOverview.thickness = 1;
@@ -1101,6 +1239,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsOverview.zoom=optionsOverview.width/(optionsOverview.nswe.east-optionsOverview.nswe.west);
 			optionsOverview.alpha=200;	//default
 			optionsOverview.colourby = optionsPreview.colourby;
+			optionsOverview.colourextra = optionsPreview.colourextra;
 
 			optionsOverview.nswe.north=90;
 			optionsOverview.nswe.south=-90;
@@ -1108,11 +1247,11 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			optionsOverview.nswe.east=180;
 
 
-			//RationaliseOptions(&optionsOverview);
+			hdc = GetDC(hwnd);
+			hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
+			ReleaseDC(hwnd, hdc);
 
-			hbmOverview = MakeHBitmapOverview(hwnd, GetDC(hwnd), &locationHistory);
-
-			printf("recalc'd overview BM");
+			printf("\r\nrecalc'd overview BM");
 
 			InvalidateRect(hwnd, 0, 0);
 
@@ -1120,7 +1259,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		case WM_ERASEBKGND:	//to avoid flicker:(although shouldn't need if hbrush is null)
     		return 1;
 		case WM_PAINT:
-			PaintOverview(hwnd, &locationHistory);
+			PaintOverview(hwnd);
 			break;
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
@@ -1479,6 +1618,9 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WT_WM_SIGNALMOUSEWHEEL:
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
+		case WM_SETFOCUS:
+	    	UpdateStatusBar("Click and drag to move viewpoint. Use the mouse scrollwheel to zoom in and out.", 0, 0);
+			break;
 		default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 	}
@@ -1504,12 +1646,12 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 //	optionsPreview.width = clientRect.right;
 //	optionsPreview.height = clientRect.bottom;
 
-//	if (!previewBM.bitmap)	{
-//		hdc= BeginPaint(hwnd, &ps);
+	if (!previewBM.bitmap)	{
+		hdc= BeginPaint(hwnd, &ps);
 
-//		DeleteDC(hdc);
-//		EndPaint(hwnd, &ps);
-//	}
+		EndPaint(hwnd, &ps);
+		return 0;
+	}
 
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
@@ -1589,7 +1731,7 @@ DWORD WINAPI ThreadSetHBitmap(long queuechit)
 	//EnterCriticalSection(&critAccessPreviewHBitmap);
 	hdc = GetDC(hwndPreview);
 	hbmPreview = MakeHBitmapPreview(hdc, &locationHistory, queuechit);
-	//ReleaseDC(hwndPreview, hdc);
+	ReleaseDC(hwndPreview, hdc);
 	stretchPreview.useStretch = FALSE;
 	//LeaveCriticalSection(&critAccessPreviewHBitmap);
 	InvalidateRect(hwndPreview, NULL, 0);
@@ -1628,10 +1770,11 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	EnterCriticalSection(&critAccessLocations);
 	//printf("bi");
 
-	if (!previewBM.bitmap)	{
+	if (previewBM.bitmap)	{
 		bitmapDestroy(&previewBM);
 	}
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
+
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
 	LeaveCriticalSection(&critAccessLocations);
@@ -1668,7 +1811,6 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	}
 	hbmPreview=bitmap;	//this probably needs to happen in the critical section, making the return value useless
 	LeaveCriticalSection(&critAccessPreviewHBitmap);
-	ReleaseDC(hwndPreview, hdc);
 
 	return bitmap;
 }
@@ -1748,11 +1890,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
 		hwndComboboxColourBy = CreateWindow("ComboBox","Date",	  CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE, x,y,TEXT_WIDTH_QLONG, TEXT_HEIGHT*10, hwnd, (HMENU)ID_COMBOCOLOURBY, hInst, NULL);
 
-		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Date\0");
-		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Speed\0");
-		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Accuracy\0");
-		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Weekday\0");
-		SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)"Hour\0");
+		for (int i=0; i<=MAX_COLOURBY_OPTION; i++)	{
+			SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)szColourByOption[i]);
+		}
 		SendMessage(hwndComboboxColourBy, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
 
 		y+=MARGIN+TEXT_HEIGHT;
@@ -1760,6 +1900,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		hwndColourByDate = CreateWindow("ColourByDate", NULL, WS_CHILD|WS_VISIBLE, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT*2+MARGIN, hwnd, NULL, hInst, NULL);
 		hwndColourByWeekday = CreateWindow("ColourByWeekday", NULL, WS_CHILD, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT*2+MARGIN, hwnd, NULL, hInst, NULL);
+		hwndColourByMonth = CreateWindow("ColourByMonth", NULL, WS_CHILD, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT*2+MARGIN, hwnd, NULL, hInst, NULL);
 
 		y+=40;
 
@@ -1778,7 +1919,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
-		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+//		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
 		UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
@@ -1793,6 +1934,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		break;
 	case WM_LBUTTONDOWN:
 		SetFocus(hwnd);
+    	UpdateStatusBar("Ready", 0, 0);
 		break;
 	case WM_MOUSEWHEEL:
 		//if it's within the Preview message box, send it there
@@ -1947,6 +2089,33 @@ LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 
 }
 
+time_t RoundTimeUp(time_t s)
+{
+	struct tm time;
+
+	localtime_s(&s, &time);
+
+	time.tm_hour = 23;
+	time.tm_min = 59;
+	time.tm_sec=59;
+
+	return mktime(&time);
+}
+
+time_t RoundTimeDown(time_t s)
+{
+	struct tm time;
+
+	localtime_s(&s, &time);
+
+	time.tm_hour = 23;
+	time.tm_min = 59;
+	time.tm_sec=59;
+
+	return mktime(&time);
+}
+
+
 int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 {
     PAINTSTRUCT ps;
@@ -1961,7 +2130,7 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	unsigned long secondsspan;
 	double	spp;	//seconds per pixel
 	time_t	s;
-	struct tm *time;	//this is stored statically, so not freed
+	struct tm time;	//this is stored statically, so not freed
 	int	oldyear,oldmonth;
 
 	GetClientRect(hwnd, &clientRect);
@@ -1973,9 +2142,9 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 
 
 	s=lh->earliesttimestamp;
-	time=localtime(&s);
-	oldyear=time->tm_year;
-	oldmonth=time->tm_mon;
+	localtime_s(&s, &time);
+	oldyear=time.tm_year;
+	oldmonth=time.tm_mon;
 
 	hPenBlack = CreatePen(PS_SOLID, 1, RGB(0,0,0));
 	hPenGrey = CreatePen(PS_SOLID, 1, RGB(192,192,192));
@@ -1984,21 +2153,21 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	for (x=0;x<clientRect.right;x++)	{
 		s=lh->earliesttimestamp+x*spp;
 
-		time=localtime(&s);
+		localtime_s(&s, &time);
 		y=0;
 		MoveToEx(hdc, x, y, (LPPOINT) NULL);
-		if (time->tm_year!=oldyear)	{
+		if (time.tm_year!=oldyear)	{
 			SelectObject(hdc, hPenBlack);
 			y=clientRect.bottom;
         	LineTo(hdc, x, y);
-			oldyear=time->tm_year;
-			oldmonth=time->tm_mon;
+			oldyear=time.tm_year;
+			oldmonth=time.tm_mon;
 		}
-		else if	(time->tm_mon!=oldmonth)	{
+		else if	(time.tm_mon!=oldmonth)	{
 			SelectObject(hdc, hPenBlack);
         	y=clientRect.bottom/2;
 			LineTo(hdc, x, y);
-			oldmonth=time->tm_mon;
+			oldmonth=time.tm_mon;
 		}
 		if (y<clientRect.bottom)	{
 			if ((s < o->fromtimestamp)	|| (s > o->totimestamp))
@@ -2074,14 +2243,14 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				redraw=0;
 				if (mouseDragDateSlider == MS_DRAGFROM)	{
 					if (optionsPreview.fromtimestamp != timeclicked)	{
-						optionsPreview.fromtimestamp = timeclicked;
+						optionsPreview.fromtimestamp = RoundTimeDown(timeclicked);	//the start of a day
 						redraw=1;
 					}
 				}
 
 				if (mouseDragDateSlider == MS_DRAGTO)	{
 					if (optionsPreview.totimestamp != timeclicked)	{	//if there's a change
-						optionsPreview.totimestamp = timeclicked;
+						optionsPreview.totimestamp = RoundTimeUp(timeclicked);		//the end of a day
 						redraw=1;
 					}
 				}
@@ -2117,14 +2286,14 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 int UpdateDateControlsFromOptions(OPTIONS * o)
 {
 	char buffer[256];
-	struct tm *time;
+	struct tm time;
 
-	time=localtime(&o->fromtimestamp);
-	strftime (buffer, 256, "%Y-%m-%d", time);	//ISO8601YYYY-MM-DD
+	localtime_s(&o->fromtimestamp, &time);
+	strftime (buffer, 256, "%Y-%m-%d", &time);	//ISO8601YYYY-MM-DD
 	SetWindowText(hwndEditDateFrom, buffer);
 
-	time=localtime(&o->totimestamp);
-	strftime (buffer, 256, "%Y-%m-%d", time);	//ISO8601YYYY-MM-DD
+	localtime_s(&o->totimestamp, &time);
+	strftime (buffer, 256, "%Y-%m-%d", &time);	//ISO8601YYYY-MM-DD
 	SetWindowText(hwndEditDateTo, buffer);
 	return 0;
 }
@@ -2389,7 +2558,13 @@ LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 			HDC hdc;
 			hdc=BeginPaint(hwnd, &ps);
 			swatchNum = GetWindowLong(hwnd, 0);
-			swatchColour = RGB(cDaySwatch[swatchNum].R, cDaySwatch[swatchNum].G, cDaySwatch[swatchNum].B);
+			if (swatchNum & CS_MONTH)	{
+				swatchNum= swatchNum & 0xFF;
+				swatchColour = RGB(cMonthSwatch[swatchNum].R, cMonthSwatch[swatchNum].G, cMonthSwatch[swatchNum].B);
+			}
+			else	{
+				swatchColour = RGB(cDaySwatch[swatchNum].R, cDaySwatch[swatchNum].G, cDaySwatch[swatchNum].B);
+			}
 			SetBkColor(hdc, swatchColour);
 			ExtTextOut(hdc, 0,0, ETO_CLIPPED|ETO_OPAQUE, &ps.rcPaint, "", 0, NULL);
 			EndPaint(hwnd, &ps);
@@ -2412,10 +2587,19 @@ LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 
 			if (ChooseColor(&cc))	{
 				swatchNum = GetWindowLong(hwnd, 0);
-				cDaySwatch[swatchNum].R = GetRValue(cc.rgbResult);
-				cDaySwatch[swatchNum].G = GetGValue(cc.rgbResult);
-				cDaySwatch[swatchNum].B = GetBValue(cc.rgbResult);
-				cDaySwatch[swatchNum].A = 255;
+				if (swatchNum & CS_MONTH)	{
+					swatchNum= swatchNum & 0xFF;
+					cMonthSwatch[swatchNum].R = GetRValue(cc.rgbResult);
+					cMonthSwatch[swatchNum].G = GetGValue(cc.rgbResult);
+					cMonthSwatch[swatchNum].B = GetBValue(cc.rgbResult);
+					cMonthSwatch[swatchNum].A = 255;
+				}
+				else	{
+					cDaySwatch[swatchNum].R = GetRValue(cc.rgbResult);
+					cDaySwatch[swatchNum].G = GetGValue(cc.rgbResult);
+					cDaySwatch[swatchNum].B = GetBValue(cc.rgbResult);
+					cDaySwatch[swatchNum].A = 255;
+				}
 				InvalidateRect(hwnd, 0, 0);
 				SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 				SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
@@ -2437,7 +2621,7 @@ LRESULT CALLBACK ColourByWeekdayWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 			int y;
 			x=y=0;
 			for (int i=0;i<7;i++)	{
-				hwndColourSwatchDay[i] = CreateWindow("ColourSwatch",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, 41, 20, hwnd, NULL, hInst, NULL);
+				hwndColourSwatchDay[i] = CreateWindow("ColourSwatch",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, SWATCH_WIDTH_DAY, 20, hwnd, NULL, hInst, NULL);
 				SetWindowLong(hwndColourSwatchDay[i], 0, i);
 				CreateWindow("Static",szDayOfWeek[i],WS_CHILD | WS_VISIBLE | WS_BORDER,x,y+18, 41,20, hwnd, NULL, hInst, NULL);
 				x+=41+MARGIN;
@@ -2450,6 +2634,28 @@ LRESULT CALLBACK ColourByWeekdayWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 	return 0;
 }
 
+LRESULT CALLBACK ColourByMonthWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (msg) {
+		case WM_CREATE:
+			int x;
+			int y;
+			x=y=0;
+			for (int i=0;i<12;i++)	{
+				hwndColourSwatchMonth[i] = CreateWindow("ColourSwatch",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, SWATCH_WIDTH_MONTH, 20, hwnd, NULL, hInst, NULL);
+				SetWindowLong(hwndColourSwatchMonth[i], 0, i|CS_MONTH);
+				CreateWindow("Static",szMonthLetter[i],WS_CHILD | WS_VISIBLE | WS_BORDER,x,y+18, SWATCH_WIDTH_MONTH,20, hwnd, NULL, hInst, NULL);
+				x+=SWATCH_WIDTH_MONTH+MARGIN;
+			}
+
+			break;
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+	return 0;
+}
+
+
 LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
@@ -2460,16 +2666,16 @@ LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 			y=0;
 			CreateWindow("Static", "Seconds", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, NULL, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
-			hwndEditColourCycle = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			hwndEditColourCycle = CreateWindow("Edit","604800", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
 			y+=TEXT_HEIGHT+MARGIN;
 			x=0;
-			CreateWindow("BUTTON","1 hour", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			CreateWindow("BUTTON","1 hour", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEHOUR, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
-			CreateWindow("BUTTON","1 day", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			CreateWindow("BUTTON","1 day", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEDAY, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
-			CreateWindow("BUTTON","1 week", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			CreateWindow("BUTTON","1 week", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEWEEK, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
-			CreateWindow("BUTTON","1 year", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			CreateWindow("BUTTON","1 year", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEYEAR, hInst, NULL);
 
 			break;
 		case WM_COMMAND:	//pass any edits to the parent window that'll handle it
