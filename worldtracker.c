@@ -1018,11 +1018,15 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	//printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
 	//printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
 
-	bits=malloc(bi.bmiHeader.biSizeImage);
+	//bits=malloc(bi.bmiHeader.biSizeImage);
+	bits = VirtualAlloc(NULL, bi.bmiHeader.biSizeImage, MEM_COMMIT, PAGE_READWRITE);	//malloc can cause crashes see http://pastebin.com/L8rrC4mQ
+
+
 	result = GetDIBits(hdc, bitmap, 0, 180, bits, &bi, DIB_RGB_COLORS);	//get the bitmap location
 
 	memset(&overviewBM, 0, sizeof(overviewBM));
 	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
+	printf("\r\n%i", overviewBM.sizebitmap);
 	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
 
 
@@ -1045,7 +1049,8 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
-	free(&bits);
+	VirtualFree(bits, 0, MEM_RELEASE);
+//	free(bits);
 	bitmapDestroy(&overviewBM);	//importantly, I missed this ?was it causing crashes.
 
 	return bitmap;
