@@ -641,12 +641,12 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 {
 	UpdateStatusBar("Loading file...", 0, 0);
 
-    EnterCriticalSection(&critAccessLocations);
+//    EnterCriticalSection(&critAccessLocations);
 
 	FreeLocations(&locationHistory);	//first free any locations
 	LoadLocations(&locationHistory, JSONfilename, UpdateProgressBar);
 
-	LeaveCriticalSection(&critAccessLocations);
+//	LeaveCriticalSection(&critAccessLocations);
 
 	//Once loaded, tell the windows they can update
     UpdateStatusBar("Ready", 0, 0);
@@ -958,7 +958,7 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 
 	UpdateStatusBar("Exporting...", 0, 0);
 
-	EnterCriticalSection(&critAccessLocations);
+//	EnterCriticalSection(&critAccessLocations);
 
 	printf("bitmap init %i", options->width);
 	bitmapInit(&exportBM, options, &locationHistory);
@@ -974,7 +974,7 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	WriteKMLFile(&exportBM);
 	bitmapDestroy(&exportBM);
 
-	LeaveCriticalSection(&critAccessLocations);
+//	LeaveCriticalSection(&critAccessLocations);
     UpdateStatusBar("Ready", 0, 0);
 
 	return 0;
@@ -1011,7 +1011,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
 
 
-
+	GdiFlush();
 	result = GetDIBits(hdc, bitmap, 0, 180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
 	//printf("\r\nOverview\r\nbi.height: %i\t", bi.bmiHeader.biHeight);
@@ -1026,7 +1026,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	memset(&overviewBM, 0, sizeof(overviewBM));
 	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
-	printf("\r\n%i", overviewBM.sizebitmap);
+	//printf("\r\n%i", overviewBM.sizebitmap);
 	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
 
 
@@ -1049,6 +1049,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
+
 	VirtualFree(bits, 0, MEM_RELEASE);
 //	free(bits);
 	bitmapDestroy(&overviewBM);	//importantly, I missed this ?was it causing crashes.
@@ -1658,10 +1659,11 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 		return 0;
 	}
 
+	EnterCriticalSection(&critAccessPreviewHBitmap);
 	hdc= BeginPaint(hwnd, &ps);
 	memDC = CreateCompatibleDC(hdc);
 
-	EnterCriticalSection(&critAccessPreviewHBitmap);
+
 
 	oldBitmap = SelectObject(memDC, hbmPreview);
 
@@ -1709,14 +1711,12 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 
 	SelectObject(memDC, oldBitmap);
-
-	LeaveCriticalSection(&critAccessPreviewHBitmap);
-
-
 	DeleteDC(memDC);
 	DeleteObject(oldBitmap);
 
 	EndPaint(hwnd, &ps);
+
+	LeaveCriticalSection(&critAccessPreviewHBitmap);
 
 
 	return 0;
@@ -1732,13 +1732,10 @@ DWORD WINAPI ThreadSetHBitmap(long queuechit)
 		return 0;
 	}
 
-
-	//EnterCriticalSection(&critAccessPreviewHBitmap);
 	hdc = GetDC(hwndPreview);
 	hbmPreview = MakeHBitmapPreview(hdc, &locationHistory, queuechit);
 	ReleaseDC(hwndPreview, hdc);
 	stretchPreview.useStretch = FALSE;
-	//LeaveCriticalSection(&critAccessPreviewHBitmap);
 	InvalidateRect(hwndPreview, NULL, 0);
 
 	return 1;
@@ -1765,13 +1762,10 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 		return hbmPreview;
 	}
 
-	//optionsPreview.colourcycle = (60*60*24);
 	optionsPreview.zoom=optionsPreview.width/(optionsPreview.nswe.east-optionsPreview.nswe.west);
 	optionsPreview.alpha=200;	//default
 
 
-
-	//RationaliseOptions(&optionsPreview);
 	EnterCriticalSection(&critAccessLocations);
 	//printf("bi");
 
@@ -1782,9 +1776,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
-	LeaveCriticalSection(&critAccessLocations);
 
-	//printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
+	printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = width;
@@ -1793,6 +1786,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	bmi.bmiHeader.biBitCount = 24;
 	bmi.bmiHeader.biCompression = BI_RGB;
 
+	EnterCriticalSection(&critAccessPreviewHBitmap);
+	GdiFlush();
 	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
 	//printf("create dib: %x", (unsigned long)bitmap);
 	int b=0;
@@ -1810,12 +1805,14 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 
 		//printf("delete dib: %x", (unsigned long)hbmPreview);
-	EnterCriticalSection(&critAccessPreviewHBitmap);
+	//
 	if (hbmPreview!=NULL)	{
 		DeleteObject(hbmPreview);
 	}
 	hbmPreview=bitmap;	//this probably needs to happen in the critical section, making the return value useless
+	GdiFlush();
 	LeaveCriticalSection(&critAccessPreviewHBitmap);
+	LeaveCriticalSection(&critAccessLocations);
 
 	return bitmap;
 }
@@ -1924,7 +1921,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
-//		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
+		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
 		UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
@@ -2035,11 +2032,11 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 		endheight = availablewidth/aspectratio;
 	}
 
-	EnterCriticalSection(&critAccessLocations);
+	//EnterCriticalSection(&critAccessLocations);
 	optionsPreview.width=endwidth;
 	optionsPreview.height=endheight;
 	optionsPreview.aspectratio=aspectratio;
-	LeaveCriticalSection(&critAccessLocations);
+	//LeaveCriticalSection(&critAccessLocations);
 
 	SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
 
