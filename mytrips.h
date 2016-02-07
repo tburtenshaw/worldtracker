@@ -14,6 +14,7 @@ typedef struct sHeatmap HEATMAP;
 typedef struct sNswe NSWE;
 typedef struct sTrip TRIP;
 typedef struct sWorldCoord WORLDCOORD;
+typedef struct sWorldRegion WORLDREGION;	//this can be a linked list
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -73,11 +74,6 @@ struct sOptions	{	//what we can get from the command line
 
 	int forceheight;	//do we keep the height fixed when adjusting ratios? if 0 (default) we keep the width fixed
 
-/*	double west;
-	double east;
-	double north;
-	double south;
-*/
 	NSWE nswe;
 
 	double zoom;
@@ -102,6 +98,7 @@ struct sBitmap	{
 	int height;
 
 	double zoom;	//on a full map, this is the number of pixels per degree
+	NSWE nswe;	//this should be copied from options, and the BM keeps its own
 
 	OPTIONS *options;
 
@@ -154,6 +151,12 @@ struct sTrip	{
 };
 
 
+struct sWorldRegion	{
+	NSWE nswe;
+	COLOUR * baseColour;
+	WORLDREGION * next;	//next in the linked list
+};
+
 //int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 //The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
 //It can be Null, and it is ignored. It is NOT PRECISE.
@@ -173,12 +176,14 @@ COLOUR bitmapPixelGet(BM* bm, int x, int y);
 int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c);
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c);
+int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill);
 
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
+int DrawRegion(BM *bm, OPTIONS *o, WORLDREGION *r);
 int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);

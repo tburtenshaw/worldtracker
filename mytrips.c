@@ -71,6 +71,12 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	}
 
+	COLOUR cB;
+	COLOUR cF;
+	cB.R = cB.G = cB.B =255;	cB.A=200;
+	cF.R = cF.G = cF.B =255;	cF.A=100;
+	bitmapSquare(bm, 10,-30, 150,6500, &cB, &cF);
+
 	return 0;
 }
 
@@ -336,6 +342,7 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c)
 {
 	COLOUR currentC;
 
+	//should remove sanity testing from here as it's used often, needs to be checked by the calling function if required
 	if (x>bm->width-1)	return 0;
 	if (y>bm->height-1)	return 0;
 	if (x<0)	return 0;
@@ -368,13 +375,13 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 		return 1;
 	}
 
-//	if ((cBrush->A)==255)	{	//if the brush is completely opaque
-//		cCanvas->R = cBrush->R;
-//		cCanvas->G = cBrush->G;
-//		cCanvas->B = cBrush->B;
-//		cCanvas->A = 255;
-//		return 1;
-//	}
+	if ((cBrush->A)==255)	{	//if the brush is completely opaque
+		cCanvas->R = cBrush->R;
+		cCanvas->G = cBrush->G;
+		cCanvas->B = cBrush->B;
+		cCanvas->A = 255;
+		return 1;
+	}
 
 	//first work out the output alpha
 	a=cBrush->A + (cCanvas->A * (255 - cBrush->A))/255;	//proper way to do it, it's not simply additive
@@ -457,23 +464,31 @@ int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR
 	//Draw the border
 	if (cBorder)	{
 		//top border
-		y=y0;
-		for (x=x0;x<=x1;x++)	{
-			bitmapPixelSet(bm, x,y, cBorder);
+		if (y0>=0)	{	//if it starts within the canvas
+			y=y0;
+			for (x=x0;x<=x1;x++)	{	//draw the top line
+				bitmapPixelSet(bm, x,y, cBorder);
+			}
 		}
+		else	{	//otherwise set it to just outside
+			y0=-1;
+		}
+
 		//bottom border
-		y=y1;
-		for (x=x0;x<=x1;x++)	{
-			bitmapPixelSet(bm, x,y, cBorder);
-		}
+		if	(y1<bm->height)	{
+			y=y1;
+			for (x=x0;x<=x1;x++)	{
+				bitmapPixelSet(bm, x,y, cBorder);
+			}
+		} else y1=bm->height;	//again, just outside
 		//left border
 		x=x0;
-		for (y=y0;y<=y1;y++)	{
+		for (y=y0+1;y<y1;y++)	{	//note we don't have to redraw the very end pixel of the sides
 			bitmapPixelSet(bm, x,y, cBorder);
 		}
 		//right border
-		x=x0;
-		for (y=y0;y<=y1;y++)	{
+		x=x1;
+		for (y=y0+1;y<y1;y++)	{
 			bitmapPixelSet(bm, x,y, cBorder);
 		}
 	}
@@ -673,6 +688,15 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 
 
 	return 1;
+}
+
+int DrawRegion(BM *bm, WORLDREGION *r)
+{
+	double latspan, longspan;
+
+
+
+	return 0;
 }
 
 int bitmapWrite(BM *bm, char *filename)
