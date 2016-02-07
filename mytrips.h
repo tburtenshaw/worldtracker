@@ -12,6 +12,8 @@ typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
 typedef struct sHeatmap HEATMAP;
 typedef struct sNswe NSWE;
+typedef struct sTrip TRIP;
+typedef struct sWorldCoord WORLDCOORD;
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -48,6 +50,11 @@ struct sNswe	{
 	double north;
 	double south;
 
+};
+
+struct sWorldCoord	{
+	double latitude;
+	double longitude;
 };
 
 struct sOptions	{	//what we can get from the command line
@@ -139,6 +146,13 @@ struct sLocationHistory	{
 	LOCATION * last;
 };
 
+struct sTrip	{
+	TRIP * next;
+	int	direction;	//1 is a to b, -1 is b to a, 0 isn't decided
+	unsigned long	leavetime;
+	unsigned long	arrivetime;
+};
+
 
 //int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 //The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
@@ -154,11 +168,11 @@ int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 int WriteKMLFile(BM* bm);
 
 int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
-int bitmapPixelSet(BM* bm, int x, int y, COLOUR c);
+int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c);
 COLOUR bitmapPixelGet(BM* bm, int x, int y);
-int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c);
-int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c);
-int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c);
+int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c);
+int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c);
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c);
 
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
@@ -189,12 +203,18 @@ COLOUR MonthToRgb(long ts, COLOUR *colourPerMonthArrayOfTwelve);
 
 int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y);	//lat, long, output point
 
+int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe);
 int CopyNSWE(NSWE *dest, NSWE *src);
 
 double ipart(double x);
 double round(double x);
 double fpart(double x);
 double rfpart(double x);
-int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c);
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
 
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
+
+
+TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh);
+int ExportTripData(TRIP * trip, char * filename);
+int FreeLinkedListOfTrips(TRIP * trip);

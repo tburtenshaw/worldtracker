@@ -56,7 +56,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
 			//draw a line from last point to the current one.
-			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon,options->thickness, c);
+			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon,options->thickness, &c);
 			oldlat=coord->latitude;oldlon=coord->longitude;
 		}
 
@@ -121,8 +121,6 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	twofiftysixth = locationHistory->filesize/256;
 
 	while (ReadLocation(locationHistory, coord)==1)	{
-		//printf(" %i", ftell(locationHistory->json));
-
 
 		if (progressfn)	{
 			if (locationHistory->filepos > twofiftysixth * progress)	{
@@ -194,6 +192,28 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	}
 
 	fclose(locationHistory->json);
+
+/* TEMPORARY */
+	TRIP * trip;
+	NSWE home;
+	NSWE work;
+
+	home.north=-36.843975;
+	home.south=-36.857656;
+	home.west=174.757584;
+	home.east=174.774074;
+
+	work.north=-37.015956;
+	work.south=-37.025932;
+	work.west=174.889670;
+	work.east=174.903095;
+
+
+
+//	trip = GetLinkedListOfTrips(&home, &work, locationHistory);
+//	ExportTripData(trip, "histogram.txt");
+//	FreeLinkedListOfTrips(trip);
+
 	return 0;
 }
 
@@ -312,7 +332,7 @@ COLOUR bitmapPixelGet(BM* bm, int x, int y)
 	return c;
 }
 
-int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
+int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c)
 {
 	COLOUR currentC;
 
@@ -326,7 +346,7 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR c)
 	currentC.B = bm->bitmap[(x+y* bm->width) *4+2];
 	currentC.A = bm->bitmap[(x+y* bm->width) *4+3];
 
-	if (mixColours(&currentC, &c))	{
+	if (mixColours(&currentC, c))	{
 			memset(bm->bitmap + (x + y * bm->width) * 4+0,currentC.R,1);	//the *4 is the channels
 			memset(bm->bitmap + (x + y * bm->width) * 4+1,currentC.G,1);	//the *4 is the channels
 			memset(bm->bitmap + (x + y * bm->width) * 4+2,currentC.B,1);	//the *4 is the channels
@@ -347,8 +367,16 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 	if ((cBrush->A)==0)	{//if we're painting with a transparent brush, just return
 		return 1;
 	}
-	//first work out the output alpha
 
+//	if ((cBrush->A)==255)	{	//if the brush is completely opaque
+//		cCanvas->R = cBrush->R;
+//		cCanvas->G = cBrush->G;
+//		cCanvas->B = cBrush->B;
+//		cCanvas->A = 255;
+//		return 1;
+//	}
+
+	//first work out the output alpha
 	a=cBrush->A + (cCanvas->A * (255 - cBrush->A))/255;	//proper way to do it, it's not simply additive
 	if (a>255)
 			a = 255;
@@ -396,7 +424,7 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 
 }
 
-int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)
+int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c)
 {
 	int row,col;
 	double distance, diff;
@@ -407,7 +435,7 @@ int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)
 			distance = sqrt((x-col) *(x-col) + (y-row)*(y-row));
 			//diff = rsquared-distancesquared;
 			//printf("diff: %.2f\tdist:%.2f\t r%i\tc%i\r\n",diff, distancesquared, row, col);
-			c.R=c.B; c.A=120;
+			//c.R=c.B; c.A=120;
 			if (distance<=radius-1)
 				plot(bm,col,row,255,c);
 			else if (distance<radius)	{
@@ -422,7 +450,46 @@ int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR c)
 	return 1;
 }
 
-int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR c)
+int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill)
+{
+	int x,y;
+
+	//Draw the border
+	if (cBorder)	{
+		//top border
+		y=y0;
+		for (x=x0;x<=x1;x++)	{
+			bitmapPixelSet(bm, x,y, cBorder);
+		}
+		//bottom border
+		y=y1;
+		for (x=x0;x<=x1;x++)	{
+			bitmapPixelSet(bm, x,y, cBorder);
+		}
+		//left border
+		x=x0;
+		for (y=y0;y<=y1;y++)	{
+			bitmapPixelSet(bm, x,y, cBorder);
+		}
+		//right border
+		x=x0;
+		for (y=y0;y<=y1;y++)	{
+			bitmapPixelSet(bm, x,y, cBorder);
+		}
+	}
+
+	if (cFill)	{
+		for (x=x0+1;x<x1;x++)	{
+			for (y=y0+1;y<y1;y++)	{
+				bitmapPixelSet(bm, x,y, cFill);
+			}
+		}
+	}
+
+	return 1;
+}
+
+int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c)
 {
 	int steep;
 	double tempdouble;
@@ -546,7 +613,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	return 1;
 }
 
-int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR c)
+int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c)
 {
 	double tempdouble;
 	double dx,dy;
@@ -650,25 +717,34 @@ double rfpart(double x)
 }
 
 
-int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR c)
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c)	//plot will plot a colour with an alpha (used for aliasing)
 {
 	if (cchar==0)	{	//don't bother if it's completely transparent
 		return 0;
 	}
-	if (c.A==0)
+	if (c->A==0)
 		return 0;
 
-			unsigned int cint;
-			cint = cchar;
-			cint *=c.A;
-			cint /=256;
-			c.A=(char)cint;
+	if (cchar==255)	{	//if the alpha is full.
+		 bitmapPixelSet(bm, x, y, c);
+		 return 1;
+	}
 
-		 	//c.A=(doublec*c.A)/256;
-			//printf("c.A %f\t %i\r\n",doublec, c.A);
-		 	bitmapPixelSet(bm, x, y, c);
 
-//printf("x %i y%i c%f \r\n",x,y,doublec);
+	COLOUR fadedColour;
+//	unsigned int cint;
+//	cint = cchar;
+//	cint *=c->A;
+//	cint /=256;
+//	fadedColour.A=(char)cint;
+
+	fadedColour.R=c->R;
+	fadedColour.G=c->G;
+	fadedColour.B=c->B;
+	fadedColour.A=c->A*cchar/255;
+
+
+ 	bitmapPixelSet(bm, x, y, &fadedColour);
 
 
 return 1;
@@ -784,9 +860,9 @@ int HeatmapToBitmap(BM *bm)
 				//hue=(unsigned char)huecalc;
 //				printf("%4.2f %4.2f %i\r\n", log((double)hm->heatmappixels[x+y* hm->width]), log((double)hm->maxtemp), hue);
 
-				bitmapPixelSet(bm, x, y, HeatmapColour(
-					HeatmapIntToCharNormalisedLog(hm->heatmappixels[x + y*hm->width] * (2^16-1)/hm->maxtemp)
-					));
+//				bitmapPixelSet(bm, x, y, HeatmapColour(
+//					HeatmapIntToCharNormalisedLog(hm->heatmappixels[x + y*hm->width] * (2^16-1)/hm->maxtemp)
+//					));
 			}
 		}
 	}
@@ -1001,14 +1077,14 @@ int DrawGrid(BM* bm)
 		LatLongToXY(bm, lat, -180, &x1, &y1);
 		LatLongToXY(bm, lat, 180, &x2, &y2);
 //		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, &c);
 	}
 
 	for (lon=-180+spacing; lon<180; lon+=spacing)	{
 		LatLongToXY(bm, -90, lon, &x1, &y1);
 		LatLongToXY(bm, 90, lon, &x2, &y2);
 //		printf("%f %f; %f %f\r\n",x1,y1,x2,y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, &c);
 	}
 
 
@@ -1016,10 +1092,10 @@ int DrawGrid(BM* bm)
 		lat=0;
 		LatLongToXY(bm, lat, -180, &x1, &y1);
 		LatLongToXY(bm, lat, 180, &x2, &y2);
-		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, c);
+		bitmapLineDrawWu(bm, x1,y1,x2,y2,1, &c);
 		c.A=c.A*0.8;
-		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1,1, c);
-		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1,1, c);
+		bitmapLineDrawWu(bm, x1,y1-1,x2,y2-1,1, &c);
+		bitmapLineDrawWu(bm, x1,y1+1,x2,y2+1,1, &c);
 
 	return 0;
 }
@@ -1032,7 +1108,7 @@ int ColourWheel(BM* bm, int x, int y, int r, int steps)
 	if (steps<1) return 1;
  	for (i=0;i<360;i+=steps) {
  		c=HsvToRgb(i*255/360,255,255,255);
-	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),1,c);
+	 	bitmapLineDrawWu(bm, x,y,x+r*sin(i*PI/180),y+r*cos(i*PI/180),1,&c);
  	}
 
 	return 0;
@@ -1201,4 +1277,121 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 	//this just does n=n, e=e, etc.
 	memcpy(dest, src, sizeof(*dest));
 	return 0;
+}
+
+
+TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
+{
+	LOCATION *loc;
+	WORLDCOORD coord;
+
+	int dir;
+
+	TRIP * trip;
+	TRIP * oldtrip;
+	TRIP *firsttrip;
+
+	long leavetime;
+
+	leavetime=0;
+	trip=NULL;
+	oldtrip=NULL;
+	firsttrip=NULL;
+
+	dir = 0;
+	loc=lh->first;
+	while (loc)	{
+		coord.latitude = loc->latitude;
+		coord.longitude = loc->longitude;
+
+		if (CoordInNSWE(&coord, a))	{
+			if (dir<1)	{
+				trip = malloc(sizeof(TRIP));
+				trip->next=NULL;
+				if (!firsttrip)	firsttrip=trip;
+				if (oldtrip)	oldtrip->next=trip;
+				trip->arrivetime = loc->timestampS;
+				trip->leavetime = leavetime;
+				trip->direction=dir;
+				oldtrip=trip;
+				dir =1;
+			}
+			else	{
+				leavetime=loc->timestampS;
+			}
+		}
+
+		else if (CoordInNSWE(&coord, b))	{
+			if (dir>-1)	{
+				trip = malloc(sizeof(TRIP));
+				trip->next=NULL;
+				if (!firsttrip)	firsttrip=trip;
+				if (oldtrip)	oldtrip->next=trip;
+				trip->arrivetime = loc->timestampS;
+				trip->leavetime = leavetime;
+				trip->direction=dir;
+				oldtrip=trip;
+				dir =-1;
+			}
+			else	{
+				leavetime=loc->timestampS;
+			}
+		}
+
+
+		loc=loc->next;
+	}
+
+	return firsttrip;
+}
+
+int ExportTripData(TRIP * trip, char * filename)
+{
+	FILE *f;
+	struct tm leavetime;
+	struct tm arrivetime;
+
+	f=fopen(filename, "w");
+	if (!f) return 0;
+	fprintf(f, "leavetime,arrivetime,seconds, direction,year,month,dayofmonth,dayofweek,hour,minute\r\n");
+	while (trip)	{
+		if (trip->direction!=0)	{
+			localtime_s(&trip->leavetime, &leavetime);
+			localtime_s(&trip->arrivetime, &arrivetime);
+
+			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime- trip->arrivetime, trip->direction,
+				leavetime.tm_year,leavetime.tm_mon,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min);
+		}
+		trip=trip->next;
+	}
+	fclose(f);
+
+	return 0;
+
+}
+
+int FreeLinkedListOfTrips(TRIP * trip)
+{
+	TRIP * remembertrip;
+	while (trip)	{
+		remembertrip = trip;
+		free(trip);
+		trip=remembertrip->next;
+	}
+	return 0;
+}
+
+int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region?
+{
+	if (coord->latitude > nswe->north)
+		return 0;
+	if (coord->latitude < nswe->south)
+		return 0;
+	if (coord->longitude < nswe->west)
+		return 0;
+	if (coord->longitude > nswe->east)
+		return 0;
+
+
+	return 1;
 }
