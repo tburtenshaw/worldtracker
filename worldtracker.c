@@ -121,6 +121,9 @@ BOOL mouseDragOverview;
 BOOL mouseDragPreview;
 BOOL mouseDragCropbar;	//in the preview
 
+WORLDREGION regionHome;
+WORLDREGION regionAway;
+
 //Options are still based on the command line program
 OPTIONS optionsOverview;
 OPTIONS optionsPreview;
@@ -157,7 +160,6 @@ OPTIONS optionsBackground;
 HBITMAP hbmBackground;
 int BltNsweFromBackground(HDC hdc, NSWE * d, int height, int width, OPTIONS * oBkgrnd);
 int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * lh);
-
 
 time_t RoundTimeUp(time_t s);
 time_t RoundTimeDown(time_t s);
@@ -1775,6 +1777,30 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
 
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
+
+
+	regionHome.baseColour.R = 255;
+	regionHome.baseColour.G = 209;
+	regionHome.baseColour.B = 220;
+	regionHome.baseColour.A=200;
+	regionHome.nswe.north=-36.843975;
+	regionHome.nswe.south=-36.857656;
+	regionHome.nswe.west=174.757584;
+	regionHome.nswe.east=174.774074;
+	DrawRegion(&previewBM, &regionHome);
+
+	regionAway.baseColour.R = 253;
+	regionAway.baseColour.G = 253;
+	regionAway.baseColour.B = 150;
+	regionAway.baseColour.A=200;
+	regionAway.nswe.north=-37.015956;
+	regionAway.nswe.south=-37.025932;
+	regionAway.nswe.west=174.889670;
+	regionAway.nswe.east=174.903095;
+	DrawRegion(&previewBM, &regionAway);
+
+
+
 
 
 	printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);

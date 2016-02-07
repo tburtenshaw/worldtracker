@@ -23,8 +23,10 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	oldlat=1000;oldlon=1000;
 	bm->countPoints=0;
 
-	options->zoom=options->width/(options->nswe.east-options->nswe.west);
-	bm->zoom = options->zoom;
+	//options->zoom=options->width/(options->nswe.east-options->nswe.west);
+	//bm->zoom = options->zoom;
+
+	bm->zoom = bm->width/(bm->nswe.east-bm->nswe.west);
 
 	coord=locationHistory->first;
 
@@ -71,11 +73,6 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	}
 
-	COLOUR cB;
-	COLOUR cF;
-	cB.R = cB.G = cB.B =255;	cB.A=200;
-	cF.R = cF.G = cF.B =255;	cF.A=100;
-	bitmapSquare(bm, 10,-30, 150,6500, &cB, &cF);
 
 	return 0;
 }
@@ -216,9 +213,9 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 
 
-//	trip = GetLinkedListOfTrips(&home, &work, locationHistory);
-//	ExportTripData(trip, "histogram.txt");
-//	FreeLinkedListOfTrips(trip);
+	trip = GetLinkedListOfTrips(&home, &work, locationHistory);
+	ExportTripData(trip, "histogram.txt");
+	FreeLinkedListOfTrips(trip);
 
 	return 0;
 }
@@ -298,14 +295,15 @@ int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
 };
 
 
-int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)
+int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)	//set up the bitmap, and copy over all the critical options
 {
 	char* bitmap;
 
 	bm->width=options->width;
 	bm->height=options->height;
 	bm->sizebitmap=options->width*options->height*4;
-	bm->zoom=options->zoom;
+	//bm->zoom=options->zoom;
+	CopyNSWE(&bm->nswe, &options->nswe);
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
 
@@ -643,10 +641,10 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 	//if it's flagged not to draw then return
 	if (lon2>360 || lon1>360) return 0;
 	//if the line is obviously out of the bounds of the bitmap then can return
-	if ((lon1 < bm->options->nswe.west) && (lon2 < bm->options->nswe.west))	return 0;
-	if ((lon1 > bm->options->nswe.east) && (lon2 > bm->options->nswe.east))	return 0;
-	if ((lat1 < bm->options->nswe.south) && (lat2 < bm->options->nswe.south))	return 0;
-	if ((lat1 > bm->options->nswe.north) && (lat2 > bm->options->nswe.north))	return 0;
+	if ((lon1 < bm->nswe.west) && (lon2 < bm->nswe.west))	return 0;
+	if ((lon1 > bm->nswe.east) && (lon2 > bm->nswe.east))	return 0;
+	if ((lat1 < bm->nswe.south) && (lat2 < bm->nswe.south))	return 0;
+	if ((lat1 > bm->nswe.north) && (lat2 > bm->nswe.north))	return 0;
 
 
 	LatLongToXY(bm, lat1, lon1, &x1,&y1);
@@ -692,7 +690,21 @@ int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, 
 
 int DrawRegion(BM *bm, WORLDREGION *r)
 {
-	double latspan, longspan;
+
+	double x0, y0;
+	double x1, y1;
+	COLOUR cFill;
+
+	LatLongToXY(bm, r->nswe.north, r->nswe.west, &x0, &y0);
+	LatLongToXY(bm, r->nswe.south, r->nswe.east, &x1, &y1);
+
+
+	cFill.R = r->baseColour.R;
+	cFill.G = r->baseColour.G;
+	cFill.B = r->baseColour.B;
+	cFill.A = r->baseColour.A*0.8;
+
+	bitmapSquare(bm, x0,y0, x1,y1, &r->baseColour, &cFill);
 
 
 
@@ -780,8 +792,8 @@ int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 	width = bm->width;
 	height = bm->height;
 
-	*y=(bm->options->nswe.north - phi)/(bm->options->nswe.north - bm->options->nswe.south)*height;
-	*x=(lambda - bm->options->nswe.west)/(bm->options->nswe.east - bm->options->nswe.west)*width;
+	*y=(bm->nswe.north - phi)/(bm->nswe.north - bm->nswe.south)*height;
+	*x=(lambda - bm->nswe.west)/(bm->nswe.east - bm->nswe.west)*width;
 
 	return 0;
 }
@@ -1165,10 +1177,10 @@ int WriteKMLFile(BM* bm)
 	fprintf(kml, "</description>\r\n");
 	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",pngnameNoDirectory);
     fprintf(kml, "<LatLonBox>\r\n");
-	fprintf(kml, "<north>%f</north>\r\n",bm->options->nswe.north);
-	fprintf(kml, "<south>%f</south>\r\n",bm->options->nswe.south);
-	fprintf(kml, "<east>%f</east>\r\n",bm->options->nswe.east);
-	fprintf(kml, "<west>%f</west>\r\n",bm->options->nswe.west);
+	fprintf(kml, "<north>%f</north>\r\n",bm->nswe.north);
+	fprintf(kml, "<south>%f</south>\r\n",bm->nswe.south);
+	fprintf(kml, "<east>%f</east>\r\n",bm->nswe.east);
+	fprintf(kml, "<west>%f</west>\r\n",bm->nswe.west);
 	fprintf(kml, "<rotation>0</rotation>\r\n");
 	fprintf(kml, "</LatLonBox>\r\n");
 	fprintf(kml, "</GroundOverlay>\r\n");
@@ -1369,8 +1381,9 @@ TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
 	return firsttrip;
 }
 
-int ExportTripData(TRIP * trip, char * filename)
+int ExportTripData(TRIP * firsttrip, char * filename)
 {
+	TRIP * trip;
 	FILE *f;
 	struct tm leavetime;
 	struct tm arrivetime;
@@ -1378,6 +1391,8 @@ int ExportTripData(TRIP * trip, char * filename)
 	f=fopen(filename, "w");
 	if (!f) return 0;
 	fprintf(f, "leavetime,arrivetime,seconds, direction,year,month,dayofmonth,dayofweek,hour,minute\r\n");
+
+	trip=firsttrip;
 	while (trip)	{
 		if (trip->direction!=0)	{
 			localtime_s(&trip->leavetime, &leavetime);
@@ -1396,11 +1411,13 @@ int ExportTripData(TRIP * trip, char * filename)
 
 int FreeLinkedListOfTrips(TRIP * trip)
 {
-	TRIP * remembertrip;
+	TRIP * nexttrip;
+	nexttrip=trip;
+
 	while (trip)	{
-		remembertrip = trip;
+		nexttrip=trip->next;
 		free(trip);
-		trip=remembertrip->next;
+		trip=nexttrip;
 	}
 	return 0;
 }

@@ -153,7 +153,7 @@ struct sTrip	{
 
 struct sWorldRegion	{
 	NSWE nswe;
-	COLOUR * baseColour;
+	COLOUR baseColour;
 	WORLDREGION * next;	//next in the linked list
 };
 
@@ -183,7 +183,7 @@ int bitmapDestroy(BM* bm);
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
-int DrawRegion(BM *bm, OPTIONS *o, WORLDREGION *r);
+int DrawRegion(BM *bm, WORLDREGION *r);
 int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
@@ -194,8 +194,6 @@ int HeatmapToBitmap(BM *bm);
 int HeatmapPlot(BM* bm, LOCATIONHISTORY*lh);
 unsigned char HeatmapIntToCharNormalisedLog(unsigned int Temp);
 COLOUR HeatmapColour(unsigned char normalisedtemp);
-
-
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 //COLOUR TimestampToRgb(long ts, long min, long max);
