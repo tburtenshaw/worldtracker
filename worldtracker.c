@@ -521,6 +521,8 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		case IDM_CLOSE:
 			FreeLocations(&locationHistory);
 			memset(&locationHistory,0,sizeof(locationHistory));
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 		break;
 
 		case IDM_EXIT:
@@ -1584,6 +1586,10 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			CreatePreviewCropbarWindows(hwnd);	//creates the child windows we'll use to help crop the frame
 			break;
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
+
+    		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe,NULL,0), 0, 0);
+    		//UpdateStatusBar("test", 0, 0);
+
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
 			SetTimer(hwnd, IDT_PREVIEWTIMER, 100, NULL);	//200 is good without threads
 			//int w,h;
@@ -1935,8 +1941,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		//Now the right hand side
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 		y=MARGIN;
-		hwndStaticExportHeading = CreateWindow("Static","Export information", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
 		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE |WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+MARGIN;
 		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
@@ -2701,9 +2705,11 @@ LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
 			CreateWindow("BUTTON","1 day", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEDAY, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
-			CreateWindow("BUTTON","1 week", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEWEEK, hInst, NULL);
+			HWND hwndRadioOneWeek;
+			hwndRadioOneWeek = CreateWindow("BUTTON","1 week", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEWEEK, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
 			CreateWindow("BUTTON","1 year", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEYEAR, hInst, NULL);
+			SendMessage(hwndRadioOneWeek, BM_SETCHECK, BST_CHECKED,0);
 
 			break;
 		case WM_COMMAND:	//pass any edits to the parent window that'll handle it

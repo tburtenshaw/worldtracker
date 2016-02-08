@@ -15,6 +15,7 @@ typedef struct sNswe NSWE;
 typedef struct sTrip TRIP;
 typedef struct sWorldCoord WORLDCOORD;
 typedef struct sWorldRegion WORLDREGION;	//this can be a linked list
+typedef struct sPreset PRESET;
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -157,6 +158,12 @@ struct sWorldRegion	{
 	WORLDREGION * next;	//next in the linked list
 };
 
+struct sPreset	{
+	char * name;
+	char * abbrev;
+	NSWE nswe;
+};
+
 //int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 //The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
 //It can be Null, and it is ignored. It is NOT PRECISE.
@@ -165,6 +172,7 @@ int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
 int LoadPreset(OPTIONS *options, char *preset);
+char * SuggestAreaFromNSWE(NSWE* viewport, PRESET * presetarray, int numberofpresets);
 int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
@@ -208,6 +216,8 @@ int LatLongToXY(BM *bm, double latitude, double longitude, double *x, double *y)
 
 int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe);
 int CopyNSWE(NSWE *dest, NSWE *src);
+void IntersectionOfNSWEs(NSWE *output, NSWE *d1, NSWE *d2);
+double AreaOfNSWE(NSWE *nswe);
 
 double ipart(double x);
 double round(double x);
