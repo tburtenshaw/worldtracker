@@ -200,6 +200,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	TRIP * trip;
 	NSWE home;
 	NSWE work;
+	WORLDREGION exc;
+	WORLDREGION exc2;
 
 	home.north=-36.843975;
 	home.south=-36.857656;
@@ -211,10 +213,20 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	work.west=174.889670;
 	work.east=174.903095;
 
+	exc.next=&exc2;
+	exc.nswe.north = -36.865730;
+	exc.nswe.south =-37.087670;
+	exc.nswe.west =174.966750;
+	exc.nswe.east =175.095146;
 
+	exc2.nswe.north =-36.804920;
+	exc2.nswe.south =-36.885830;
+	exc2.nswe.west =174.822950;
+	exc2.nswe.east =174.924479;
+	exc2.next= NULL;
 
-	trip = GetLinkedListOfTrips(&home, &work, locationHistory);
-	ExportTripData(trip, "histogram.txt");
+	trip = GetLinkedListOfTrips(&home, &work, &exc, locationHistory);
+	ExportTripData(trip, "histogram.csv");
 	FreeLinkedListOfTrips(trip);
 
 	return 0;
@@ -1264,6 +1276,8 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="greatlakes";preset[i].nswe.north=51;preset[i].nswe.south=41;preset[i].nswe.west=-93;preset[i].nswe.east=-75;preset[i].name="The Great Lakes";i++;
 	preset[i].abbrev="centralamerica";preset[i].nswe.north=18.6;preset[i].nswe.south=7;preset[i].nswe.west=-92.5;preset[i].nswe.east=-77;preset[i].name="Central America";i++;
 	preset[i].abbrev="pt";preset[i].nswe.north=42.2;preset[i].nswe.south=36.9;preset[i].nswe.west=-9.6;preset[i].nswe.east=-6;preset[i].name="Portugal";i++;
+	preset[i].abbrev="amsterdam";preset[i].nswe.north=52.46;preset[i].nswe.south=52.25;preset[i].nswe.west=4.58;preset[i].nswe.east=5.085;preset[i].name="Amsterdam";i++;
+	preset[i].abbrev="northafrica";preset[i].nswe.north=37.4;preset[i].nswe.south=11;preset[i].nswe.west=-18;preset[i].nswe.east=39;preset[i].name="North Africa";i++;
 	*pCount=i;
 	return;
 }
@@ -1271,7 +1285,6 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets)
 {
 	int i;
-
 
 	for (i=0;i<numberofpresets;i++)	{
 		if (!stricmp(lookuppreset, presetarray[i].name))	{
@@ -1384,7 +1397,7 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 }
 
 
-TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
+TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
 {
 	LOCATION *loc;
 	WORLDCOORD coord;
@@ -1395,6 +1408,9 @@ TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
 	TRIP * oldtrip;
 	TRIP *firsttrip;
 
+	WORLDREGION *firstexcludedRegion;
+	WORLDREGION * exc;
+
 	long leavetime;
 
 	leavetime=0;
@@ -1402,13 +1418,24 @@ TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
 	oldtrip=NULL;
 	firsttrip=NULL;
 
+	firstexcludedRegion=excludedRegions;
+
 	dir = 0;
 	loc=lh->first;
 	while (loc)	{
 		coord.latitude = loc->latitude;
 		coord.longitude = loc->longitude;
 
-		if (CoordInNSWE(&coord, a))	{
+		//go through all the exclusion areas.
+		exc = firstexcludedRegion;
+		while (exc)	{
+			if (CoordInNSWE(&coord, &exc->nswe))	{
+				dir = 0;
+			}
+			exc = exc->next;
+		}
+
+		if (CoordInNSWE(&coord, home))	{
 			if (dir<1)	{
 				trip = malloc(sizeof(TRIP));
 				trip->next=NULL;
@@ -1425,7 +1452,7 @@ TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh)
 			}
 		}
 
-		else if (CoordInNSWE(&coord, b))	{
+		else if (CoordInNSWE(&coord, away))	{
 			if (dir>-1)	{
 				trip = malloc(sizeof(TRIP));
 				trip->next=NULL;
@@ -1458,7 +1485,7 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 
 	f=fopen(filename, "w");
 	if (!f) return 0;
-	fprintf(f, "leavetime,arrivetime,seconds, direction,year,month,dayofmonth,dayofweek,hour,minute\r\n");
+	fprintf(f, "leavetime,arrivetime,seconds, direction,leavingyear,month,dayofmonth,dayofweek,hour,minute\r\n");
 
 	trip=firsttrip;
 	while (trip)	{
@@ -1466,8 +1493,9 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 			localtime_s(&trip->leavetime, &leavetime);
 			localtime_s(&trip->arrivetime, &arrivetime);
 
-			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime- trip->arrivetime, trip->direction,
-				leavetime.tm_year,leavetime.tm_mon,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min);
+			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime- trip->arrivetime, trip->direction,
+				leavetime.tm_year+1900,leavetime.tm_mon+1,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min,
+				arrivetime.tm_year+1900,arrivetime.tm_mon+1,arrivetime.tm_mday,arrivetime.tm_wday,arrivetime.tm_hour,arrivetime.tm_min);
 		}
 		trip=trip->next;
 	}

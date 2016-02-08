@@ -214,27 +214,30 @@ void InitializeStatusBar(HWND hwndParent,int nrOfParts)
     //const int cSpaceInBetween = 8;
 	int   ptArray[3];   // Array defining the number of parts/sections
     RECT  rect;
-    HDC   hDC;
 
    /* * Fill in the ptArray...  */
 
-    hDC = GetDC(hwndParent);
+//    hDC = GetDC(hwndParent);
     GetClientRect(hwndParent, &rect);
 
     ptArray[0] = rect.right/2;
-    ptArray[1] = rect.right;
+    ptArray[1] = rect.right*3/4;
+	ptArray[2] = rect.right;
     //---TODO--- Add code to calculate the size of each part of the status
     // bar here.
 
-    ReleaseDC(hwndParent, hDC);
-    SendMessage(hWndStatusbar, SB_SETPARTS, nrOfParts, (LPARAM)(LPINT)ptArray);
-    UpdateStatusBar("Ready", 0, 0);
-    //---TODO--- Add code to update all fields of the status bar here.
-    // As an example, look at the calls commented out below.
 
-//    UpdateStatusBar("Cursor Pos:", 1, SBT_POPOUT);
-//    UpdateStatusBar("Time:", 3, SBT_POPOUT);
+	SendMessage(hWndStatusbar, SB_SETPARTS, nrOfParts, (LPARAM)(LPINT)ptArray);
+	SendMessage(hWndStatusbar, SB_SIMPLE, FALSE, 0);
+    UpdateStatusBar("Ready", 0, 0);
+//    UpdateStatusBar("2", 1, 0);
+//    UpdateStatusBar("3", 2, 0);
+
+//	SendMessage(hWndStatusbar, SB_SETTEXT,1, (LPARAM)L"Ready");
+
+//    ReleaseDC(hwndParent, hDC);
 }
+
 
 
 static BOOL CreateSBar(HWND hwndParent,char *initialText,int nrOfParts)
@@ -1595,7 +1598,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			break;
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 
-    		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe, presetArray, numberOfPresets), 0, 0);
+    		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe, presetArray, numberOfPresets), 1, SBT_POPOUT);
     		//UpdateStatusBar("test", 0, 0);
 
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
@@ -1868,8 +1871,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		int y=MARGIN;
 		int x=MARGIN;
 		//now create child windows
-		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
+//		hwndStaticFilename =CreateWindow("Static","Filename:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+//		y+=MARGIN+TEXT_HEIGHT;
 		//overview Window
 		hwndOverview = CreateWindow("OverviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER|WS_CLIPCHILDREN, x, y ,OVERVIEW_WIDTH, OVERVIEW_HEIGHT, hwnd,NULL,hInst,NULL);
 		y+=MARGIN+OVERVIEW_HEIGHT;
@@ -1949,15 +1952,15 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		//Now the right hand side
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 		y=MARGIN;
-		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE |WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndStaticExportHeight = CreateWindow("Static","Height:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
-		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
+//		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE |WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+//		x+=TEXT_WIDTH_QUARTER+MARGIN;
+//		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
+//		x+=TEXT_WIDTH_QUARTER+MARGIN;
+//		hwndStaticExportHeight = CreateWindow("Static","Height:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+//		x+=TEXT_WIDTH_QUARTER+MARGIN;
+//		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
+//		y+=MARGIN+TEXT_HEIGHT;
+//		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
@@ -1966,7 +1969,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 	case WM_SIZE:
 		SendMessage(hWndStatusbar,msg,wParam,lParam);
-		InitializeStatusBar(hWndStatusbar,1);
+		InitializeStatusBar(hWndStatusbar,3);
 		PreviewWindowFitToAspectRatio(hwnd, HIWORD(lParam), LOWORD(lParam), (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
 		break;
 	case WM_MENUSELECT:
@@ -2096,7 +2099,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	InitializeCriticalSection(&critAccessPreviewHBitmap);
 	hAccelTable = LoadAccelerators(hInst,MAKEINTRESOURCE(IDACCEL));
 	hWndMain = CreateWindow("worldtrackerWndClass","WorldTracker", WS_MINIMIZEBOX|WS_VISIBLE|WS_CLIPSIBLINGS|WS_CLIPCHILDREN|WS_MAXIMIZEBOX|WS_CAPTION|WS_BORDER|WS_SYSMENU|WS_THICKFRAME,		CW_USEDEFAULT,0,CW_USEDEFAULT,0,		NULL,		NULL,		hInst,		NULL);
-	CreateSBar(hWndMain,"Ready",2);
+	CreateSBar(hWndMain,"Ready",3);
 	ShowWindow(hWndMain,SW_SHOW);
 	while (GetMessage(&msg,NULL,0,0)) {
 		if (!TranslateAccelerator(msg.hwnd,hAccelTable,&msg)) {

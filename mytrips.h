@@ -229,6 +229,6 @@ int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
 
 
-TRIP * GetLinkedListOfTrips(NSWE * a, NSWE * b, LOCATIONHISTORY *lh);
+TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh);
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);
