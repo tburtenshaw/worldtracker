@@ -1192,70 +1192,93 @@ int WriteKMLFile(BM* bm)
 }
 
 
-int LoadPreset(OPTIONS *options, char *lookuppreset)
+void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 {
-
-	PRESET preset[47];
-
-preset[0].abbrev="nz";preset[0].nswe.north=-34;preset[0].nswe.south=-47.5;preset[0].nswe.west=166;preset[0].nswe.east=178.5;preset[0].name="nz";
-preset[1].abbrev="northisland";preset[1].nswe.north=-34.37;preset[1].nswe.south=-41.62;preset[1].nswe.west=172.6;preset[1].nswe.east=178.6;preset[1].name="northisland";
-preset[2].abbrev="auckland";preset[2].nswe.north=-36.7;preset[2].nswe.south=-37.1;preset[2].nswe.west=174.5;preset[2].nswe.east=175;preset[2].name="auckland";
-preset[3].abbrev="aucklandcentral";preset[3].nswe.north=-36.835;preset[3].nswe.south=-36.935;preset[3].nswe.west=174.69;preset[3].nswe.east=174.89;preset[3].name="aucklandcentral";
-preset[4].abbrev="tauranga";preset[4].nswe.north=-37.6;preset[4].nswe.south=-37.76;preset[4].nswe.west=176.07;preset[4].nswe.east=176.36;preset[4].name="tauranga";
-preset[5].abbrev="wellington";preset[5].nswe.north=-41.06;preset[5].nswe.south=-41.4;preset[5].nswe.west=174.6;preset[5].nswe.east=175.15;preset[5].name="wellington";
-preset[6].abbrev="christchurch";preset[6].nswe.north=-43.43;preset[6].nswe.south=-43.62;preset[6].nswe.west=172.5;preset[6].nswe.east=172.81;preset[6].name="christchurch";
-preset[7].abbrev="queenstown";preset[7].nswe.north=-44.5;preset[7].nswe.south=-45.6;preset[7].nswe.west=168;preset[7].nswe.east=169.5;preset[7].name="queenstown";
-preset[8].abbrev="dunedin";preset[8].nswe.north=-45.7;preset[8].nswe.south=-45.95;preset[8].nswe.west=170.175;preset[8].nswe.east=170.755;preset[8].name="dunedin";
-preset[9].abbrev="au";preset[9].nswe.north=-10.5;preset[9].nswe.south=-44;preset[9].nswe.west=112;preset[9].nswe.east=154;preset[9].name="au";
-preset[10].abbrev="queensland";preset[10].nswe.north=-9.5;preset[10].nswe.south=-29;preset[10].nswe.west=138;preset[10].nswe.east=154;preset[10].name="queensland";
-preset[11].abbrev="sydney";preset[11].nswe.north=-33.57;preset[11].nswe.south=-34.14;preset[11].nswe.west=150.66;preset[11].nswe.east=151.35;preset[11].name="sydney";
-preset[12].abbrev="asia";preset[12].nswe.north=58;preset[12].nswe.south=-11;preset[12].nswe.west=67;preset[12].nswe.east=155;preset[12].name="asia";
-preset[13].abbrev="hk";preset[13].nswe.north=23.2;preset[13].nswe.south=21.8;preset[13].nswe.west=112.8;preset[13].nswe.east=114.7;preset[13].name="hk";
-preset[14].abbrev="sg";preset[14].nswe.north=1.51;preset[14].nswe.south=1.15;preset[14].nswe.west=103.6;preset[14].nswe.east=104.1;preset[14].name="sg";
-preset[15].abbrev="in";preset[15].nswe.north=37;preset[15].nswe.south=6;preset[15].nswe.west=67.65;preset[15].nswe.east=92.56;preset[15].name="in";
-preset[16].abbrev="jp";preset[16].nswe.north=45.75;preset[16].nswe.south=30.06;preset[16].nswe.west=128.35;preset[16].nswe.east=149.09;preset[16].name="jp";
-preset[17].abbrev="europe";preset[17].nswe.north=55;preset[17].nswe.south=36;preset[17].nswe.west=-10;preset[17].nswe.east=32;preset[17].name="europe";
-preset[18].abbrev="es";preset[18].nswe.north=44;preset[18].nswe.south=35;preset[18].nswe.west=-10.0;preset[18].nswe.east=5;preset[18].name="es";
-preset[19].abbrev="it";preset[19].nswe.north=47;preset[19].nswe.south=36.5;preset[19].nswe.west=6.6;preset[19].nswe.east=19;preset[19].name="it";
-preset[20].abbrev="venice";preset[20].nswe.north=45.6;preset[20].nswe.south=45.3;preset[20].nswe.west=12.1;preset[20].nswe.east=12.6;preset[20].name="venice";
-preset[21].abbrev="fr";preset[21].nswe.north=51.2;preset[21].nswe.south=42.2;preset[21].nswe.west=-5.5;preset[21].nswe.east=8.5;preset[21].name="fr";
-preset[22].abbrev="paris";preset[22].nswe.north=49.1;preset[22].nswe.south=48.5;preset[22].nswe.west=1.8;preset[22].nswe.east=2.8;preset[22].name="paris";
-preset[23].abbrev="uk";preset[23].nswe.north=60;preset[23].nswe.south=50;preset[23].nswe.west=-10.5;preset[23].nswe.east=2;preset[23].name="uk";
-preset[24].abbrev="scandinaviabaltic";preset[24].nswe.north=71.5;preset[24].nswe.south=53.5;preset[24].nswe.west=4.3;preset[24].nswe.east=41.7;preset[24].name="scandinaviabaltic";
-preset[25].abbrev="is";preset[25].nswe.north=66.6;preset[25].nswe.south=63.2;preset[25].nswe.west=-13.5;preset[25].nswe.east=-24.6;preset[25].name="is";
-preset[26].abbrev="cz";preset[26].nswe.north=51.1;preset[26].nswe.south=48.5;preset[26].nswe.west=12;preset[26].nswe.east=18.9;preset[26].name="cz";
-preset[27].abbrev="prague";preset[27].nswe.north=50.178;preset[27].nswe.south=49.941;preset[27].nswe.west=14.246;preset[27].nswe.east=14.709;preset[27].name="prague";
-preset[28].abbrev="vienna";preset[28].nswe.north=48.3;preset[28].nswe.south=48.12;preset[28].nswe.west=16.25;preset[28].nswe.east=16.55;preset[28].name="vienna";
-preset[29].abbrev="turkeygreece";preset[29].nswe.north=42.294;preset[29].nswe.south=34.455;preset[29].nswe.west=19.33;preset[29].nswe.east=45.09;preset[29].name="turkeygreece";
-preset[30].abbrev="istanbul";preset[30].nswe.north=41.3;preset[30].nswe.south=40.7;preset[30].nswe.west=28.4;preset[30].nswe.east=29.7;preset[30].name="istanbul";
-preset[31].abbrev="middleeast";preset[31].nswe.north=42;preset[31].nswe.south=12;preset[31].nswe.west=25;preset[31].nswe.east=69;preset[31].name="middleeast";
-preset[32].abbrev="uae";preset[32].nswe.north=26.5;preset[32].nswe.south=22.6;preset[32].nswe.west=51.5;preset[32].nswe.east=56.6;preset[32].name="uae";
-preset[33].abbrev="dubai";preset[33].nswe.north=25.7;preset[33].nswe.south=24.2;preset[33].nswe.west=54.2;preset[33].nswe.east=55.7;preset[33].name="dubai";
-preset[34].abbrev="israeljordan";preset[34].nswe.north=33.4;preset[34].nswe.south=29.1;preset[34].nswe.west=34;preset[34].nswe.east=39.5;preset[34].name="israeljordan";
-preset[35].abbrev="usane";preset[35].nswe.north=47.5;preset[35].nswe.south=36.5;preset[35].nswe.west=-82.7;preset[35].nswe.east=-67;preset[35].name="usane";
-preset[36].abbrev="usa";preset[36].nswe.north=49;preset[36].nswe.south=24;preset[36].nswe.west=-125;preset[36].nswe.east=-67;preset[36].name="usa";
-preset[37].abbrev="boston";preset[37].nswe.north=42.9;preset[37].nswe.south=42;preset[37].nswe.west=-71.9;preset[37].nswe.east=-70.5;preset[37].name="boston";
-preset[38].abbrev="arkansas";preset[38].nswe.north=36.5;preset[38].nswe.south=33;preset[38].nswe.west=-94.6;preset[38].nswe.east=-89;preset[38].name="arkansas";
-preset[39].abbrev="lasvegas";preset[39].nswe.north=36.35;preset[39].nswe.south=35.9;preset[39].nswe.west=-115.35;preset[39].nswe.east=-114.7;preset[39].name="lasvegas";
-preset[40].abbrev="oceania";preset[40].nswe.north=35;preset[40].nswe.south=-50;preset[40].nswe.west=-220;preset[40].nswe.east=-110;preset[40].name="oceania";
-preset[41].abbrev="fiji";preset[41].nswe.north=-15.5;preset[41].nswe.south=-21.14;preset[41].nswe.west=176.77;preset[41].nswe.east=182.08;preset[41].name="fiji";
-preset[42].abbrev="montreal";preset[42].nswe.north=45.711;preset[42].nswe.south=45.373;preset[42].nswe.west=-73.99;preset[42].nswe.east=-73.374;preset[42].name="montreal";
-preset[43].abbrev="southeastasia";preset[43].nswe.north=29;preset[43].nswe.south=-11;preset[43].nswe.west=91;preset[43].nswe.east=128;preset[43].name="southeastasia";
-preset[44].abbrev="th";preset[44].nswe.north=20.5;preset[44].nswe.south=5.5;preset[44].nswe.west=97;preset[44].nswe.east=106;preset[44].name="th";
-preset[45].abbrev="florida";preset[45].nswe.north=31;preset[45].nswe.south=24.4;preset[45].nswe.west=-87.65;preset[45].nswe.east=-80;preset[45].name="florida";
-preset[46].abbrev="world";preset[46].nswe.north=90;preset[46].nswe.south=-90;preset[46].nswe.west=-180;preset[46].nswe.east=180;preset[46].name="world";
-
 	int i;
 
-	sprintf(options->title, "%s", lookuppreset);
-	fprintf(stdout, "Preset: %s\r\n", options->title);
+	preset[0].abbrev="nz";preset[0].nswe.north=-34;preset[0].nswe.south=-47.5;preset[0].nswe.west=166;preset[0].nswe.east=178.5;preset[0].name="New Zealand";
+	preset[1].abbrev="northisland";preset[1].nswe.north=-34.37;preset[1].nswe.south=-41.62;preset[1].nswe.west=172.6;preset[1].nswe.east=178.6;preset[1].name="North Island";
+	preset[2].abbrev="auckland";preset[2].nswe.north=-36.7;preset[2].nswe.south=-37.1;preset[2].nswe.west=174.5;preset[2].nswe.east=175;preset[2].name="Auckland";
+	preset[3].abbrev="aucklandcentral";preset[3].nswe.north=-36.835;preset[3].nswe.south=-36.935;preset[3].nswe.west=174.69;preset[3].nswe.east=174.89;preset[3].name="aucklandcentral";
+	preset[4].abbrev="tauranga";preset[4].nswe.north=-37.6;preset[4].nswe.south=-37.76;preset[4].nswe.west=176.07;preset[4].nswe.east=176.36;preset[4].name="Tauranga";
+	preset[5].abbrev="wellington";preset[5].nswe.north=-41.06;preset[5].nswe.south=-41.4;preset[5].nswe.west=174.6;preset[5].nswe.east=175.15;preset[5].name="Wellington";
+	preset[6].abbrev="christchurch";preset[6].nswe.north=-43.43;preset[6].nswe.south=-43.62;preset[6].nswe.west=172.5;preset[6].nswe.east=172.81;preset[6].name="Christchurch";
+	preset[7].abbrev="queenstown";preset[7].nswe.north=-44.5;preset[7].nswe.south=-45.6;preset[7].nswe.west=168;preset[7].nswe.east=169.5;preset[7].name="Queenstown";
+	preset[8].abbrev="dunedin";preset[8].nswe.north=-45.7;preset[8].nswe.south=-45.95;preset[8].nswe.west=170.175;preset[8].nswe.east=170.755;preset[8].name="Dunedin";
+	preset[9].abbrev="au";preset[9].nswe.north=-10.5;preset[9].nswe.south=-44;preset[9].nswe.west=112;preset[9].nswe.east=154;preset[9].name="Australia";
+	preset[10].abbrev="queensland";preset[10].nswe.north=-9.5;preset[10].nswe.south=-29;preset[10].nswe.west=138;preset[10].nswe.east=154;preset[10].name="Queensland";
+	preset[11].abbrev="sydney";preset[11].nswe.north=-33.57;preset[11].nswe.south=-34.14;preset[11].nswe.west=150.66;preset[11].nswe.east=151.35;preset[11].name="Sydney";
+	preset[12].abbrev="asia";preset[12].nswe.north=58;preset[12].nswe.south=-11;preset[12].nswe.west=67;preset[12].nswe.east=155;preset[12].name="Asia";
+	preset[13].abbrev="hk";preset[13].nswe.north=23.2;preset[13].nswe.south=21.8;preset[13].nswe.west=112.8;preset[13].nswe.east=114.7;preset[13].name="Hong Kong";
+	preset[14].abbrev="sg";preset[14].nswe.north=1.51;preset[14].nswe.south=1.15;preset[14].nswe.west=103.6;preset[14].nswe.east=104.1;preset[14].name="Singapore";
+	preset[15].abbrev="in";preset[15].nswe.north=37;preset[15].nswe.south=6;preset[15].nswe.west=67.65;preset[15].nswe.east=92.56;preset[15].name="India";
+	preset[16].abbrev="jp";preset[16].nswe.north=45.75;preset[16].nswe.south=30.06;preset[16].nswe.west=128.35;preset[16].nswe.east=149.09;preset[16].name="Japan";
+	preset[17].abbrev="europe";preset[17].nswe.north=55;preset[17].nswe.south=36;preset[17].nswe.west=-10;preset[17].nswe.east=32;preset[17].name="Europe";
+	preset[18].abbrev="es";preset[18].nswe.north=44;preset[18].nswe.south=35;preset[18].nswe.west=-10.0;preset[18].nswe.east=5;preset[18].name="Spain";
+	preset[19].abbrev="it";preset[19].nswe.north=47;preset[19].nswe.south=36.5;preset[19].nswe.west=6.6;preset[19].nswe.east=19;preset[19].name="Italy";
+	preset[20].abbrev="venice";preset[20].nswe.north=45.6;preset[20].nswe.south=45.3;preset[20].nswe.west=12.1;preset[20].nswe.east=12.6;preset[20].name="Venice";
+	preset[21].abbrev="fr";preset[21].nswe.north=51.2;preset[21].nswe.south=42.2;preset[21].nswe.west=-5.5;preset[21].nswe.east=8.5;preset[21].name="France";
+	preset[22].abbrev="paris";preset[22].nswe.north=49.1;preset[22].nswe.south=48.5;preset[22].nswe.west=1.8;preset[22].nswe.east=2.8;preset[22].name="Paris";
+	preset[23].abbrev="uk";preset[23].nswe.north=60;preset[23].nswe.south=50;preset[23].nswe.west=-10.5;preset[23].nswe.east=2;preset[23].name="United Kingdom";
+	preset[24].abbrev="scandinaviabaltic";preset[24].nswe.north=71.5;preset[24].nswe.south=53.5;preset[24].nswe.west=4.3;preset[24].nswe.east=41.7;preset[24].name="scandinaviabaltic";
+	preset[25].abbrev="is";preset[25].nswe.north=66.6;preset[25].nswe.south=63.2;preset[25].nswe.west=-24.6;preset[25].nswe.east=-13.5;preset[25].name="Iceland";
+	preset[26].abbrev="cz";preset[26].nswe.north=51.1;preset[26].nswe.south=48.5;preset[26].nswe.west=12;preset[26].nswe.east=18.9;preset[26].name="Czech Republic";
+	preset[27].abbrev="prague";preset[27].nswe.north=50.178;preset[27].nswe.south=49.941;preset[27].nswe.west=14.246;preset[27].nswe.east=14.709;preset[27].name="Prague";
+	preset[28].abbrev="vienna";preset[28].nswe.north=48.3;preset[28].nswe.south=48.12;preset[28].nswe.west=16.25;preset[28].nswe.east=16.55;preset[28].name="Vienna";
+	preset[29].abbrev="turkeygreece";preset[29].nswe.north=42.294;preset[29].nswe.south=34.455;preset[29].nswe.west=19.33;preset[29].nswe.east=45.09;preset[29].name="turkeygreece";
+	preset[30].abbrev="istanbul";preset[30].nswe.north=41.3;preset[30].nswe.south=40.7;preset[30].nswe.west=28.4;preset[30].nswe.east=29.7;preset[30].name="istanbul";
+	preset[31].abbrev="middleeast";preset[31].nswe.north=42;preset[31].nswe.south=12;preset[31].nswe.west=25;preset[31].nswe.east=69;preset[31].name="Middle East";
+	preset[32].abbrev="uae";preset[32].nswe.north=26.5;preset[32].nswe.south=22.6;preset[32].nswe.west=51.5;preset[32].nswe.east=56.6;preset[32].name="United Arab Emirates";
+	preset[33].abbrev="dubai";preset[33].nswe.north=25.7;preset[33].nswe.south=24.2;preset[33].nswe.west=54.2;preset[33].nswe.east=55.7;preset[33].name="Dubai";
+	preset[34].abbrev="israeljordan";preset[34].nswe.north=33.4;preset[34].nswe.south=29.1;preset[34].nswe.west=34;preset[34].nswe.east=39.5;preset[34].name="Israel and Jordan";
+	preset[35].abbrev="usane";preset[35].nswe.north=47.5;preset[35].nswe.south=36.5;preset[35].nswe.west=-82.7;preset[35].nswe.east=-67;preset[35].name="North Eastern USA";
+	preset[36].abbrev="usa";preset[36].nswe.north=49;preset[36].nswe.south=24;preset[36].nswe.west=-125;preset[36].nswe.east=-67;preset[36].name="United States of America";
+	preset[37].abbrev="boston";preset[37].nswe.north=42.9;preset[37].nswe.south=42;preset[37].nswe.west=-71.9;preset[37].nswe.east=-70.5;preset[37].name="boston";
+	preset[38].abbrev="arkansas";preset[38].nswe.north=36.5;preset[38].nswe.south=33;preset[38].nswe.west=-94.6;preset[38].nswe.east=-89;preset[38].name="Arkansas";
+	preset[39].abbrev="lasvegas";preset[39].nswe.north=36.35;preset[39].nswe.south=35.9;preset[39].nswe.west=-115.35;preset[39].nswe.east=-114.7;preset[39].name="Las Vegas";
+	preset[40].abbrev="oceania";preset[40].nswe.north=35;preset[40].nswe.south=-50;preset[40].nswe.west=-220;preset[40].nswe.east=-110;preset[40].name="Oceania";
+	preset[41].abbrev="fiji";preset[41].nswe.north=-15.5;preset[41].nswe.south=-21.14;preset[41].nswe.west=176.77;preset[41].nswe.east=182.08;preset[41].name="Fiji";
+	preset[42].abbrev="montreal";preset[42].nswe.north=45.711;preset[42].nswe.south=45.373;preset[42].nswe.west=-73.99;preset[42].nswe.east=-73.374;preset[42].name="Montreal";
+	preset[43].abbrev="southeastasia";preset[43].nswe.north=29;preset[43].nswe.south=-11;preset[43].nswe.west=91;preset[43].nswe.east=128;preset[43].name="South East Asia";
+	preset[44].abbrev="th";preset[44].nswe.north=20.5;preset[44].nswe.south=5.5;preset[44].nswe.west=97;preset[44].nswe.east=106;preset[44].name="Thailand";
+	preset[45].abbrev="florida";preset[45].nswe.north=31;preset[45].nswe.south=24.4;preset[45].nswe.west=-87.65;preset[45].nswe.east=-80;preset[45].name="Florida";
+	preset[46].abbrev="world";preset[46].nswe.north=90;preset[46].nswe.south=-90;preset[46].nswe.west=-180;preset[46].nswe.east=180;preset[46].name="The World";
+	preset[47].abbrev="africa";preset[47].nswe.north=37.7;preset[47].nswe.south=-37;preset[47].nswe.west=-20;preset[47].nswe.east=53;preset[47].name="Africa";
+	preset[48].abbrev="southamerica";preset[48].nswe.north=15;preset[48].nswe.south=-59;preset[48].nswe.west=-84;preset[48].nswe.east=-32;preset[48].name="South America";
 
-	for (i=0;i<47;i++)	{
-		if (!stricmp(lookuppreset,preset[i].name))	{
-			options->nswe.north=preset[i].nswe.north;
-			options->nswe.south=preset[i].nswe.south;
-			options->nswe.west=preset[i].nswe.west;
-			options->nswe.east=preset[i].nswe.east;
+	i=49;
+	preset[i].abbrev="saaf";preset[i].nswe.north=38;preset[i].nswe.south=-60;preset[i].nswe.west=-86;preset[i].nswe.east=55;preset[i].name="South America and Africa";i++;
+	preset[i].abbrev="northamerica";preset[i].nswe.north=77;preset[i].nswe.south=14;preset[i].nswe.west=-167;preset[i].nswe.east=-52;preset[i].name="North America";i++;
+	preset[i].abbrev="bh";preset[i].nswe.north=26.5;preset[i].nswe.south=25.7;preset[i].nswe.west=50.2;preset[i].nswe.east=51;preset[i].name="Bahrain";i++;
+	preset[i].abbrev="de";preset[i].nswe.north=55;preset[i].nswe.south=47;preset[i].nswe.west=5.5;preset[i].nswe.east=15;preset[i].name="Germany";i++;
+	preset[i].abbrev="ru";preset[i].nswe.north=78;preset[i].nswe.south=43;preset[i].nswe.west=27;preset[i].nswe.east=190;preset[i].name="Russia";i++;
+	preset[i].abbrev="europeeast";preset[i].nswe.north=78;preset[i].nswe.south=38;preset[i].nswe.west=12;preset[i].nswe.east=90;preset[i].name="Eastern Europe";i++;
+	preset[i].abbrev="london";preset[i].nswe.north=51.7;preset[i].nswe.south=51.25;preset[i].nswe.west=-0.6;preset[i].nswe.east= 0.35;preset[i].name="London";i++;
+	preset[i].abbrev="mg";preset[i].nswe.north=-11.5;preset[i].nswe.south=-26;preset[i].nswe.west=43;preset[i].nswe.east=51;preset[i].name="Madagascar";i++;
+	preset[i].abbrev="auwa";preset[i].nswe.north=-13.5;preset[i].nswe.south=-35.5;preset[i].nswe.west=112.5;preset[i].nswe.east=129;preset[i].name="Western Australia";i++;
+	preset[i].abbrev="za";preset[i].nswe.north=-22;preset[i].nswe.south=-35;preset[i].nswe.west=14;preset[i].nswe.east=33;preset[i].name="South Africa";i++;
+	preset[i].abbrev="si";preset[i].nswe.north=46.9;preset[i].nswe.south=45.4;preset[i].nswe.west=13.3;preset[i].nswe.east=16.65;preset[i].name="Slovenia";i++;
+	preset[i].abbrev="balkans";preset[i].nswe.north=48;preset[i].nswe.south=36;preset[i].nswe.west=13;preset[i].nswe.east=31;preset[i].name="The Balkans";i++;
+	preset[i].abbrev="ua";preset[i].nswe.north=53.5;preset[i].nswe.south=45;preset[i].nswe.west=22;preset[i].nswe.east=40.5;preset[i].name="Ukraine";i++;
+	preset[i].abbrev="ca";preset[i].nswe.north=75;preset[i].nswe.south=42;preset[i].nswe.west=-141;preset[i].nswe.east=-51;preset[i].name="Canada";i++;
+	preset[i].abbrev="greatlakes";preset[i].nswe.north=51;preset[i].nswe.south=41;preset[i].nswe.west=-93;preset[i].nswe.east=-75;preset[i].name="The Great Lakes";i++;
+	preset[i].abbrev="centralamerica";preset[i].nswe.north=18.6;preset[i].nswe.south=7;preset[i].nswe.west=-92.5;preset[i].nswe.east=-77;preset[i].name="Central America";i++;
+	preset[i].abbrev="pt";preset[i].nswe.north=42.2;preset[i].nswe.south=36.9;preset[i].nswe.west=-9.6;preset[i].nswe.east=-6;preset[i].name="Portugal";i++;
+	*pCount=i;
+	return;
+}
+
+int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets)
+{
+	int i;
+
+
+	for (i=0;i<numberofpresets;i++)	{
+		if (!stricmp(lookuppreset, presetarray[i].name))	{
+			options->nswe.north =presetarray[i].nswe.north;
+			options->nswe.south =presetarray[i].nswe.south;
+			options->nswe.west = presetarray[i].nswe.west;
+			options->nswe.east = presetarray[i].nswe.east;
 		}
 	}
 
@@ -1265,74 +1288,22 @@ preset[46].abbrev="world";preset[46].nswe.north=90;preset[46].nswe.south=-90;pre
 char * SuggestAreaFromNSWE(NSWE* viewport, PRESET * presetarray, int numberofpresets)
 {
 
-	PRESET preset[48];
-	numberofpresets = 48;
+//	PRESET preset[48];
+	//numberofpresets = 48;
 	int i;
 	int besti;
 	double areaintersection, areaviewport, areapreset;
 	double score, bestscore;
 	NSWE intersection;
 
-preset[0].abbrev="nz";preset[0].nswe.north=-34;preset[0].nswe.south=-47.5;preset[0].nswe.west=166;preset[0].nswe.east=178.5;preset[0].name="nz";
-preset[1].abbrev="northisland";preset[1].nswe.north=-34.37;preset[1].nswe.south=-41.62;preset[1].nswe.west=172.6;preset[1].nswe.east=178.6;preset[1].name="northisland";
-preset[2].abbrev="auckland";preset[2].nswe.north=-36.7;preset[2].nswe.south=-37.1;preset[2].nswe.west=174.5;preset[2].nswe.east=175;preset[2].name="auckland";
-preset[3].abbrev="aucklandcentral";preset[3].nswe.north=-36.835;preset[3].nswe.south=-36.935;preset[3].nswe.west=174.69;preset[3].nswe.east=174.89;preset[3].name="aucklandcentral";
-preset[4].abbrev="tauranga";preset[4].nswe.north=-37.6;preset[4].nswe.south=-37.76;preset[4].nswe.west=176.07;preset[4].nswe.east=176.36;preset[4].name="tauranga";
-preset[5].abbrev="wellington";preset[5].nswe.north=-41.06;preset[5].nswe.south=-41.4;preset[5].nswe.west=174.6;preset[5].nswe.east=175.15;preset[5].name="wellington";
-preset[6].abbrev="christchurch";preset[6].nswe.north=-43.43;preset[6].nswe.south=-43.62;preset[6].nswe.west=172.5;preset[6].nswe.east=172.81;preset[6].name="christchurch";
-preset[7].abbrev="queenstown";preset[7].nswe.north=-44.5;preset[7].nswe.south=-45.6;preset[7].nswe.west=168;preset[7].nswe.east=169.5;preset[7].name="queenstown";
-preset[8].abbrev="dunedin";preset[8].nswe.north=-45.7;preset[8].nswe.south=-45.95;preset[8].nswe.west=170.175;preset[8].nswe.east=170.755;preset[8].name="dunedin";
-preset[9].abbrev="au";preset[9].nswe.north=-10.5;preset[9].nswe.south=-44;preset[9].nswe.west=112;preset[9].nswe.east=154;preset[9].name="au";
-preset[10].abbrev="queensland";preset[10].nswe.north=-9.5;preset[10].nswe.south=-29;preset[10].nswe.west=138;preset[10].nswe.east=154;preset[10].name="queensland";
-preset[11].abbrev="sydney";preset[11].nswe.north=-33.57;preset[11].nswe.south=-34.14;preset[11].nswe.west=150.66;preset[11].nswe.east=151.35;preset[11].name="sydney";
-preset[12].abbrev="asia";preset[12].nswe.north=58;preset[12].nswe.south=-11;preset[12].nswe.west=67;preset[12].nswe.east=155;preset[12].name="asia";
-preset[13].abbrev="hk";preset[13].nswe.north=23.2;preset[13].nswe.south=21.8;preset[13].nswe.west=112.8;preset[13].nswe.east=114.7;preset[13].name="hk";
-preset[14].abbrev="sg";preset[14].nswe.north=1.51;preset[14].nswe.south=1.15;preset[14].nswe.west=103.6;preset[14].nswe.east=104.1;preset[14].name="sg";
-preset[15].abbrev="in";preset[15].nswe.north=37;preset[15].nswe.south=6;preset[15].nswe.west=67.65;preset[15].nswe.east=92.56;preset[15].name="in";
-preset[16].abbrev="jp";preset[16].nswe.north=45.75;preset[16].nswe.south=30.06;preset[16].nswe.west=128.35;preset[16].nswe.east=149.09;preset[16].name="jp";
-preset[17].abbrev="europe";preset[17].nswe.north=55;preset[17].nswe.south=36;preset[17].nswe.west=-10;preset[17].nswe.east=32;preset[17].name="europe";
-preset[18].abbrev="es";preset[18].nswe.north=44;preset[18].nswe.south=35;preset[18].nswe.west=-10.0;preset[18].nswe.east=5;preset[18].name="es";
-preset[19].abbrev="it";preset[19].nswe.north=47;preset[19].nswe.south=36.5;preset[19].nswe.west=6.6;preset[19].nswe.east=19;preset[19].name="it";
-preset[20].abbrev="venice";preset[20].nswe.north=45.6;preset[20].nswe.south=45.3;preset[20].nswe.west=12.1;preset[20].nswe.east=12.6;preset[20].name="venice";
-preset[21].abbrev="fr";preset[21].nswe.north=51.2;preset[21].nswe.south=42.2;preset[21].nswe.west=-5.5;preset[21].nswe.east=8.5;preset[21].name="fr";
-preset[22].abbrev="paris";preset[22].nswe.north=49.1;preset[22].nswe.south=48.5;preset[22].nswe.west=1.8;preset[22].nswe.east=2.8;preset[22].name="paris";
-preset[23].abbrev="uk";preset[23].nswe.north=60;preset[23].nswe.south=50;preset[23].nswe.west=-10.5;preset[23].nswe.east=2;preset[23].name="uk";
-preset[24].abbrev="scandinaviabaltic";preset[24].nswe.north=71.5;preset[24].nswe.south=53.5;preset[24].nswe.west=4.3;preset[24].nswe.east=41.7;preset[24].name="scandinaviabaltic";
-preset[25].abbrev="is";preset[25].nswe.north=66.6;preset[25].nswe.south=63.2;preset[25].nswe.west=-13.5;preset[25].nswe.east=-24.6;preset[25].name="is";
-preset[26].abbrev="cz";preset[26].nswe.north=51.1;preset[26].nswe.south=48.5;preset[26].nswe.west=12;preset[26].nswe.east=18.9;preset[26].name="cz";
-preset[27].abbrev="prague";preset[27].nswe.north=50.178;preset[27].nswe.south=49.941;preset[27].nswe.west=14.246;preset[27].nswe.east=14.709;preset[27].name="Prague";
-preset[28].abbrev="vienna";preset[28].nswe.north=48.3;preset[28].nswe.south=48.12;preset[28].nswe.west=16.25;preset[28].nswe.east=16.55;preset[28].name="vienna";
-preset[29].abbrev="turkeygreece";preset[29].nswe.north=42.294;preset[29].nswe.south=34.455;preset[29].nswe.west=19.33;preset[29].nswe.east=45.09;preset[29].name="Turkey & Greece";
-preset[30].abbrev="istanbul";preset[30].nswe.north=41.3;preset[30].nswe.south=40.7;preset[30].nswe.west=28.4;preset[30].nswe.east=29.7;preset[30].name="Istanbul";
-preset[31].abbrev="middleeast";preset[31].nswe.north=42;preset[31].nswe.south=12;preset[31].nswe.west=25;preset[31].nswe.east=69;preset[31].name="Middle East";
-preset[32].abbrev="uae";preset[32].nswe.north=26.5;preset[32].nswe.south=22.6;preset[32].nswe.west=51.5;preset[32].nswe.east=56.6;preset[32].name="uae";
-preset[33].abbrev="dubai";preset[33].nswe.north=25.7;preset[33].nswe.south=24.2;preset[33].nswe.west=54.2;preset[33].nswe.east=55.7;preset[33].name="Dubai";
-preset[34].abbrev="israeljordan";preset[34].nswe.north=33.4;preset[34].nswe.south=29.1;preset[34].nswe.west=34;preset[34].nswe.east=39.5;preset[34].name="Israel and Jordan";
-preset[35].abbrev="usane";preset[35].nswe.north=47.5;preset[35].nswe.south=36.5;preset[35].nswe.west=-82.7;preset[35].nswe.east=-67;preset[35].name="usane";
-preset[36].abbrev="usa";preset[36].nswe.north=49;preset[36].nswe.south=24;preset[36].nswe.west=-125;preset[36].nswe.east=-67;preset[36].name="usa";
-preset[37].abbrev="boston";preset[37].nswe.north=42.9;preset[37].nswe.south=42;preset[37].nswe.west=-71.9;preset[37].nswe.east=-70.5;preset[37].name="boston";
-preset[38].abbrev="arkansas";preset[38].nswe.north=36.5;preset[38].nswe.south=33;preset[38].nswe.west=-94.6;preset[38].nswe.east=-89;preset[38].name="arkansas";
-preset[39].abbrev="lasvegas";preset[39].nswe.north=36.35;preset[39].nswe.south=35.9;preset[39].nswe.west=-115.35;preset[39].nswe.east=-114.7;preset[39].name="Las Vegas";
-preset[40].abbrev="oceania";preset[40].nswe.north=35;preset[40].nswe.south=-50;preset[40].nswe.west=-220;preset[40].nswe.east=-110;preset[40].name="Oceania";
-preset[41].abbrev="fiji";preset[41].nswe.north=-15.5;preset[41].nswe.south=-21.14;preset[41].nswe.west=176.77;preset[41].nswe.east=182.08;preset[41].name="fiji";
-preset[42].abbrev="montreal";preset[42].nswe.north=45.711;preset[42].nswe.south=45.373;preset[42].nswe.west=-73.99;preset[42].nswe.east=-73.374;preset[42].name="Montreal";
-preset[43].abbrev="southeastasia";preset[43].nswe.north=29;preset[43].nswe.south=-11;preset[43].nswe.west=91;preset[43].nswe.east=128;preset[43].name="South East Asia";
-preset[44].abbrev="th";preset[44].nswe.north=20.5;preset[44].nswe.south=5.5;preset[44].nswe.west=97;preset[44].nswe.east=106;preset[44].name="Thailand";
-preset[45].abbrev="florida";preset[45].nswe.north=31;preset[45].nswe.south=24.4;preset[45].nswe.west=-87.65;preset[45].nswe.east=-80;preset[45].name="Florida";
-preset[46].abbrev="world";preset[46].nswe.north=90;preset[46].nswe.south=-90;preset[46].nswe.west=-180;preset[46].nswe.east=180;preset[46].name="World";
-preset[47].abbrev="africa";preset[47].nswe.north=37.7;preset[47].nswe.south=-37;preset[47].nswe.west=-20;preset[47].nswe.east=53;preset[47].name="Africa";
-
-	presetarray = preset;
 	bestscore=0;
 	besti=0;
 	areaviewport=AreaOfNSWE(viewport);
 
 	for (i=0; i<numberofpresets; i++)	{
-		IntersectionOfNSWEs(&intersection, viewport, &preset[i].nswe);
-
-		areapreset = AreaOfNSWE(&preset[i].nswe);
+		IntersectionOfNSWEs(&intersection, viewport, &presetarray[i].nswe);
+		areapreset = AreaOfNSWE(&presetarray[i].nswe);
 		areaintersection = AreaOfNSWE(&intersection);
-
 		score = min(areaintersection/areapreset, areaintersection/areaviewport);
 
 		if (score>bestscore)	{
@@ -1340,7 +1311,7 @@ preset[47].abbrev="africa";preset[47].nswe.north=37.7;preset[47].nswe.south=-37;
 			besti = i;
 		}
 	}
-	return preset[besti].name;
+	return presetarray[besti].name;
 }
 
 void IntersectionOfNSWEs(NSWE *output, NSWE *d1, NSWE *d2)

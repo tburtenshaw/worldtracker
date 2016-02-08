@@ -171,7 +171,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
 
-int LoadPreset(OPTIONS *options, char *preset);
+void LoadPresets(PRESET *preset, int * pCount, int maxCount);
+int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets);
 char * SuggestAreaFromNSWE(NSWE* viewport, PRESET * presetarray, int numberofpresets);
 int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);

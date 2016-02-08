@@ -164,6 +164,11 @@ int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * 
 time_t RoundTimeUp(time_t s);
 time_t RoundTimeDown(time_t s);
 
+
+#define MAX_PRESETS 250
+PRESET presetArray[MAX_PRESETS];
+int numberOfPresets;
+
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
     SendMessage(hWndStatusbar, SB_SETTEXT, partNumber | displayFlags, (LPARAM)lpszStatusString);
@@ -338,6 +343,9 @@ szColourByOption[COLOUR_BY_HOUR]="Hour";
 szColourByOption[COLOUR_BY_MONTH]="Month";
 
 
+	//Load presets into an array
+	LoadPresets(presetArray, &numberOfPresets, MAX_PRESETS);
+	printf("%s", presetArray[0].name);
 
 
 	//Make the Window Classes
@@ -881,7 +889,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		switch (id)	{
 			case ID_EDITPRESET:
 				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-				LoadPreset(&optionsPreview, szText);
+				NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
 				UpdateEditNSWEControls(&optionsPreview.nswe);
 				UpdateBarsFromNSWE(&optionsPreview.nswe);
 				//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
@@ -1587,7 +1595,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			break;
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 
-    		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe,NULL,0), 0, 0);
+    		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe, presetArray, numberOfPresets), 0, 0);
     		//UpdateStatusBar("test", 0, 0);
 
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
