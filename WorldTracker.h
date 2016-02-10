@@ -42,7 +42,8 @@ HWND hwndColourSwatchDay[7];
 HWND hwndColourSwatchMonth[12];
 COLOUR cDaySwatch[7];
 COLOUR cMonthSwatch[12];
-
+COLOUR cBlack;
+COLOUR cWhite;
 
 OPTIONS optionsExport;
 
@@ -85,3 +86,5 @@ int HandleColourCycleRadiobuttons(HWND hwnd, int id, HWND hwndCtl, UINT codeNoti
 void ConstrainNSWE(NSWE * d);
 int SignificantDecimals(double d);
 double TruncateByDegreesPerPixel(double d, double spp);
+
+void InitiateColours(void);

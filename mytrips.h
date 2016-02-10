@@ -193,6 +193,7 @@ int bitmapDestroy(BM* bm);
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush);	//canvas gets written to
 
 int DrawRegion(BM *bm, WORLDREGION *r);
+int DrawListOfRegions(BM *bm, WORLDREGION *first);
 int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
@@ -229,6 +230,14 @@ int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
 
 
+
+WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c);
 TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh);
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);
+
+
+//Graphs
+void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, \
+	 COLOUR *cDataColour, int widthofpoint, int numberofpoints, double *xarray, double *yarray);

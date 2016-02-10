@@ -196,39 +196,6 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	fclose(locationHistory->json);
 
-/* TEMPORARY */
-	TRIP * trip;
-	NSWE home;
-	NSWE work;
-	WORLDREGION exc;
-	WORLDREGION exc2;
-
-	home.north=-36.843975;
-	home.south=-36.857656;
-	home.west=174.757584;
-	home.east=174.774074;
-
-	work.north=-37.015956;
-	work.south=-37.025932;
-	work.west=174.889670;
-	work.east=174.903095;
-
-	exc.next=&exc2;
-	exc.nswe.north = -36.865730;
-	exc.nswe.south =-37.087670;
-	exc.nswe.west =174.966750;
-	exc.nswe.east =175.095146;
-
-	exc2.nswe.north =-36.804920;
-	exc2.nswe.south =-36.885830;
-	exc2.nswe.west =174.822950;
-	exc2.nswe.east =174.924479;
-	exc2.next= NULL;
-
-	trip = GetLinkedListOfTrips(&home, &work, &exc, locationHistory);
-	ExportTripData(trip, "histogram.csv");
-	FreeLinkedListOfTrips(trip);
-
 	return 0;
 }
 
@@ -314,8 +281,9 @@ int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh)	//set up the bitma
 	bm->width=options->width;
 	bm->height=options->height;
 	bm->sizebitmap=options->width*options->height*4;
-	//bm->zoom=options->zoom;
+
 	CopyNSWE(&bm->nswe, &options->nswe);
+
 
 	bitmap=(char*)calloc(bm->sizebitmap, sizeof(char));
 
@@ -718,10 +686,22 @@ int DrawRegion(BM *bm, WORLDREGION *r)
 
 	bitmapSquare(bm, x0,y0, x1,y1, &r->baseColour, &cFill);
 
-
-
 	return 0;
 }
+
+int DrawListOfRegions(BM *bm, WORLDREGION *first)
+{
+	WORLDREGION * r;
+	r=first;
+	while (r)	{
+		DrawRegion(bm, r);
+		r=r->next;
+	}
+
+	return 1;
+
+}
+
 
 int bitmapWrite(BM *bm, char *filename)
 {
@@ -1278,6 +1258,16 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="pt";preset[i].nswe.north=42.2;preset[i].nswe.south=36.9;preset[i].nswe.west=-9.6;preset[i].nswe.east=-6;preset[i].name="Portugal";i++;
 	preset[i].abbrev="amsterdam";preset[i].nswe.north=52.46;preset[i].nswe.south=52.25;preset[i].nswe.west=4.58;preset[i].nswe.east=5.085;preset[i].name="Amsterdam";i++;
 	preset[i].abbrev="northafrica";preset[i].nswe.north=37.4;preset[i].nswe.south=11;preset[i].nswe.west=-18;preset[i].nswe.east=39;preset[i].name="North Africa";i++;
+	preset[i].abbrev="in_goa";preset[i].nswe.north=15.8;preset[i].nswe.south=14.85;preset[i].nswe.west=73.65;preset[i].nswe.east=74.35;preset[i].name="Goa";i++;
+	preset[i].abbrev="in_agra";preset[i].nswe.north=27.298;preset[i].nswe.south=27.097;preset[i].nswe.west=77.87;preset[i].nswe.east=78.12;preset[i].name="Agra";i++;
+	preset[i].abbrev="kr";preset[i].nswe.north=38.8;preset[i].nswe.south=33;preset[i].nswe.west=124.5;preset[i].nswe.east=129.8;preset[i].name="South Korea";i++;
+	preset[i].abbrev="ie";preset[i].nswe.north=55.5;preset[i].nswe.south=51.3;preset[i].nswe.west=-10.8;preset[i].nswe.east=-5.3;preset[i].name="Ireland";i++;
+	preset[i].abbrev="cy";preset[i].nswe.north=35.8;preset[i].nswe.south=34.5;preset[i].nswe.west=32;preset[i].nswe.east=34.7;preset[i].name="Cyprus";i++;
+	preset[i].abbrev="es_ibiza";preset[i].nswe.north=39.15;preset[i].nswe.south=38.6;preset[i].nswe.west=1.1;preset[i].nswe.east=1.7;preset[i].name="Ibiza";i++;
+	preset[i].abbrev="us_nm";preset[i].nswe.north=37;preset[i].nswe.south=31;preset[i].nswe.west=-115.05;preset[i].nswe.east=-109.044;preset[i].name="New Mexico";i++;
+	preset[i].abbrev="us_az";preset[i].nswe.north=37;preset[i].nswe.south=31.33;preset[i].nswe.west=-109.05;preset[i].nswe.east=-103;preset[i].name="Arizona";i++;
+	preset[i].abbrev="id_bali";preset[i].nswe.north=-8;preset[i].nswe.south=-9;preset[i].nswe.west=114.25;preset[i].nswe.east=115.75;preset[i].name="Bali";i++;
+	preset[i].abbrev="us_hi";preset[i].nswe.north=22.3;preset[i].nswe.south=18.8;preset[i].nswe.west=-160.6;preset[i].nswe.east=-154.7;preset[i].name="Hawaii";i++;
 	*pCount=i;
 	return;
 }
@@ -1396,6 +1386,26 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 	return 0;
 }
 
+WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c)
+{
+	WORLDREGION *outputRegion;
+
+	outputRegion = malloc(sizeof(WORLDREGION));
+	outputRegion->next=NULL;
+	CopyNSWE(&outputRegion->nswe, nswe);
+	outputRegion->baseColour.R=c->R;
+	outputRegion->baseColour.G=c->G;
+	outputRegion->baseColour.B=c->B;
+	outputRegion->baseColour.A=c->A;
+
+
+	if (parentRegion)	{
+		parentRegion->next = outputRegion;
+	}
+
+	return outputRegion;
+
+}
 
 TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
 {
@@ -1493,7 +1503,7 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 			localtime_s(&trip->leavetime, &leavetime);
 			localtime_s(&trip->arrivetime, &arrivetime);
 
-			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime- trip->arrivetime, trip->direction,
+			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
 				leavetime.tm_year+1900,leavetime.tm_mon+1,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min,
 				arrivetime.tm_year+1900,arrivetime.tm_mon+1,arrivetime.tm_mday,arrivetime.tm_wday,arrivetime.tm_hour,arrivetime.tm_min);
 		}
@@ -1531,4 +1541,90 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 
 
 	return 1;
+}
+
+//This will plot an axis (if required) then a list of x and y values
+void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, \
+	 COLOUR *cDataColour, int widthofpoint, int numberofpoints, double *xarray, double *yarray)
+{
+	int x,y;
+	int i;
+
+	double realx;
+	double nextmajorunit;
+	int plotmajorunit;
+
+	//for the axis
+	int margin;
+	int xstart, ystart, xend, yend;
+	int xlen, ylen;
+
+	int middleofpoint;
+
+	if (cBackground)	{
+		for (x=0;x<bm->width; x++)	{
+			for (y=0;y<bm->height; y++)	{
+				bitmapPixelSet(bm, x,y, cBackground);
+			}
+		}
+	}
+
+	if ((!cAxisAndLabels) && (!cDataColour))	{	//if we just wanted a background
+		return;
+	}
+
+	margin = (bm->width + bm->height)/2/10; //one tenth of the average
+
+	xstart = margin;
+	xend = bm->width - xstart;
+	xlen = xend-xstart;
+
+	ystart = bm->height - margin;	//on paper we start at the bottom
+	yend = bm->height - ystart;
+	ylen = yend-ystart;
+
+	if (cAxisAndLabels)	{
+		nextmajorunit=ceil(minx/xmajorunit)*xmajorunit;
+		plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+margin;
+
+		for (x=xstart; x<=xend;x++)	{		//x axis
+			bitmapPixelSet(bm, x,ystart, cAxisAndLabels);
+			if (x>=plotmajorunit)	{
+				bitmapPixelSet(bm, x,ystart+1, cAxisAndLabels);
+				bitmapPixelSet(bm, x,ystart+2, cAxisAndLabels);
+				bitmapPixelSet(bm, x,ystart+3, cAxisAndLabels);
+				bitmapPixelSet(bm, x,ystart+4, cAxisAndLabels);
+
+				//messy but works
+				realx = (double)(x-margin)/(double)xlen * (maxx-minx)+minx;
+				nextmajorunit=ceil((realx+xmajorunit)/xmajorunit)*xmajorunit;
+				plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+margin;
+
+			}
+		}
+		for (y=yend; y<ystart;y++)	{	//go backward
+			bitmapPixelSet(bm, xstart,y, cAxisAndLabels);
+		}
+
+	}
+
+
+	if (!cDataColour)	{
+		return;
+	}
+	//Now to plot the data
+
+	middleofpoint = (widthofpoint+1)/2;
+	for (i=0;i<numberofpoints;i++)	{
+
+		x=xlen*(xarray[i]-minx)/(maxx-minx)+xstart-middleofpoint+1;
+		y=ylen*(yarray[i]-miny)/(maxy-miny)+ystart-middleofpoint+1;
+
+		bitmapSquare(bm, x,y,x+widthofpoint-1, y+widthofpoint-1, cDataColour, cDataColour);
+
+	}
+
+
+	return;
 }
