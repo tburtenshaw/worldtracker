@@ -8,6 +8,7 @@
 #include "mytrips.h"
 #include "lodepng.h"
 #include "worldtracker.h"
+#include "wtgraphs.h"
 
 #define MAX_ASPECT_RATIO 20
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
@@ -74,11 +75,6 @@ struct sStretch	{
 	int   nHeightSrc;
 };
 
-struct sGraphWindowLong	{
-	HBITMAP hbmGraph;
-	BM	bmGraph;
-
-};
 
 HWND hwndOverview;	//The overview is also used to hold the positions to be drawn and exported
 HWND hwndPreview;
@@ -103,16 +99,13 @@ HWND hwndPreviewCropbarSouth;
 HWND hwndMainGraph;
 
 
-
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
-HBITMAP hbmMainGraph;
 
 STRETCH stretchPreview;
 
 BM overviewBM;
 BM previewBM;
-BM maingraphBM;
 
 
 //Mouse dragging
@@ -129,8 +122,8 @@ BOOL mouseDragCropbar;	//in the preview
 
 WORLDREGION regionHome;
 WORLDREGION regionAway;
-WORLDREGION *regionFirstExcluded;
-WORLDREGION *regionLastExcluded;
+WORLDREGION *pRegionFirstExcluded;
+WORLDREGION *pRegionLastExcluded;
 
 //Options are still based on the command line program
 OPTIONS optionsOverview;
@@ -140,16 +133,12 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
-LRESULT CALLBACK MainGraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
-
 
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
 HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
-HBITMAP MakeHBitmapMainGraph(HWND hwnd, HDC hdc, LOCATIONHISTORY *lh);
 
 int PaintOverview(HWND hwnd);
 int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
-int PaintMainGraph(HWND hwnd);
 
 
 int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -311,12 +300,28 @@ void InitiateColours(void)
 	cDaySwatch[6].R=0x00;	cDaySwatch[6].G=0x82;	cDaySwatch[6].B=0x94;	cDaySwatch[6].A=0xFF;
 
 
+	cMonthSwatch[0].R=0xA6;	cMonthSwatch[0].G=0xCE;	cMonthSwatch[0].B=0xE3;	cMonthSwatch[0].A=0xFF;
+	cMonthSwatch[1].R=0x1F;	cMonthSwatch[1].G=0x78;	cMonthSwatch[1].B=0xB4;	cMonthSwatch[1].A=0xFF;
+	cMonthSwatch[2].R=0xB2;	cMonthSwatch[2].G=0xDF;	cMonthSwatch[2].B=0x8A;	cMonthSwatch[2].A=0xFF;
+	cMonthSwatch[3].R=0x33;	cMonthSwatch[3].G=0xA0;	cMonthSwatch[3].B=0x2C;	cMonthSwatch[3].A=0xFF;
+	cMonthSwatch[4].R=0xFB;	cMonthSwatch[4].G=0x9A;	cMonthSwatch[4].B=0x99;	cMonthSwatch[4].A=0xFF;
+	cMonthSwatch[5].R=0xE3;	cMonthSwatch[5].G=0x1A;	cMonthSwatch[5].B=0x1C;	cMonthSwatch[5].A=0xFF;
+	cMonthSwatch[6].R=0xFD;	cMonthSwatch[6].G=0xBF;	cMonthSwatch[6].B=0x6F;	cMonthSwatch[6].A=0xFF;
+	cMonthSwatch[7].R=0xFF;	cMonthSwatch[7].G=0x7F;	cMonthSwatch[7].B=0x00;	cMonthSwatch[7].A=0xFF;
+	cMonthSwatch[8].R=0xCA;	cMonthSwatch[8].G=0xB2;	cMonthSwatch[8].B=0xD6;	cMonthSwatch[8].A=0xFF;
+	cMonthSwatch[9].R=0x6A;	cMonthSwatch[9].G=0x3D;	cMonthSwatch[9].B=0x9A;	cMonthSwatch[9].A=0xFF;
+	cMonthSwatch[10].R=0xFF;	cMonthSwatch[10].G=0xFF;	cMonthSwatch[10].B=0x99;	cMonthSwatch[10].A=0xFF;
+	cMonthSwatch[11].R=0xB1;	cMonthSwatch[11].G=0x59;	cMonthSwatch[11].B=0x28;	cMonthSwatch[11].A=0xFF;
+
+
 	return;
 }
 
 static BOOL InitApplication(void)
 {
 	WNDCLASS wc;
+
+	hbmQueueSize=0;
 
 	//Set locationHistory to NULL
 	memset(&locationHistory,0,sizeof(locationHistory));
@@ -356,8 +361,8 @@ static BOOL InitApplication(void)
 	regionHome.nswe.east=174.774074;
 
 
-	regionFirstExcluded = NULL;
-	regionLastExcluded = NULL;
+	pRegionFirstExcluded = NULL;
+	pRegionLastExcluded = NULL;
 
 
 
@@ -374,9 +379,9 @@ nswe.north = -36.865730;
 nswe.south =-37.087670;
 nswe.west =174.966750;
 nswe.east =175.095146;
-	regionLastExcluded = CreateRegion(regionLastExcluded, &nswe, &c);
-	if (!regionFirstExcluded)	{
-		regionFirstExcluded = regionLastExcluded;
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
 	}
 
 
@@ -385,9 +390,9 @@ nswe.south =-36.885830;
 nswe.west =174.822950;
 nswe.east =174.924479;
 
-	regionLastExcluded = CreateRegion(regionLastExcluded, &nswe, &c);
-	if (!regionFirstExcluded)	{
-		regionFirstExcluded = regionLastExcluded;
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
 	}
 
 
@@ -396,9 +401,9 @@ nswe.south =-36.968430;
 nswe.west =174.877340;
 nswe.east =174.979382;
 
-	regionLastExcluded = CreateRegion(regionLastExcluded, &nswe, &c);
-	if (!regionFirstExcluded)	{
-		regionFirstExcluded = regionLastExcluded;
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
 	}
 
 nswe.north =-36.992380;
@@ -406,9 +411,9 @@ nswe.south =-37.131420;
 nswe.west =174.531930;
 nswe.east =174.810390;
 
-	regionLastExcluded = CreateRegion(regionLastExcluded, &nswe, &c);
-	if (!regionFirstExcluded)	{
-		regionFirstExcluded = regionLastExcluded;
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
 	}
 
 
@@ -585,7 +590,7 @@ szColourByOption[COLOUR_BY_MONTH]="Month";
 
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_DBLCLKS ;
-	wc.lpfnWndProc = (WNDPROC)MainGraphWndProc;
+	wc.lpfnWndProc = (WNDPROC)GraphWndProc;
 	wc.hInstance = hInst;
 	wc.hbrBackground = (HBRUSH)GetStockObject(HOLLOW_BRUSH);
 	wc.cbWndExtra = 4;
@@ -1189,19 +1194,26 @@ int PaintOverview(HWND hwnd)
 	PAINTSTRUCT ps;
 	HGDIOBJ oldBitmap;
 
+	int r;
+
+	printf("\npaintov");
 	if (!hbmOverview)
-		printf("HBMOVERVIEWNOT HERE ??CRASH!!");
+		printf("\nHBMOVERVIEWNOT HERE ??CRASH!!");
 
 	hdc= BeginPaint(hwnd, &ps);
+	if (!hdc)	printf("\nHDC NULL");
+
 	memDC = CreateCompatibleDC(hdc);
 
 	oldBitmap = SelectObject(memDC, hbmOverview);
-	BitBlt(hdc,0, 0, 360, 180, memDC, 0, 0, SRCCOPY);
+	if (!oldBitmap)	printf("\noldbitmap NULL");
+	r = BitBlt(hdc,0, 0, 360, 180, memDC, 0, 0, SRCCOPY);
+	if (!r)	printf("\nbitblt NULL");
 	SelectObject(memDC, oldBitmap);
-
+	GdiFlush();
 
 	DeleteDC(memDC);
-	DeleteObject(oldBitmap);
+	//DeleteObject(oldBitmap);
 	EndPaint(hwnd, &ps);
 
 	return 0;
@@ -1844,7 +1856,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	SelectObject(memDC, oldBitmap);
 	DeleteDC(memDC);
-	DeleteObject(oldBitmap);
+	//DeleteObject(oldBitmap);
 
 	EndPaint(hwnd, &ps);
 
@@ -1911,7 +1923,15 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 	DrawRegion(&previewBM, &regionHome);
 	DrawRegion(&previewBM, &regionAway);
-	DrawListOfRegions(&previewBM, regionFirstExcluded);
+	DrawListOfRegions(&previewBM, pRegionFirstExcluded);
+
+//Display the presets
+/*
+	for (int i=0;i<numberOfPresets;i++	)	{
+		CopyNSWE(&regionHome.nswe, &presetArray[i].nswe);
+		DrawRegion(&previewBM, &regionHome);
+	}
+*/
 
 	printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
@@ -2058,8 +2078,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 //as we want to move the exporting bit to another window
 
-		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,120, 120, hwnd,NULL,hInst,NULL);
-		y+=120;
+		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,360, 120, hwnd,NULL,hInst,NULL);
+		y+=120+MARGIN;
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
@@ -2937,148 +2957,3 @@ int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * 
 }
 
 
-LRESULT CALLBACK MainGraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
-{
-	HDC hdc;
-	switch (msg) {
-	case WM_CREATE:
-		hdc = GetDC(hwnd);
-		hbmMainGraph = MakeHBitmapMainGraph(hwnd, hdc, &locationHistory);
-		ReleaseDC(hwnd, hdc);
-		break;
-	case WM_PAINT:
-		PaintMainGraph(hwnd);
-		break;
-	case WM_LBUTTONDOWN:
-		hdc = GetDC(hwnd);
-		hbmMainGraph = MakeHBitmapMainGraph(hwnd, hdc, &locationHistory);
-		ReleaseDC(hwnd, hdc);
-		InvalidateRect(hwnd, NULL, 0);
-
-		break;
-	case WM_RBUTTONDOWN:
-		TRIP * trip;
-		trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, regionFirstExcluded, &locationHistory);
-		ExportTripData(trip, "histogram.csv");
-		FreeLinkedListOfTrips(trip);
-		break;
-
-
-	default:
-		return DefWindowProc(hwnd,msg,wParam,lParam);
-
-
-	}
-	return 0;
-}
-
-
-int PaintMainGraph(HWND hwnd)
-{
-	HDC hdc;
-	HDC memDC;
-	PAINTSTRUCT ps;
-	HGDIOBJ oldBitmap;
-
-	hdc= BeginPaint(hwnd, &ps);
-	memDC = CreateCompatibleDC(hdc);
-
-	oldBitmap = SelectObject(memDC, hbmMainGraph);
-	BitBlt(hdc,0, 0, 120, 120, memDC, 0, 0, SRCCOPY);
-	SelectObject(memDC, oldBitmap);
-
-
-	DeleteDC(memDC);
-	DeleteObject(oldBitmap);
-	EndPaint(hwnd, &ps);
-	return 0;
-}
-
-HBITMAP MakeHBitmapMainGraph(HWND hwnd, HDC hdc, LOCATIONHISTORY *lh)
-{
-	RECT rect;
-
-	HBITMAP bitmap;
-	int height, width;
-	int x,y;
-	OPTIONS tempOptions;
-
-	BITMAPINFO bmi;
-
-
-	BYTE * bits;
-	COLOUR c;
-
-
-	if (hbmMainGraph!=NULL)	{
-		DeleteObject(hbmMainGraph);
-	}
-
-
-	GetClientRect(hwnd, &rect);
-
-	height=rect.right-rect.left;
-	width =rect.bottom-rect.top;
-
-	//for passing through to the bitmapinit
-	tempOptions.height=height;
-	tempOptions.width=width;
-
-	double xd[1];
-	double yd[1];
-
-
-	TRIP * trip;
-	trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, regionFirstExcluded, &locationHistory);
-
-
-	bitmapInit(&maingraphBM, &tempOptions, &locationHistory);
-
-	GraphScatter(&maingraphBM, &cWhite, 0,0,0,0, 0, 0,NULL, NULL, NULL, NULL,0, 0, NULL, NULL);	//make background
-	while (trip)	{
-		xd[0]=trip->leavetime;
-		yd[0]=trip->leavetime - trip->arrivetime;
-		//printf("%i %i %i %i\r\n", trip->leavetime, trip->leavetime - trip->arrivetime,optionsPreview.totimestamp,optionsPreview.fromtimestamp );
-		if (trip->leavetime > optionsPreview.fromtimestamp)	{
-			if (trip->direction==-1)
-			   GraphScatter(&maingraphBM, NULL, optionsPreview.fromtimestamp,0,optionsPreview.totimestamp,3600, 60*60*24*7, 100, &cBlack, NULL, NULL, &regionHome.baseColour,5, 1, xd, yd);
-			if (trip->direction==1)
-			   GraphScatter(&maingraphBM, NULL, optionsPreview.fromtimestamp,0,optionsPreview.totimestamp,3600, 60*60*24*7, 100, NULL, NULL, NULL, &regionAway.baseColour,5, 1, xd, yd);
-		}
-
-		trip=trip->next;
-	}
-	FreeLinkedListOfTrips(trip);
-
-
-
-
-	memset(&bmi, 0, sizeof(bmi));
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = width;
-	bmi.bmiHeader.biHeight = -height; // top-down
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 24;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	GdiFlush();
-	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
-	//printf("create dib: %x", (unsigned long)bitmap);
-	int b=0;
-	for (y=0;y<height;y++)	{
-		for (x=0;x<width;x++)	{
-			c= bitmapPixelGet(&maingraphBM, x, y);
-			bits[b] =c.B;	b++;
-			bits[b] =c.G;	b++;
-			bits[b] =c.R;	b++;
-		}
-		b=(b+3) & ~3;	//round to next WORD alignment at end of line
-	}
-
-	GdiFlush();
-
-	hbmMainGraph=bitmap;
-	bitmapDestroy(&maingraphBM);
-
-	return bitmap;
-}

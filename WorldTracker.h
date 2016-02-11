@@ -49,7 +49,7 @@ OPTIONS optionsExport;
 
 //Multithread stuff
 CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
-long hbmQueueSize=0;	//this is increased when a thread is created, so the thread can check that nothing was created after it
+long hbmQueueSize;	//this is increased when a thread is created, so the thread can check that nothing was created after it
 
 CRITICAL_SECTION critAccessLocations;
 CRITICAL_SECTION critAccessPreviewHBitmap;

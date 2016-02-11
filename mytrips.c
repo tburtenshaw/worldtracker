@@ -1495,7 +1495,7 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 
 	f=fopen(filename, "w");
 	if (!f) return 0;
-	fprintf(f, "leavetime,arrivetime,seconds, direction,leavingyear,month,dayofmonth,dayofweek,hour,minute\r\n");
+	fprintf(f, "leavetime,arrivetime,seconds, direction,leavingyear,month,dayofmonth,dayofweek,hour,minute\n");
 
 	trip=firsttrip;
 	while (trip)	{
@@ -1503,7 +1503,7 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 			localtime_s(&trip->leavetime, &leavetime);
 			localtime_s(&trip->arrivetime, &arrivetime);
 
-			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\r\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
+			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
 				leavetime.tm_year+1900,leavetime.tm_mon+1,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min,
 				arrivetime.tm_year+1900,arrivetime.tm_mon+1,arrivetime.tm_mday,arrivetime.tm_wday,arrivetime.tm_hour,arrivetime.tm_min);
 		}
