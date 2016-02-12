@@ -240,4 +240,4 @@ int FreeLinkedListOfTrips(TRIP * trip);
 //Graphs
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
 	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, \
-	 COLOUR *cDataColour, int widthofpoint, int numberofpoints, double *xarray, double *yarray);
+	 COLOUR *cDataColour, int markerwidth, int numberofpoints, double *xarray, double *yarray);

@@ -1,3 +1,4 @@
+#include <time.h>
 #include <windows.h>
 #include "mytrips.h"
 #include "worldtracker.h"
@@ -7,6 +8,12 @@ extern WORLDREGION regionHome;
 extern WORLDREGION regionAway;
 extern WORLDREGION *pRegionFirstExcluded;
 extern LOCATIONHISTORY locationHistory;
+
+extern COLOUR cDaySwatch[7];
+extern COLOUR cMonthSwatch[12];
+extern COLOUR cBlack;
+extern COLOUR cWhite;
+
 
 LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
@@ -99,6 +106,7 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 	BYTE * bits;
 	COLOUR c;
 
+	struct tm time;
 
 	if (gi->hbmGraph !=NULL)	{
 		DeleteObject(gi->hbmGraph);
@@ -129,10 +137,20 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 		yd[0]=trip->leavetime - trip->arrivetime;
 		//printf("%i %i\n", trip->leavetime, trip->leavetime - trip->arrivetime );
 		if (trip->leavetime > gi->fromtimestamp)	{
-			if (trip->direction==-1)
-			   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 100, &cBlack, NULL, NULL, &regionHome.baseColour,5, 1, xd, yd);
-			if (trip->direction==1)
-			   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 100, NULL, NULL, NULL, &regionAway.baseColour,5, 1, xd, yd);
+			gi->colourSeries =WT_SERIES_WEEKDAY;
+			switch (gi->colourSeries)	{
+				case WT_SERIES_DIRECTION:
+					if (trip->direction==-1)
+					   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 100, &cBlack, NULL, NULL, &regionHome.baseColour,5, 1, xd, yd);
+					if (trip->direction==1)
+					   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 100, NULL, NULL, NULL, &regionAway.baseColour,5, 1, xd, yd);
+				break;
+				case WT_SERIES_WEEKDAY:
+					localtime_s(&trip->leavetime, &time);
+					//printf("%i %i",time.tm_wday);
+					GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 100, &cBlack, NULL, NULL, &cDaySwatch[time.tm_wday],5, 1, xd, yd);
+				break;
+			}
 		}
 
 		trip=trip->next;

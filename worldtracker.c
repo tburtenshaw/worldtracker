@@ -342,19 +342,19 @@ static BOOL InitApplication(void)
 	InitiateColours();
 
 
-	regionAway.baseColour.R = 253;
-	regionAway.baseColour.G = 253;
-	regionAway.baseColour.B = 150;
-	regionAway.baseColour.A=200;
+	regionAway.baseColour.R = 255;
+	regionAway.baseColour.G = 156;
+	regionAway.baseColour.B = 0;
+	regionAway.baseColour.A=75;
 	regionAway.nswe.north=-37.015956;
 	regionAway.nswe.south=-37.025932;
 	regionAway.nswe.west=174.889670;
 	regionAway.nswe.east=174.903095;
 
-	regionHome.baseColour.R = 255;
-	regionHome.baseColour.G = 209;
-	regionHome.baseColour.B = 220;
-	regionHome.baseColour.A=200;
+	regionHome.baseColour.R = 0;
+	regionHome.baseColour.G = 134;
+	regionHome.baseColour.B = 238;
+	regionHome.baseColour.A=75;
 	regionHome.nswe.north=-36.843975;
 	regionHome.nswe.south=-36.857656;
 	regionHome.nswe.west=174.757584;
