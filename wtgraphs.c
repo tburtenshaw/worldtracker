@@ -121,9 +121,13 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 	tempOptions.height=height;
 	tempOptions.width=width;
 
-	double xd[1];
-	double yd[1];
 
+
+	double xdata;
+	double ydata;
+	double xmin, ymin, xmax, ymax;
+	double xmajorunit, ymajorunit;
+	COLOUR pointColour;
 
 	TRIP * trip;
 	trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, pRegionFirstExcluded, &locationHistory);
@@ -133,29 +137,66 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 
 	GraphScatter(&gi->bmGraph, &cWhite, 0,0,0,0, 0, 0,NULL, NULL, NULL, NULL,0, 0, NULL, NULL);	//make background
 	while (trip)	{
-		xd[0]=trip->leavetime;
-		yd[0]=trip->leavetime - trip->arrivetime;
+		xdata=trip->leavetime;
+		ydata=trip->leavetime - trip->arrivetime;
 		//printf("%i %i\n", trip->leavetime, trip->leavetime - trip->arrivetime );
 		if (trip->leavetime > gi->fromtimestamp)	{
 			gi->colourSeries =WT_SERIES_WEEKDAY;
+			gi->xAxisSeries =WT_SERIES_TIMEOFDAY;
+
+			xmin = gi->fromtimestamp;
+			ymin = 0;
+			xmax = gi->totimestamp;
+			ymax = 3600;
+			xmajorunit = 60*60*24*7;
+			ymajorunit = 60*5;
+
+
+			switch (gi->xAxisSeries)	{
+				case WT_SERIES_TIMEOFDAY:
+					int secondssincemidnight;
+					localtime_s(&trip->leavetime, &time);
+					secondssincemidnight = time.tm_hour*3600 + time.tm_min*60 + time.tm_sec;
+					xmin=0;
+					xmax = 60*60*24;
+					xmajorunit=60*60;
+					xdata = secondssincemidnight;
+					break;
+			}
+
 			switch (gi->colourSeries)	{
 				case WT_SERIES_DIRECTION:
 					if (trip->direction==-1)
-					   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 120, &cBlack, NULL, NULL, &regionHome.baseColour,5, 1, xd, yd);
+						pointColour.R=255;
+						pointColour.G=0;
+						pointColour.B=0;
+						pointColour.A=100;
 					if (trip->direction==1)
-					   GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 120, NULL, NULL, NULL, &regionAway.baseColour,5, 1, xd, yd);
+						pointColour.R=0;
+						pointColour.G=255;
+						pointColour.B=0;
+						pointColour.A=100;
 				break;
 				case WT_SERIES_WEEKDAY:
 					localtime_s(&trip->leavetime, &time);
 					//printf("%i %i",time.tm_wday);
-					GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 120, NULL, NULL, NULL, &cDaySwatch[time.tm_wday],5, 1, xd, yd);
+					pointColour.R = cDaySwatch[time.tm_wday].R;
+					pointColour.G = cDaySwatch[time.tm_wday].G;
+					pointColour.B = cDaySwatch[time.tm_wday].B;
+					pointColour.A = 120;
 				break;
 			}
+
+			//plot the point
+			GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
+
 		}
 
 		trip=trip->next;
 	}
-				GraphScatter(&gi->bmGraph, NULL, gi->fromtimestamp,0,gi->totimestamp,3600, 60*60*24*7, 120, &cBlack, NULL, NULL, &cDaySwatch[time.tm_wday],5, 1, xd, yd);
+
+	//draw axis
+	GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, &cBlack, NULL, NULL, NULL,5, 1, NULL, NULL);
 	FreeLinkedListOfTrips(trip);
 
 

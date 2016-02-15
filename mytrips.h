@@ -187,6 +187,9 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c);
 int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill);
 
+void plotOctet(BM* bm, int cx, int cy, int col, int row, int isoddwidth, int alpha, COLOUR *c);	//plots 8 points (mirroring the octant)
+int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
+
 int bitmapWrite(BM* bm, char *filename);			//this writes a .raw file, can be opened with photoshop. Not req now using PNG
 int bitmapDestroy(BM* bm);
 
@@ -225,7 +228,6 @@ double ipart(double x);
 double round(double x);
 double fpart(double x);
 double rfpart(double x);
-int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
 
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
 
