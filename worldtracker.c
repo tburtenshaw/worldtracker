@@ -416,6 +416,16 @@ nswe.east =174.810390;
 		pRegionFirstExcluded = pRegionLastExcluded;
 	}
 
+nswe.north =-36.497400;
+nswe.south =-36.989100;
+nswe.west =173.663100;
+nswe.east =174.649000;
+
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
 
 
 
@@ -1213,7 +1223,6 @@ int PaintOverview(HWND hwnd)
 	GdiFlush();
 
 	DeleteDC(memDC);
-	//DeleteObject(oldBitmap);
 	EndPaint(hwnd, &ps);
 
 	return 0;
@@ -1856,7 +1865,6 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	SelectObject(memDC, oldBitmap);
 	DeleteDC(memDC);
-	//DeleteObject(oldBitmap);
 
 	EndPaint(hwnd, &ps);
 
@@ -2078,8 +2086,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 //as we want to move the exporting bit to another window
 
-		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,360, 120, hwnd,NULL,hInst,NULL);
-		y+=120+MARGIN;
+		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 400, hwnd,NULL,hInst,NULL);
+		y+=400+MARGIN;
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 

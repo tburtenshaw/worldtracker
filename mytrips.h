@@ -182,7 +182,7 @@ int WriteKMLFile(BM* bm);
 int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c);
 COLOUR bitmapPixelGet(BM* bm, int x, int y);
-int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c);
+int bitmapFilledCircle(BM* bm, int x, int y, int diameter, COLOUR *c);	//I'm now using the top left coords and a width
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c);
 int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill);

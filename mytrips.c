@@ -73,6 +73,14 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	}
 
+	c=HourToRgb(0,NULL, NULL);
+
+	int x;
+	x=0;
+	for (int i=5; i<30; i++)	{
+		bitmapFilledCircle(bm, x,0,i, &c);
+		x+=i+1;
+	}
 
 	return 0;
 }
@@ -409,18 +417,151 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 
 }
 
-int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c)
+int bitmapFilledCircle(BM* bm, int x, int y, int diameter, COLOUR *c)
 {
 	int row,col;
-	double distance, diff;
+	int startcol;
+
+	int oddwidth;
+
+	double radsquared;
+	double radplusonesquared;
+	double distsq, nextcoldistsq;
+	double dist;
+	double diff;
 
 
-	for (row=(int)(y-radius); row<y+radius+1; row++)	{
-		for (col=(int)(x-radius); col<x+radius+1; col++)	{
+	int cx,cy;
+	int finished;
+
+	int a;	//alpha
+
+	if (diameter <1)
+		return 0;
+
+
+	cx=x+diameter/2;
+	cy=y+diameter/2;
+
+	radsquared = (double)diameter/2;
+	radplusonesquared = radsquared+1;
+
+	radsquared *= radsquared;
+	radplusonesquared *= radplusonesquared;
+
+
+	row=0;
+	col=0;
+
+	oddwidth=diameter & 1;
+	if (oddwidth)	{	//odd diameter
+		plot(bm,cx+col,cy+row,255,c);
+		col++;
+	}
+	startcol=0;
+	finished=0;
+
+	while (!finished)	{
+		if (oddwidth)	{
+			distsq = (col)*(col) + (row)*(row);
+			nextcoldistsq = (col+1)*(col+1)+(row)*(row);
+		}
+		else	{
+			distsq = (col+0.5)*(col+0.5) + (row+0.5)*(row+0.5);	//for even circles, the starting row col is actually half a diagonal pixel away
+			nextcoldistsq = (col+1.5)*(col+1.5)+(row+0.5)*(row+0.5);
+		}
+//		printf("%.2f,", (double)dist);
+		if ((distsq < radsquared))	{
+			if (nextcoldistsq>radsquared)	{	//test the next pixel, only calculate exact distance if we have to
+				dist = sqrt(distsq);
+				if (oddwidth)	{
+					diff = diameter/2 - dist;
+				}
+				else
+					diff = diameter/2 - dist-0.5;
+				printf("%f ", diff);
+				if (diff <0)	{
+					a=255*(1+diff);
+				}
+				else if (oddwidth)	{	//plot an additional point
+					a=diff*255;
+					col++;
+					plot(bm,cx+col,cy+row,a,c);
+					plot(bm,cx+col,cy-row,a,c);
+					plot(bm,cx-col,cy+row,a,c);
+					plot(bm,cx-col,cy-row,a,c);
+					plot(bm,cx+row,cy+col,a,c);
+					plot(bm,cx+row,cy-col,a,c);
+					plot(bm,cx-row,cy+col,a,c);
+					plot(bm,cx-row,cy-col,a,c);
+					col--;
+					a=255;
+				}
+				else {
+					a=diff*255;
+					col++;
+					plot(bm,cx+col,cy+row,a,c);
+					plot(bm,cx+col,cy-row-1,a,c);
+					plot(bm,cx-col-1,cy+row,a,c);
+					plot(bm,cx-col-1,cy-row-1,a,c);
+					plot(bm,cx+row,cy+col,a,c);
+					plot(bm,cx+row,cy-col-1,a,c);
+					plot(bm,cx-row-1,cy+col,a,c);
+					plot(bm,cx-row-1,cy-col-1,a,c);
+					col--;
+					a=255;
+				}
+
+			}
+			else	{
+				a=255;
+			}
+
+
+			//plot the main point
+			if (oddwidth)	{
+				plot(bm,cx+col,cy+row,a,c);
+				plot(bm,cx+col,cy-row,a,c);
+				plot(bm,cx-col,cy+row,a,c);
+				plot(bm,cx-col,cy-row,a,c);
+				plot(bm,cx+row,cy+col,a,c);
+				plot(bm,cx+row,cy-col,a,c);
+				plot(bm,cx-row,cy+col,a,c);
+				plot(bm,cx-row,cy-col,a,c);
+			} else	{	//if it's even, there's no middle pixel, so we mirror and reflect differently
+				plot(bm,cx+col,cy+row,a,c);
+				plot(bm,cx+col,cy-row-1,a,c);
+				plot(bm,cx-col-1,cy+row,a,c);
+				plot(bm,cx-col-1,cy-row-1,a,c);
+				plot(bm,cx+row,cy+col,a,c);
+				plot(bm,cx+row,cy-col-1,a,c);
+				plot(bm,cx-row-1,cy+col,a,c);
+				plot(bm,cx-row-1,cy-col-1,a,c);
+
+			}
+
+			//printf("\n%i,%i %i %i", col,row,cx,cy);
+			col++;
+		}
+		else {
+			if (startcol==col)
+				finished=1;
+			startcol++;
+			col=startcol;
+			row++;
+			printf("\n");
+		}
+	}
+
+
+
+	return 1;
+/*
+	for (row=0; row<radius; row++)	{
+		for (col=0; col<radius+1; col++)	{
 			distance = sqrt((x-col) *(x-col) + (y-row)*(y-row));
 			//diff = rsquared-distancesquared;
 			//printf("diff: %.2f\tdist:%.2f\t r%i\tc%i\r\n",diff, distancesquared, row, col);
-			//c.R=c.B; c.A=120;
 			if (distance<=radius-1)
 				plot(bm,col,row,255,c);
 			else if (distance<radius)	{
@@ -433,7 +574,9 @@ int bitmapFilledCircle(BM* bm, double x, double y, double radius, COLOUR *c)
 	}
 
 	return 1;
+*/
 }
+
 
 int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill)
 {
@@ -1552,6 +1695,7 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 	int i;
 
 	double realx;
+	double realy;
 	double nextmajorunit;
 	int plotmajorunit;
 
@@ -1586,7 +1730,7 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 
 	if (cAxisAndLabels)	{
 		nextmajorunit=ceil(minx/xmajorunit)*xmajorunit;
-		plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+margin;
+		plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+xstart;
 
 		for (x=xstart; x<=xend;x++)	{		//x axis
 			bitmapPixelSet(bm, x,ystart, cAxisAndLabels);
@@ -1599,12 +1743,33 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 				//messy but works
 				realx = (double)(x-margin)/(double)xlen * (maxx-minx)+minx;
 				nextmajorunit=ceil((realx+xmajorunit)/xmajorunit)*xmajorunit;
-				plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+margin;
+				plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+xstart;
 
 			}
 		}
-		for (y=yend; y<ystart;y++)	{	//go backward
+
+
+
+		nextmajorunit=ceil(miny/ymajorunit)*ymajorunit;
+		plotmajorunit = ylen*(nextmajorunit-miny)/(maxy-miny)+ystart;
+		printf("\nmargin%i. ylen%i, maxy%f,miny%f, yend %i, ystart %i, ymu %f, nextmajorunit: %f, pmu: %i",margin, ylen, maxy,miny,yend, ystart, ymajorunit, nextmajorunit, plotmajorunit);
+		for (y=ystart; y>=yend;y--)	{	//go backward
 			bitmapPixelSet(bm, xstart,y, cAxisAndLabels);
+			if (y<=plotmajorunit)	{
+				bitmapPixelSet(bm, xstart-1, y, cAxisAndLabels);
+				bitmapPixelSet(bm, xstart-2, y, cAxisAndLabels);
+				bitmapPixelSet(bm, xstart-3, y, cAxisAndLabels);
+				bitmapPixelSet(bm, xstart-4, y, cAxisAndLabels);
+
+								//messy but works
+				realy = (double)(y-ystart)/(double)ylen * (maxy-miny)+miny;
+				nextmajorunit=((long)((realy+ymajorunit)/ymajorunit))*ymajorunit;
+				plotmajorunit = ylen*(nextmajorunit-miny)/(maxy-miny)+ystart;
+				printf("\n%i %f.ymu %f, nextmajorunit: %f, pmu: %i",y, realy, ymajorunit, nextmajorunit, plotmajorunit);
+
+
+			}
+
 		}
 
 	}
@@ -1622,6 +1787,7 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 		y=ylen*(yarray[i]-miny)/(maxy-miny)+ystart-middleofpoint+1;
 
 		bitmapSquare(bm, x,y,x+widthofpoint-1, y+widthofpoint-1, cDataColour, cDataColour);
+//bitmapFilledCircle(bm, x,y,15, cDataColour);
 
 	}
 
