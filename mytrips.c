@@ -6,6 +6,7 @@
 
 #include "lodepng.h"
 #include "mytrips.h"
+#include "rasterfont.h"
 
 COLOUR cpm[12];
 COLOUR cpd[7];
@@ -73,7 +74,13 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	}
 
-
+	RASTERFONT rf;
+	LoadRasterFont(&rf);
+	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 ABBA BABBA BAA CABBAGE $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
+	plotChar(bm, &rf,0,0,65, &c);
+	plotChar(bm, &rf,10,0,65, &c);
+	plotChar(bm, &rf,20,0,67, &c);
+	DestroyRasterFont(&rf);
 	return 0;
 }
 
@@ -1653,7 +1660,7 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 
 //This will plot an axis (if required) then a list of x and y values
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
-	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, \
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *),\
 	 COLOUR *cDataColour, int widthofpoint, int numberofpoints, double *xarray, double *yarray)
 {
 	int x,y;
@@ -1694,6 +1701,9 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 	ylen = yend-ystart;
 
 	if (cAxisAndLabels)	{
+		RASTERFONT rf;
+		char szLabel[256];
+		LoadRasterFont(&rf);
 		nextmajorunit=ceil(minx/xmajorunit)*xmajorunit;
 		plotmajorunit = xlen*(nextmajorunit-minx)/(maxx-minx)+xstart;
 
@@ -1705,6 +1715,15 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 				bitmapPixelSet(bm, x,ystart+3, cAxisAndLabels);
 				bitmapPixelSet(bm, x,ystart+4, cAxisAndLabels);
 
+				if (xlabelfn!=NULL)	{
+					xlabelfn(nextmajorunit, szLabel);
+				}
+				else 	{
+					sprintf(szLabel, "%.0f", nextmajorunit);
+				}
+
+				bitmapText(bm,&rf, x-3,ystart+10, szLabel, cAxisAndLabels);
+
 				//messy but works
 				realx = (double)(x-margin)/(double)xlen * (maxx-minx)+minx;
 				nextmajorunit=ceil((realx+xmajorunit)/xmajorunit)*xmajorunit;
@@ -1713,7 +1732,7 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 			}
 		}
 
-
+		DestroyRasterFont(&rf);
 
 		nextmajorunit=ceil(miny/ymajorunit)*ymajorunit;
 		plotmajorunit = ylen*(nextmajorunit-miny)/(maxy-miny)+ystart;
@@ -1752,10 +1771,40 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 		y=ylen*(yarray[i]-miny)/(maxy-miny)+ystart-middleofpoint+1;
 
 		//bitmapSquare(bm, x,y,x+widthofpoint-1, y+widthofpoint-1, cDataColour, cDataColour);
-	bitmapFilledCircle(bm, x,y,5, cDataColour);
+		bitmapFilledCircle(bm, x, y, widthofpoint, cDataColour);
 
 	}
 
 
 	return;
 }
+
+void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString)
+{
+	struct tm time;
+	unsigned long s;
+
+	s=seconds;
+
+	localtime_s(&s, &time);
+
+	strftime (outputString,80,"%A",&time);
+	return;
+}
+
+void labelfnTimeOfDayFromSeconds(double seconds, char * outputString)
+{
+	unsigned long s;
+
+	s=seconds;	//for this in particular we measure seconds from midnight
+
+	int h;
+	int m;
+
+	h=s/3600;
+	m=(s-h*3600)/60;
+	sprintf(outputString,"%ih",h);
+	return;
+}
+
+

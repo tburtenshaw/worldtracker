@@ -55,3 +55,5 @@ struct sGraphInfo	{
 LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 int PaintMainGraph(HWND hwnd, GRAPHINFO* gi);
 HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh);
+
+

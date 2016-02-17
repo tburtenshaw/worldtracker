@@ -128,6 +128,7 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 	double xmin, ymin, xmax, ymax;
 	double xmajorunit, ymajorunit;
 	COLOUR pointColour;
+	void * xlabelfn;
 
 	TRIP * trip;
 	trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, pRegionFirstExcluded, &locationHistory);
@@ -135,14 +136,18 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 
 	bitmapInit(&gi->bmGraph, &tempOptions, &locationHistory);
 
-	GraphScatter(&gi->bmGraph, &cWhite, 0,0,0,0, 0, 0,NULL, NULL, NULL, NULL,0, 0, NULL, NULL);	//make background
+	GraphScatter(&gi->bmGraph, &cWhite, 0,0,0,0, 0, 0,NULL, NULL, NULL, NULL, NULL,0, 0, NULL, NULL);	//make background
 	while (trip)	{
 		xdata=trip->leavetime;
 		ydata=trip->leavetime - trip->arrivetime;
 		//printf("%i %i\n", trip->leavetime, trip->leavetime - trip->arrivetime );
 		if (trip->leavetime > gi->fromtimestamp)	{
+			gi->colourSeries =WT_SERIES_MONTH;
 			gi->colourSeries =WT_SERIES_WEEKDAY;
+
+
 			gi->xAxisSeries =WT_SERIES_TIMEOFDAY;
+			//gi->xAxisSeries =WT_SERIES_WEEKDAY;
 
 			xmin = gi->fromtimestamp;
 			ymin = 0;
@@ -150,7 +155,7 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 			ymax = 3600;
 			xmajorunit = 60*60*24*7;
 			ymajorunit = 60*5;
-
+			xlabelfn = NULL;
 
 			switch (gi->xAxisSeries)	{
 				case WT_SERIES_TIMEOFDAY:
@@ -161,6 +166,18 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 					xmax = 60*60*24;
 					xmajorunit=60*60;
 					xdata = secondssincemidnight;
+					xlabelfn=labelfnTimeOfDayFromSeconds;
+					break;
+				case WT_SERIES_WEEKDAY:
+					long secondspastsunday;
+					localtime_s(&trip->leavetime, &time);
+					secondspastsunday = time.tm_wday*3600*24 + time.tm_hour*3600 + time.tm_min*60 + time.tm_sec;
+					xmin=0;
+					xmax = 60*60*24*7;
+					xmajorunit=60*60*24;
+					xdata = secondspastsunday;
+					xlabelfn=labelfnShortDayOfWeekFromSeconds;
+					printf("sdofws");
 					break;
 			}
 
@@ -185,10 +202,21 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 					pointColour.B = cDaySwatch[time.tm_wday].B;
 					pointColour.A = 120;
 				break;
+				case WT_SERIES_MONTH:
+					localtime_s(&trip->leavetime, &time);
+					//printf("%i %i",time.tm_wday);
+					pointColour.R = cMonthSwatch[time.tm_mon].R;
+					pointColour.G = cMonthSwatch[time.tm_mon].G;
+					pointColour.B = cMonthSwatch[time.tm_mon].B;
+					pointColour.A = 120;
+				break;
+
+
+				break;
 			}
 
 			//plot the point
-			GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
+			GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
 
 		}
 
@@ -196,7 +224,7 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi, LOCATIONHISTORY *lh
 	}
 
 	//draw axis
-	GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, &cBlack, NULL, NULL, NULL,5, 1, NULL, NULL);
+	GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, &cBlack, NULL, NULL, xlabelfn, NULL,5, 1, NULL, NULL);
 	FreeLinkedListOfTrips(trip);
 
 

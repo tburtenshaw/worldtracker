@@ -16,6 +16,8 @@ typedef struct sTrip TRIP;
 typedef struct sWorldCoord WORLDCOORD;
 typedef struct sWorldRegion WORLDREGION;	//this can be a linked list
 typedef struct sPreset PRESET;
+typedef struct sRasterFont RASTERFONT;
+typedef struct sRasterChar RASTERCHAR;
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -164,6 +166,16 @@ struct sPreset	{
 	NSWE nswe;
 };
 
+struct sRasterFont	{
+	RASTERCHAR * c[128];
+};
+
+struct sRasterChar	{
+	int width;
+	int height;
+	unsigned char *pixelarray;
+};
+
 //int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 //The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
 //It can be Null, and it is ignored. It is NOT PRECISE.
@@ -186,6 +198,7 @@ int bitmapFilledCircle(BM* bm, int x, int y, int diameter, COLOUR *c);	//I'm now
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c);
 int bitmapCoordLine(BM *bm, double lat1, double lon1, double lat2, double lon2, int thickness, COLOUR *c);
 int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR *cFill);
+int bitmapText(BM * bm, RASTERFONT *rasterfont, int x, int y, char * szText, COLOUR * colourText);
 
 void plotOctet(BM* bm, int cx, int cy, int col, int row, int isoddwidth, int alpha, COLOUR *c);	//plots 8 points (mirroring the octant)
 int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c);
@@ -241,5 +254,10 @@ int FreeLinkedListOfTrips(TRIP * trip);
 
 //Graphs
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
-	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, \
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *),\
 	 COLOUR *cDataColour, int markerwidth, int numberofpoints, double *xarray, double *yarray);
+
+void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString);
+void labelfnTimeOfDayFromSeconds(double seconds, char * outputString);
+
+
