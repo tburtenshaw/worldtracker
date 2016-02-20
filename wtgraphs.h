@@ -7,7 +7,7 @@
 #define WT_GRAPH_DEFAULT -1
 
 #define WT_GRAPHTYPE_SCATTER 0x01
-//#define WT_GRAPHTYPE_HISTOGRAM 0x02
+#define WT_GRAPHTYPE_HISTOGRAM 0x02
 
 #define WT_GRAPHTYPE_LOCATION 0x10	//data is based on a location
 #define WT_GRAPHTYPE_TRIP 0x20		//data is based on a list of trips (TRIP)
@@ -28,8 +28,9 @@
 #define	WT_SERIES_WEEKDAY 9
 #define	WT_SERIES_MONTH 10
 #define WT_SERIES_TIMESTAMP 11
+#define WT_SERIES_DAY 12
 
-#define WT_SERIES_DIRECTION 11
+#define WT_SERIES_DIRECTION 13
 
 typedef struct sGraphInfo GRAPHINFO;
 
@@ -38,7 +39,7 @@ struct sGraphInfo	{
 	BM	bmGraph;
 
 	LOCATIONHISTORY *locationHistory;
-	WORLDREGION * worldRegion;
+	WORLDREGION * region;
 	STAY * stay;	//associated stay
 	TRIP * trip;
 
@@ -67,5 +68,7 @@ struct sGraphInfo	{
 LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 int PaintMainGraph(HWND hwnd, GRAPHINFO* gi);
 HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi);
+int RecalculateData(GRAPHINFO * gi);
+int DrawScatterGraph(GRAPHINFO *gi);
 
-
+void GraphContextMenu(HWND hwnd, HWND hwndContext, int xPos, int yPos);

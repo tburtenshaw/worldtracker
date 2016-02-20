@@ -35,6 +35,10 @@ typedef struct sRasterChar RASTERCHAR;
 
 #define MAX_COLOURBY_OPTION COLOUR_BY_MONTH
 
+#define REGIONTYPE_HOME 1
+#define REGIONTYPE_AWAY 2
+#define REGIONTYPE_EXCLUSION 3
+
 struct sRGBAColour	{
 	unsigned char R;
 	unsigned char G;
