@@ -5,6 +5,7 @@
 #include <math.h>
 #include <time.h>
 
+
 typedef struct sRGBAColour COLOUR;
 typedef struct sBitmap BM;
 typedef struct sOptions OPTIONS;
@@ -12,12 +13,14 @@ typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
 typedef struct sHeatmap HEATMAP;
 typedef struct sNswe NSWE;
+typedef struct sStay STAY;
 typedef struct sTrip TRIP;
 typedef struct sWorldCoord WORLDCOORD;
 typedef struct sWorldRegion WORLDREGION;	//this can be a linked list
 typedef struct sPreset PRESET;
 typedef struct sRasterFont RASTERFONT;
 typedef struct sRasterChar RASTERCHAR;
+
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -146,6 +149,13 @@ struct sLocationHistory	{
 	LOCATION * last;
 };
 
+struct sStay	{
+	STAY *next;
+	unsigned long	leavetime;
+	unsigned long	arrivetime;
+
+};
+
 struct sTrip	{
 	TRIP * next;
 	int	direction;	//1 is a to b, -1 is b to a, 0 isn't decided
@@ -157,6 +167,8 @@ struct sTrip	{
 struct sWorldRegion	{
 	NSWE nswe;
 	COLOUR baseColour;
+	char * szTitle;
+	int regionType;
 	WORLDREGION * next;	//next in the linked list
 };
 
@@ -166,15 +178,6 @@ struct sPreset	{
 	NSWE nswe;
 };
 
-struct sRasterFont	{
-	RASTERCHAR * c[128];
-};
-
-struct sRasterChar	{
-	int width;
-	int height;
-	unsigned char *pixelarray;
-};
 
 //int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename);
 //The progress function is called roughly 256 times, and returns a number roughly up to 256 or 257
@@ -251,13 +254,17 @@ TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegi
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);
 
+STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh);
+long SecondsInStay(STAY *stay, long starttime, long endtime);
+int ExportTimeInNSWE(NSWE *nswe, long starttime, long endtime, long interval, LOCATIONHISTORY *lh);
+
 
 //Graphs
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
-	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *),\
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *), void(*ylabelfn)(double, char *),\
 	 COLOUR *cDataColour, int markerwidth, int numberofpoints, double *xarray, double *yarray);
 
 void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString);
 void labelfnTimeOfDayFromSeconds(double seconds, char * outputString);
-
+void labelfnMinutesFromSeconds(double seconds, char * outputString);
 

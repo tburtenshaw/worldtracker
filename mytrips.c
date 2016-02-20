@@ -76,7 +76,7 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	RASTERFONT rf;
 	LoadRasterFont(&rf);
-	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 ABBA BABBA BAA CABBAGE $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
+	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
 	plotChar(bm, &rf,0,0,65, &c);
 	plotChar(bm, &rf,10,0,65, &c);
 	plotChar(bm, &rf,20,0,67, &c);
@@ -647,9 +647,17 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	//these are used to construct thick lines, this is the above and the under part
 	int r,f;
-	hypotenusethickness=thickness*sqrt(gradient*gradient+1);
-	r=0-hypotenusethickness/2;
-	f=(hypotenusethickness+1)/2;
+
+
+	if (thickness >1)	{
+		hypotenusethickness=thickness*sqrt(gradient*gradient+1);
+		r=0-hypotenusethickness/2;
+		f=(hypotenusethickness+1)/2;
+	}
+	else {
+		r=0;
+		f=1;
+	}
 
 
 	if (abs(gradient)>1)	{
@@ -663,19 +671,26 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 	x1=(int)(x1+0.5);
 	y1=(int)(y1+0.5);
 
+	//why round?
+	x0=(int)(x0);
+	y0=(int)(y0);
+	x1=(int)(x1);
+	y1=(int)(y1);
+
 
 	unsigned char rstrength, fstrength;	//the intensity of the fills
 
 	// handle first endpoint
 
-	/*
-	if (steep)	{
-		bitmapFilledCircle(bm,y0,x0,thickness/2,c);
+	if (thickness>1)	{
+		if (steep)	{
+			bitmapFilledCircle(bm,y0+r,x0+r,thickness,c);
+		}
+		else
+			bitmapFilledCircle(bm,x0+r,y0+r,thickness,c);
 	}
-	else
-		bitmapFilledCircle(bm,x0,y0,thickness/2,c);
 
-*/
+
 
     xend = x0;
     yend = y0 + gradient * (xend - x0);
@@ -1522,6 +1537,109 @@ WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c)
 
 }
 
+STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
+{
+	STAY * stay;
+	STAY * oldstay;
+	STAY * firststay;
+
+	LOCATION * loc;
+	WORLDCOORD coord;
+	int inregion;
+
+	stay=NULL;
+	oldstay=NULL;
+	firststay=NULL;
+
+	loc=lh->first;
+	inregion = 0;
+
+	FILE * f;
+	f= fopen("output2.txt", "w");
+
+	while (loc)	{
+		coord.latitude = loc->latitude;
+		coord.longitude = loc->longitude;
+
+		if (CoordInNSWE(&coord, nswe))	{
+			if (!inregion)	{	//we've entered into the region (from outside)
+				stay = malloc(sizeof(STAY));
+				if (!firststay)	firststay = stay;
+				stay->next=NULL;
+				stay->arrivetime = loc->timestampS;
+
+				if (oldstay)	oldstay->next=stay;
+				oldstay=stay;
+				inregion = 1;
+			}
+		}
+		else	{	//if the coordinate isn't in the NSWE
+			if (inregion)	{
+				stay->leavetime = loc->timestampS;
+
+		long templong;
+		templong=stay->leavetime;
+		stay->leavetime=stay->arrivetime;
+		stay->arrivetime=templong;
+
+
+
+				fprintf(f, "Stay: %i %i\n", stay->arrivetime, stay->leavetime);
+
+				inregion=0;
+			}
+		}
+
+
+		loc=loc->next;
+	}
+
+	fclose(f);
+	return firststay;
+}
+
+long SecondsInStay(STAY *stay, long starttime, long endtime)
+{
+	int staylength;
+
+	staylength = 0;
+
+	while (stay)	{
+		//fprintf(stdout, "\n%i %i %i %i", starttime, endtime, stay->leavetime, stay->arrivetime);
+		if ((stay->arrivetime > starttime) && (stay->arrivetime < endtime))	{
+			staylength += min(stay->leavetime, endtime) - max(stay->arrivetime, starttime);
+		}
+		if (stay->leavetime >= endtime)	{
+//			return staylength;
+
+		}
+
+		stay=stay->next;
+	}
+	return staylength;
+}
+
+int ExportTimeInNSWE(NSWE *nswe, long starttime, long endtime, long interval, LOCATIONHISTORY *lh)
+{
+	STAY * firststay;
+	STAY * stay;
+	long s;
+
+	firststay = CreateStayListFromNSWE(nswe,lh);
+
+	FILE * f;
+	f= fopen("output.txt", "w");
+
+	for (long l=starttime; l<endtime; l+=interval)	{
+		stay=firststay;
+		s= SecondsInStay(stay, l,l+interval);
+
+		fprintf(f, "%i %i\n",l,s);
+	}
+	fclose(f);
+	return 0;
+}
+
 TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
 {
 	LOCATION *loc;
@@ -1531,7 +1649,7 @@ TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegi
 
 	TRIP * trip;
 	TRIP * oldtrip;
-	TRIP *firsttrip;
+	TRIP * firsttrip;
 
 	WORLDREGION *firstexcludedRegion;
 	WORLDREGION * exc;
@@ -1618,9 +1736,9 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 			localtime_s(&trip->leavetime, &leavetime);
 			localtime_s(&trip->arrivetime, &arrivetime);
 
-			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
+			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i,%i\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
 				leavetime.tm_year+1900,leavetime.tm_mon+1,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min,
-				arrivetime.tm_year+1900,arrivetime.tm_mon+1,arrivetime.tm_mday,arrivetime.tm_wday,arrivetime.tm_hour,arrivetime.tm_min);
+				arrivetime.tm_year+1900,arrivetime.tm_mon+1,arrivetime.tm_mday,arrivetime.tm_wday,arrivetime.tm_hour,arrivetime.tm_min,arrivetime.tm_isdst);
 		}
 		trip=trip->next;
 	}
@@ -1660,7 +1778,7 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 
 //This will plot an axis (if required) then a list of x and y values
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
-	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *),\
+	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *), void(*ylabelfn)(double, char *),\
 	 COLOUR *cDataColour, int widthofpoint, int numberofpoints, double *xarray, double *yarray)
 {
 	int x,y;
@@ -1732,8 +1850,6 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 			}
 		}
 
-		DestroyRasterFont(&rf);
-
 		nextmajorunit=ceil(miny/ymajorunit)*ymajorunit;
 		plotmajorunit = ylen*(nextmajorunit-miny)/(maxy-miny)+ystart;
 //		printf("\nmargin%i. ylen%i, maxy%f,miny%f, yend %i, ystart %i, ymu %f, nextmajorunit: %f, pmu: %i",margin, ylen, maxy,miny,yend, ystart, ymajorunit, nextmajorunit, plotmajorunit);
@@ -1744,6 +1860,17 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 				bitmapPixelSet(bm, xstart-2, y, cAxisAndLabels);
 				bitmapPixelSet(bm, xstart-3, y, cAxisAndLabels);
 				bitmapPixelSet(bm, xstart-4, y, cAxisAndLabels);
+
+
+				if (ylabelfn!=NULL)	{
+					ylabelfn(nextmajorunit, szLabel);
+				}
+				else 	{
+					sprintf(szLabel, "%.0f", nextmajorunit);
+				}
+
+				bitmapText(bm,&rf, xstart-fontGetStringWidth(&rf,szLabel)-5,y-rf.approxheight/2-1, szLabel, cAxisAndLabels);
+
 
 								//messy but works
 				realy = (double)(y-ystart)/(double)ylen * (maxy-miny)+miny;
@@ -1756,6 +1883,7 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 
 		}
 
+		DestroyRasterFont(&rf);
 	}
 
 
@@ -1784,7 +1912,10 @@ void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString)
 	struct tm time;
 	unsigned long s;
 
-	s=seconds;
+	s=seconds;	//this is seconds since midnight
+
+	//convert to seconds since sunday.
+
 
 	localtime_s(&s, &time);
 
@@ -1808,3 +1939,11 @@ void labelfnTimeOfDayFromSeconds(double seconds, char * outputString)
 }
 
 
+void labelfnMinutesFromSeconds(double seconds, char * outputString)
+{
+	int m;
+
+	m = seconds/60;
+	sprintf(outputString, "%i", m);
+	return;
+}
