@@ -9,14 +9,11 @@
 #include "lodepng.h"
 #include "worldtracker.h"
 #include "wtgraphs.h"
+#include "wt_messages.h"
 
 #define MAX_ASPECT_RATIO 20
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
 
-#define WT_WM_RECALCBITMAP WM_APP+0	//Redraw the map from the loaded list of locations - this will do it as soon as message received
-#define WT_WM_QUEUERECALC WM_APP+1	//Signal that the map needs to be replotted (essentially this starts a timer) so we don't waste time
-#define WT_WM_SIGNALMOUSEWHEEL WM_APP+2	//We shouldn't send WM_MOUSEWHEEL between functions, but send this to down propagate to child window if required
-//I've got up +99, the graph program starts at +100
 
 
 
@@ -127,6 +124,7 @@ WORLDREGION regionHome;
 WORLDREGION regionAway;
 WORLDREGION *pRegionFirstExcluded;
 WORLDREGION *pRegionLastExcluded;
+WORLDREGION previewRegion;
 
 //Options are still based on the command line program
 OPTIONS optionsOverview;
@@ -817,6 +815,8 @@ int UpdateEditNSWEControls(NSWE * d)
 	SetWindowText(hwndEditWest, buffer);
 	sprintf(buffer,"%f", d->east);
 	SetWindowText(hwndEditEast, buffer);
+
+	CopyNSWE(&previewRegion.nswe, d);
 
 	return 0;
 }
@@ -1779,6 +1779,11 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			break;
 		case WT_WM_SIGNALMOUSEWHEEL:
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
+			break;
+		case WM_CONTEXTMENU:
+			SendMessage(hwndMainGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
+			SendMessage(hwndMainGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
+			SendMessage(hwndMainGraph, WT_WM_GRAPH_REDRAW, 0, 0);
 			break;
 		case WM_SETFOCUS:
 	    	UpdateStatusBar("Click and drag to move viewpoint. Use the mouse scrollwheel to zoom in and out.", 0, 0);

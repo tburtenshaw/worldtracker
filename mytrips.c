@@ -1606,11 +1606,12 @@ long SecondsInStay(STAY *stay, long starttime, long endtime)
 
 	while (stay)	{
 		//fprintf(stdout, "\n%i %i %i %i", starttime, endtime, stay->leavetime, stay->arrivetime);
-		if ((stay->arrivetime > starttime) && (stay->arrivetime < endtime))	{
+		if ((stay->leavetime > starttime) && (stay->arrivetime < endtime))	{
 			staylength += min(stay->leavetime, endtime) - max(stay->arrivetime, starttime);
+		//	fprintf(stdout, " added %is", staylength);
 		}
 		if (stay->leavetime >= endtime)	{
-//			return staylength;
+//			return staylength;	//this should work if the linked list is in order, and it would speed things up significantly
 
 		}
 

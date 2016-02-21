@@ -4,18 +4,12 @@
 #include "mytrips.h"
 #include "worldtracker.h"
 #include "wtgraphs.h"
+#include "wt_messages.h"
 
 #undef HANDLE_WM_CONTEXTMENU
 #define HANDLE_WM_CONTEXTMENU(hwnd, wParam, lParam, fn) \
     ((fn)((hwnd), (HWND)(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)), 0L)
 
-
-#define WT_WM_GRAPH_REDRAW (WM_APP+100)
-#define WT_WM_GRAPH_RECALCDATA (WM_APP+101)
-
-#define WT_WM_GRAPH_SETSERIESCOLOR (WM_APP+102)
-#define WT_WM_GRAPH_SETSERIESX (WM_APP+103)
-#define WT_WM_GRAPH_SETSERIESY (WM_APP+104)
 
 extern WORLDREGION regionHome;
 extern WORLDREGION regionAway;
@@ -189,10 +183,14 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 		xmin=tsstart;
 		xmax=tsfinish;
+
+		//make these easily beaten and replaced
+//		xmax=0;xmin=tsfinish;
+
 		ymin=0;
-		ymax=0;
+		ymax=24;
 		ymajorunit=1;
-		xmajorunit=24*60*60*30;
+		xmajorunit=24*60*60;
 		ylabelfn=NULL;
 
 		printf("graphing stay");
@@ -206,11 +204,11 @@ int DrawScatterGraph(GRAPHINFO *gi)
 				timestamp = mktime(&time);
 //			}
 
-
-					pointColour.R = cDaySwatch[time.tm_wday].R;
-					pointColour.G = cDaySwatch[time.tm_wday].G;
-					pointColour.B = cDaySwatch[time.tm_wday].B;
-					pointColour.A = 200;
+			//if we want to colour by day of week
+			pointColour.R = cDaySwatch[time.tm_wday].R;
+			pointColour.G = cDaySwatch[time.tm_wday].G;
+			pointColour.B = cDaySwatch[time.tm_wday].B;
+			pointColour.A = 200;
 
 			time.tm_mday++;
 			//time.tm_isdst = -1;
@@ -222,7 +220,17 @@ int DrawScatterGraph(GRAPHINFO *gi)
 			ydata = s;
 			ydata /=3600;
 
-			if (ceil(ydata)>ymax)	ymax=ceil(ydata);
+//			if ((s>0) && (timestamp<xmin))	{
+//				xmin=timestamp;
+//			}
+
+//			if ((s>0) && (timestampend>xmax))	{
+//				xmax=timestampend;
+//			}
+
+
+			//if we're fitting the graph y
+//			if (ceil(ydata)>ymax)	ymax=ceil(ydata);
 
 //			printf("\n%i %f %f", timestamp, xdata,ydata);
 			if (ydata>0)
@@ -295,6 +303,9 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		info->colourSeries = wParam;
 		break;
 
+	case WT_WM_GRAPH_SETREGION:
+		info->region  =(WORLDREGION *)wParam;
+		break;
 	case WT_WM_GRAPH_RECALCDATA:
 		RecalculateData(info);
 		break;
