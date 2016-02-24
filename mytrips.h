@@ -261,7 +261,7 @@ int FreeLinkedListOfTrips(TRIP * trip);
 STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh);
 long SecondsInStay(STAY *stay, long starttime, long endtime);
 int ExportTimeInNSWE(NSWE *nswe, long starttime, long endtime, long interval, LOCATIONHISTORY *lh);
-
+int FreeLinkedListOfStays(STAY * stay);
 
 //Graphs
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\

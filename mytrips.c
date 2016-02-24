@@ -1641,6 +1641,20 @@ int ExportTimeInNSWE(NSWE *nswe, long starttime, long endtime, long interval, LO
 	return 0;
 }
 
+int FreeLinkedListOfStays(STAY * stay)
+{
+	STAY * nextstay;
+	nextstay=stay;
+
+	while (stay)	{
+		nextstay=stay->next;
+		free(stay);
+		stay=nextstay;
+	}
+	return 0;
+}
+
+
 TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
 {
 	LOCATION *loc;
@@ -1902,21 +1916,29 @@ void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double 
 		//bitmapSquare(bm, x,y,x+widthofpoint-1, y+widthofpoint-1, cDataColour, cDataColour);
 		bitmapFilledCircle(bm, x, y, widthofpoint, cDataColour);
 
+//		bitmapSquare(bm, x,y,x+widthofpoint-1, ystart, cDataColour, cDataColour);	//bar
 	}
 
 
 	return;
 }
 
-void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString)
+void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString)	//actually seconds from midnight
 {
 	struct tm time;
 	unsigned long s;
+	time_t sundaymidnight;
 
-	s=seconds;	//this is seconds since midnight
+	s=seconds;	//this is seconds since midnight Sunday
 
-	//convert to seconds since sunday.
+	//make a midnight sunday that doesn't cross feb 29 or daylight savings
+	time.tm_sec=0;	time.tm_min=0;	time.tm_hour=0;
+	time.tm_mday=7;	time.tm_mon=5; time.tm_year=81;
+	time.tm_isdst=0;
+	sundaymidnight = mktime(&time);
 
+	//add to seconds since sunday.
+	s+=sundaymidnight;
 
 	localtime_s(&s, &time);
 

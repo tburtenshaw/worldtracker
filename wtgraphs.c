@@ -26,6 +26,9 @@ int RecalculateData(GRAPHINFO * gi)
 	printf("\ngraphtype %i", gi->graphType);
 	if (gi->graphType & WT_GRAPHTYPE_STAY)	{
 		printf("\nstay type");
+//		if (gi->stay)	{
+//			FreeLinkedListOfStays(gi->stay);
+//		}
 		gi->stay = CreateStayListFromNSWE(&gi->region->nswe, gi->locationHistory);
 	}
 	else if (gi->graphType & WT_GRAPHTYPE_TRIP)	{
@@ -111,7 +114,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 					localtime_s(&trip->leavetime, &time);
 					secondspastsunday = time.tm_wday*3600*24 + time.tm_hour*3600 + time.tm_min*60 + time.tm_sec;
 					xmin=0;
-					xmax = 60*60*24*7;
+					xmax = 60*60*24*7-60*60;
 					xmajorunit=60*60*24;
 					xdata = secondspastsunday;
 					xlabelfn=labelfnShortDayOfWeekFromSeconds;
@@ -183,56 +186,72 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 		xmin=tsstart;
 		xmax=tsfinish;
-
-		//make these easily beaten and replaced
-//		xmax=0;xmin=tsfinish;
-
 		ymin=0;
-		ymax=24;
 		ymajorunit=1;
-		xmajorunit=24*60*60;
+		xmajorunit=24*60*60*7;
 		ylabelfn=NULL;
 
 		printf("graphing stay");
 		for (timestamp = tsstart; timestamp<tsfinish;)	{
 			localtime_s(&timestamp, &time);
 
-			//if (gi->xAxisSeries == WT_SERIES_DAY) 	{
+			//SET STARTING PERIOD
+			if (gi->xAxisSeries == WT_SERIES_DAY) 	{	//set to the start of a day
 				time.tm_hour=0;
 				time.tm_min=0;
 				time.tm_sec=0;
 				timestamp = mktime(&time);
-//			}
+			}
+			else if (gi->xAxisSeries == WT_SERIES_MONTH)	{
+				time.tm_hour=0;
+				time.tm_min=0;
+				time.tm_sec=0;
+				time.tm_mday=1;
+				timestamp = mktime(&time);
+			}
 
+			//SET COLOUR
 			//if we want to colour by day of week
 			pointColour.R = cDaySwatch[time.tm_wday].R;
 			pointColour.G = cDaySwatch[time.tm_wday].G;
 			pointColour.B = cDaySwatch[time.tm_wday].B;
 			pointColour.A = 200;
 
-			time.tm_mday++;
-			//time.tm_isdst = -1;
+			//SET END PERIOD
+			if (gi->xAxisSeries == WT_SERIES_DAY) 	{	//get the next day
+				time.tm_mday++;
+			}
+			else if (gi->xAxisSeries == WT_SERIES_MONTH)	{
+				time.tm_mon++;
+			}
+
+
+			//time.tm_isdst = -1;	??do i need this
 
 			timestampend=mktime(&time);
 			workingStay=stay;
 			s =  SecondsInStay(workingStay, timestamp,timestampend);
 			xdata=timestamp;
 			ydata = s;
-			ydata /=3600;
 
-//			if ((s>0) && (timestamp<xmin))	{
-//				xmin=timestamp;
-//			}
+			//CHOSE THE UNITS WE'LL DISPLAY IN
+			if (gi->yAxisSeries == WT_SERIES_DUR_HOURS)	{
+				ydata /=3600;
+			}
+			else if (gi->yAxisSeries == WT_SERIES_DUR_MINUTES)	{
+				ydata /=60;
+				ymax=24*60;
+			}
+			else if (gi->yAxisSeries == WT_SERIES_DUR_DAYS)	{
+				ydata /=(3600*24);
+				ymax=31;
+			}
 
-//			if ((s>0) && (timestampend>xmax))	{
-//				xmax=timestampend;
-//			}
+			//Get the units
+			if ((gi->yAxisSeries == WT_SERIES_DUR_HOURS) && (gi->yAxisSeries == WT_SERIES_DAY))	//hours per day
+				ymax=24;
 
-
-			//if we're fitting the graph y
-//			if (ceil(ydata)>ymax)	ymax=ceil(ydata);
-
-//			printf("\n%i %f %f", timestamp, xdata,ydata);
+			//printf("\n%i %f %f", timestamp, xdata,ydata);
 			if (ydata>0)
 				GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
 
@@ -269,7 +288,7 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		info->region = &regionAway;
 
 		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_TRIP;
-		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
+		//info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
 
 
 
@@ -284,6 +303,12 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		info->fromtimestamp=1336938800;	//default
 		info->totimestamp=1452834934;
+
+		//info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
+		//info->xAxisSeries = WT_SERIES_MONTH;
+		info->yAxisSeries = WT_SERIES_DUR_DAYS;
+		info->colourSeries =WT_SERIES_WEEKDAY;
+
 
 		break;
 	case WM_PAINT:
