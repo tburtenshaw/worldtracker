@@ -10,6 +10,7 @@
 #include "worldtracker.h"
 #include "wtgraphs.h"
 #include "wt_messages.h"
+#include "wttabs.h"
 
 #define MAX_ASPECT_RATIO 20
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
@@ -612,6 +613,20 @@ szColourByOption[COLOUR_BY_MONTH]="Month";
 	if (!RegisterClass(&wc))
 		return 0;
 
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabExportWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabExport";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+
 
 
 
@@ -767,6 +782,8 @@ int HandleColourCycleRadiobuttons(HWND hwnd, int id, HWND hwndCtl, UINT codeNoti
 	}
 	return 0;
 }
+
+
 
 void UpdateProgressBar(int progress)	//dummy for the progress bar
 {
@@ -2094,8 +2111,15 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 //as we want to move the exporting bit to another window
 
-		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 400, hwnd,NULL,hInst,NULL);
-		y+=400+MARGIN;
+		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 200, hwnd,NULL,hInst,NULL);
+		y+=200+MARGIN;
+
+
+		//tabs
+		hwndTab = CreateWindow(WC_TABCONTROL, NULL, WS_CHILD|WS_VISIBLE, x,y,640,200,hwnd,NULL, hInst, NULL);
+		y+=200+MARGIN;
+		CreateTabsAndTabWindows(hwndTab);
+
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
@@ -2126,6 +2150,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	case WM_COMMAND:
 		HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);
 		break;
+	case WM_NOTIFY:
+		return HANDLE_WM_NOTIFY(hwnd,wParam,lParam,MainWndProc_OnTabNotify);
+		break;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
@@ -2134,6 +2161,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	}
 	return 0;
 }
+
+
 
 
 int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)

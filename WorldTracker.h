@@ -2,6 +2,7 @@
 LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
+HWND hwndTab;		//Tab control with settings, stats etc.
 
 HWND  hWndStatusbar;
 //The dialog hwnds
@@ -59,12 +60,17 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *info);
 DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone from the back of the queue
 
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+//LRESULT CALLBACK MainWndProc_OnNotify(HWND hwnd, int id, NMHDR * nmh); (currently this is only the tab window, so that handles everything
+
+
 LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourByWeekdayWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourByMonthWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
 
 int	mouseDragDateSlider;
 
@@ -88,3 +94,6 @@ int SignificantDecimals(double d);
 double TruncateByDegreesPerPixel(double d, double spp);
 
 void InitiateColours(void);
+
+
+int CreateTabsAndTabWindows(HWND hwnd);
