@@ -94,6 +94,7 @@ int SignificantDecimals(double d);
 double TruncateByDegreesPerPixel(double d, double spp);
 
 void InitiateColours(void);
-
+void InitStrings(void);
+int InitWindowClasses(void);
 
 int CreateTabsAndTabWindows(HWND hwnd);

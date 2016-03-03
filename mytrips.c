@@ -1516,7 +1516,7 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 	return 0;
 }
 
-WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c)
+WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c)
 {
 	WORLDREGION *outputRegion;
 
@@ -1528,7 +1528,19 @@ WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c)
 	outputRegion->baseColour.B=c->B;
 	outputRegion->baseColour.A=c->A;
 
+	//Set the title - NOT STRING SAFE
+	if (title)	{
+		outputRegion->szTitle = malloc(strlen(title)+1);
+		strcpy(outputRegion->szTitle, title);
+	}
+	else	{
+		outputRegion->szTitle = NULL;
+	}
 
+	//set the type
+	outputRegion->regionType = type;
+
+	//set this as the next region in the list
 	if (parentRegion)	{
 		parentRegion->next = outputRegion;
 	}

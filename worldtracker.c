@@ -258,11 +258,13 @@ static BOOL CreateSBar(HWND hwndParent,char *initialText,int nrOfParts)
 
 int GetFileName(char *buffer,int buflen)
 {
-	char tmpfilter[41];
+	const int filtersize = 64;
+
+	char tmpfilter[filtersize];
 	int i = 0;
 	OPENFILENAME ofn;
 
-	memset(&ofn,0,sizeof(ofn));
+	memset(&ofn, 0, sizeof(ofn));
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hInstance = GetModuleHandle(NULL);
 	ofn.hwndOwner = GetActiveWindow();
@@ -271,9 +273,12 @@ int GetFileName(char *buffer,int buflen)
 	ofn.lpstrTitle = "Open";
 	ofn.nFilterIndex = 2;
 	ofn.lpstrDefExt = "json";
-	strcpy(buffer,"*.json");
-	strcpy(tmpfilter,"All files,*.*,JSON Files,*.json");
-	while(tmpfilter[i]) {
+
+	printf("Buflen: %i ", buflen);
+	strcpy(buffer, "*.json");
+
+	strcpy(tmpfilter, "All files,*.*,JSON Files,*.json");
+	while((tmpfilter[i]) && (i<filtersize-2)) {
 		if (tmpfilter[i] == ',')
 			tmpfilter[i] = 0;
 		i++;
@@ -319,118 +324,8 @@ void InitiateColours(void)
 	return;
 }
 
-static BOOL InitApplication(void)
+void InitStrings(void)
 {
-	WNDCLASS wc;
-
-	hbmQueueSize=0;
-
-	//Set locationHistory to NULL
-	memset(&locationHistory,0,sizeof(locationHistory));
-	memset(&previewBM,0,sizeof(previewBM));
-
-	memset(&optionsPreview,0,sizeof(optionsPreview));
-	memset(&optionsOverview,0,sizeof(optionsPreview));
-
-	optionsPreview.nswe.north=90;
-	optionsPreview.nswe.south=-90;
-	optionsPreview.nswe.west=-180;
-	optionsPreview.nswe.east=180;
-	optionsPreview.thickness=1;
-	optionsPreview.colourcycle=60*60*24*7;
-	optionsPreview.colourby = COLOUR_BY_TIME;
-	optionsPreview.colourextra = cDaySwatch;
-
-	InitiateColours();
-
-
-	regionAway.baseColour.R = 255;
-	regionAway.baseColour.G = 156;
-	regionAway.baseColour.B = 0;
-	regionAway.baseColour.A=75;
-	regionAway.nswe.north=-37.015956;
-	regionAway.nswe.south=-37.025932;
-	regionAway.nswe.west=174.889670;
-	regionAway.nswe.east=174.903095;
-
-	regionHome.baseColour.R = 0;
-	regionHome.baseColour.G = 134;
-	regionHome.baseColour.B = 238;
-	regionHome.baseColour.A=75;
-	regionHome.nswe.north=-36.843975;
-	regionHome.nswe.south=-36.857656;
-	regionHome.nswe.west=174.757584;
-	regionHome.nswe.east=174.774074;
-
-
-	pRegionFirstExcluded = NULL;
-	pRegionLastExcluded = NULL;
-
-
-
-COLOUR c;
-NSWE nswe;
-
-c.R = 160;
-c.G = 10;
-c.B = 10;
-c.A=180;
-
-
-nswe.north = -36.865730;
-nswe.south =-37.087670;
-nswe.west =174.966750;
-nswe.east =175.095146;
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
-	}
-
-
-nswe.north =-36.804920;
-nswe.south =-36.885830;
-nswe.west =174.822950;
-nswe.east =174.924479;
-
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
-	}
-
-
-nswe.north =-36.877190;
-nswe.south =-36.968430;
-nswe.west =174.877340;
-nswe.east =174.979382;
-
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
-	}
-
-nswe.north =-36.992380;
-nswe.south =-37.131420;
-nswe.west =174.531930;
-nswe.east =174.810390;
-
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
-	}
-
-nswe.north =-36.497400;
-nswe.south =-36.989100;
-nswe.west =173.663100;
-nswe.east =174.649000;
-
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
-	}
-
-
-
-
 	szMonthLetter[0]="J";
 	szMonthLetter[1]="F";
 	szMonthLetter[2]="M";
@@ -446,24 +341,27 @@ nswe.east =174.649000;
 
 
 
-szDayOfWeek[0]="Sun";
-szDayOfWeek[1]="Mon";
-szDayOfWeek[2]="Tue";
-szDayOfWeek[3]="Wed";
-szDayOfWeek[4]="Thu";
-szDayOfWeek[5]="Fri";
-szDayOfWeek[6]="Sat";
+	szDayOfWeek[0]="Sun";
+	szDayOfWeek[1]="Mon";
+	szDayOfWeek[2]="Tue";
+	szDayOfWeek[3]="Wed";
+	szDayOfWeek[4]="Thu";
+	szDayOfWeek[5]="Fri";
+	szDayOfWeek[6]="Sat";
 
-szColourByOption[COLOUR_BY_TIME]="Time";
-szColourByOption[COLOUR_BY_SPEED]="Speed";
-szColourByOption[COLOUR_BY_ACCURACY]="Accuracy";
-szColourByOption[COLOUR_BY_DAYOFWEEK]="Day";
-szColourByOption[COLOUR_BY_HOUR]="Hour";
-szColourByOption[COLOUR_BY_MONTH]="Month";
+	szColourByOption[COLOUR_BY_TIME]="Time";
+	szColourByOption[COLOUR_BY_SPEED]="Speed";
+	szColourByOption[COLOUR_BY_ACCURACY]="Accuracy";
+	szColourByOption[COLOUR_BY_DAYOFWEEK]="Day";
+	szColourByOption[COLOUR_BY_HOUR]="Hour";
+	szColourByOption[COLOUR_BY_MONTH]="Month";
 
+	return;
+}
 
-	//Load presets into an array
-	LoadPresets(presetArray, &numberOfPresets, MAX_PRESETS);
+int InitWindowClasses(void)
+{
+	WNDCLASS wc;
 
 	//Make the Window Classes
 	memset(&wc,0,sizeof(WNDCLASS));
@@ -626,8 +524,138 @@ szColourByOption[COLOUR_BY_MONTH]="Month";
 	if (!RegisterClass(&wc))
 		return 0;
 
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabRegionsWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabRegions";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+	return 1;
+}
+
+static BOOL InitApplication(void)
+{
+	hbmQueueSize=0;
+
+	//Set locationHistory to NULL
+	memset(&locationHistory,0,sizeof(locationHistory));
+	memset(&previewBM,0,sizeof(previewBM));
+
+	memset(&optionsPreview,0,sizeof(optionsPreview));
+	memset(&optionsOverview,0,sizeof(optionsPreview));
+
+	optionsPreview.nswe.north=90;
+	optionsPreview.nswe.south=-90;
+	optionsPreview.nswe.west=-180;
+	optionsPreview.nswe.east=180;
+	optionsPreview.thickness=1;
+	optionsPreview.colourcycle=60*60*24*7;
+	optionsPreview.colourby = COLOUR_BY_TIME;
+	optionsPreview.colourextra = cDaySwatch;
+
+	InitiateColours();
 
 
+	regionAway.baseColour.R = 255;
+	regionAway.baseColour.G = 156;
+	regionAway.baseColour.B = 0;
+	regionAway.baseColour.A=75;
+	regionAway.nswe.north=-37.015956;
+	regionAway.nswe.south=-37.025932;
+	regionAway.nswe.west=174.889670;
+	regionAway.nswe.east=174.903095;
+
+	regionHome.baseColour.R = 0;
+	regionHome.baseColour.G = 134;
+	regionHome.baseColour.B = 238;
+	regionHome.baseColour.A=75;
+	regionHome.nswe.north=-36.843975;
+	regionHome.nswe.south=-36.857656;
+	regionHome.nswe.west=174.757584;
+	regionHome.nswe.east=174.774074;
+
+
+	pRegionFirstExcluded = NULL;
+	pRegionLastExcluded = NULL;
+
+
+
+COLOUR c;
+NSWE nswe;
+
+c.R = 160;
+c.G = 10;
+c.B = 10;
+c.A=180;
+
+
+nswe.north = -36.865730;
+nswe.south =-37.087670;
+nswe.west =174.966750;
+nswe.east =175.095146;
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
+
+nswe.north =-36.804920;
+nswe.south =-36.885830;
+nswe.west =174.822950;
+nswe.east =174.924479;
+
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
+
+nswe.north =-36.877190;
+nswe.south =-36.968430;
+nswe.west =174.877340;
+nswe.east =174.979382;
+
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
+nswe.north =-36.992380;
+nswe.south =-37.131420;
+nswe.west =174.531930;
+nswe.east =174.810390;
+
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
+nswe.north =-36.497400;
+nswe.south =-36.989100;
+nswe.west =173.663100;
+nswe.east =174.649000;
+
+
+	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!pRegionFirstExcluded)	{
+		pRegionFirstExcluded = pRegionLastExcluded;
+	}
+
+	//Sets strings
+	InitStrings();
+
+	//Load presets into an array
+	LoadPresets(presetArray, &numberOfPresets, MAX_PRESETS);
+
+	//Register the Window Classes used
+	InitWindowClasses();
 
 
 	return 1;

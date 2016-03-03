@@ -253,7 +253,7 @@ double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2
 
 
 
-WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, COLOUR *c);
+WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c);
 TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh);
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);
