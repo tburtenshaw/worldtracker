@@ -16,8 +16,6 @@
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
 
 
-
-
 #define IDT_PREVIEWTIMER 1
 #define IDT_OVERVIEWTIMER 2
 
@@ -77,6 +75,8 @@ struct sStretch	{
 };
 
 
+extern HWND hwndTabExport;
+
 HWND hwndOverview;	//The overview is also used to hold the positions to be drawn and exported
 HWND hwndPreview;
 
@@ -121,10 +121,8 @@ BOOL mouseDragOverview;
 BOOL mouseDragPreview;
 BOOL mouseDragCropbar;	//in the preview
 
-WORLDREGION regionHome;
-WORLDREGION regionAway;
-WORLDREGION *pRegionFirstExcluded;
-WORLDREGION *pRegionLastExcluded;
+WORLDREGION *regionFirst;
+WORLDREGION *regionLast;
 WORLDREGION previewRegion;
 
 //Options are still based on the command line program
@@ -563,32 +561,41 @@ static BOOL InitApplication(void)
 	InitiateColours();
 
 
-	regionAway.baseColour.R = 255;
-	regionAway.baseColour.G = 156;
-	regionAway.baseColour.B = 0;
-	regionAway.baseColour.A=75;
-	regionAway.nswe.north=-37.015956;
-	regionAway.nswe.south=-37.025932;
-	regionAway.nswe.west=174.889670;
-	regionAway.nswe.east=174.903095;
-
-	regionHome.baseColour.R = 0;
-	regionHome.baseColour.G = 134;
-	regionHome.baseColour.B = 238;
-	regionHome.baseColour.A=75;
-	regionHome.nswe.north=-36.843975;
-	regionHome.nswe.south=-36.857656;
-	regionHome.nswe.west=174.757584;
-	regionHome.nswe.east=174.774074;
-
-
-	pRegionFirstExcluded = NULL;
-	pRegionLastExcluded = NULL;
-
-
 
 COLOUR c;
 NSWE nswe;
+
+
+	regionFirst = NULL;
+	regionLast = NULL;
+
+
+	c.R = 255;
+	c.G = 156;
+	c.B = 0;
+	c.A=75;
+	nswe.north=-37.015956;
+	nswe.south=-37.025932;
+	nswe.west=174.889670;
+	nswe.east=174.903095;
+
+
+	regionLast = CreateRegion(regionLast, &nswe, "Home", REGIONTYPE_HOME, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
+	}
+
+
+	nswe.north=-36.843975;
+	nswe.south=-36.857656;
+	nswe.west=174.757584;
+	nswe.east=174.774074;
+	regionLast = CreateRegion(regionLast, &nswe, "Away", REGIONTYPE_AWAY, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
+	}
+
+
 
 c.R = 160;
 c.G = 10;
@@ -600,9 +607,9 @@ nswe.north = -36.865730;
 nswe.south =-37.087670;
 nswe.west =174.966750;
 nswe.east =175.095146;
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
+	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
 	}
 
 
@@ -611,9 +618,9 @@ nswe.south =-36.885830;
 nswe.west =174.822950;
 nswe.east =174.924479;
 
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
+	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
 	}
 
 
@@ -622,9 +629,9 @@ nswe.south =-36.968430;
 nswe.west =174.877340;
 nswe.east =174.979382;
 
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
+	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
 	}
 
 nswe.north =-36.992380;
@@ -632,9 +639,9 @@ nswe.south =-37.131420;
 nswe.west =174.531930;
 nswe.east =174.810390;
 
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
+	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
 	}
 
 nswe.north =-36.497400;
@@ -643,9 +650,9 @@ nswe.west =173.663100;
 nswe.east =174.649000;
 
 
-	pRegionLastExcluded = CreateRegion(pRegionLastExcluded, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
-	if (!pRegionFirstExcluded)	{
-		pRegionFirstExcluded = pRegionLastExcluded;
+	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	if (!regionFirst)	{
+		regionFirst = regionLast;
 	}
 
 	//Sets strings
@@ -695,7 +702,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 
 		case IDM_SAVE:
-			ExportKMLDialogAndComplete(hwnd, &optionsPreview, &locationHistory);
+			ExportKMLDialogAndComplete(hwnd, &optionsPreview);
 		break;
 
 		case IDM_CLOSE:
@@ -1037,7 +1044,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 				}
 			break;
 
-		case ID_EDITEXPORTHEIGHT:
+/*		case ID_EDITEXPORTHEIGHT:
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 1);
 			optionsPreview.forceheight=1;
 			break;
@@ -1045,7 +1052,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			UpdateExportAspectRatioFromOptions(&optionsPreview, 0);
 			optionsPreview.forceheight=0;
 			break;
-
+*/
 		case ID_EDITTHICKNESS:
 			optionsPreview.thickness=value;
 			needsRedraw=1;
@@ -1081,10 +1088,10 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 }
 
 
-int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
+int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o)
 {
 	char filename[MAX_PATH];
-	char editboxtext[128];
+	//char editboxtext[128];
 	OPENFILENAME ofn;
 
 	memset(&ofn,0,sizeof(ofn));
@@ -1115,10 +1122,13 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh)
 
 	optionsExport.pngfilenameinput = filename;
 
-	SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
-	optionsExport.width=atol(&editboxtext[0]);
-	SendMessage(hwndEditExportHeight, WM_GETTEXT, 128,(long)&editboxtext[0]);
-	optionsExport.height=atol(&editboxtext[0]);
+	//SendMessage(hwndEditExportWidth, WM_GETTEXT, 128,(long)&editboxtext[0]);
+	//optionsExport.width=atol(&editboxtext[0]);
+	//SendMessage(hwndEditExportHeight, WM_GETTEXT, 128,(long)&editboxtext[0]);
+	//optionsExport.height=atol(&editboxtext[0]);
+	optionsExport.width=SendMessage(hwndTabExport, WT_WM_TAB_GETEXPORTWIDTH, 0, 0);
+	optionsExport.height=SendMessage(hwndTabExport, WT_WM_TAB_GETEXPORTHEIGHT, 0, 0);
+
 	//get the NSWE, thickness, dates and colour info from the options
 	optionsExport.nswe.north=o->nswe.north;
 	optionsExport.nswe.south=o->nswe.south;
@@ -1982,9 +1992,9 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
 
-	DrawRegion(&previewBM, &regionHome);
-	DrawRegion(&previewBM, &regionAway);
-	DrawListOfRegions(&previewBM, pRegionFirstExcluded);
+//	DrawRegion(&previewBM, &regionHome);
+//	DrawRegion(&previewBM, &regionAway);
+	DrawListOfRegions(&previewBM, regionFirst);
 
 //Display the presets
 /*
@@ -2127,18 +2137,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 		y=MARGIN;
 
-//we'll get rid of this soon
-		hwndStaticExportWidth = CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE |WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportWidth = CreateWindow("Edit","3600", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTWIDTH, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndStaticExportHeight = CreateWindow("Static","Height:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
-		x+=TEXT_WIDTH_QUARTER+MARGIN;
-		hwndEditExportHeight = CreateWindow("Edit","1800", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER, x, y, TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEXPORTHEIGHT, hInst, NULL);
-		y+=MARGIN+TEXT_HEIGHT;
-		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
-//as we want to move the exporting bit to another window
-
 		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 200, hwnd,NULL,hInst,NULL);
 		y+=200+MARGIN;
 
@@ -2190,39 +2188,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
-
-
-
-int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
-{
-	char buffer[255];
-	int exportHeight;
-	int exportWidth;
-
-	if ((o->width<1)||(o->height<1))
-		return 0;
-
-	if (forceHeight)	{
-		GetWindowText(hwndEditExportHeight, &buffer[0], 255);
-		exportHeight=atol(&buffer[0]);
-		printf("height: %i, ",exportHeight);
-		exportWidth=exportHeight*o->width/o->height;
-		printf("width: %i\r\n",exportWidth);
-		sprintf(&buffer[0], "%i", exportWidth);
-		SetWindowText(hwndEditExportWidth, &buffer[0]);
-
-	}
-	else	{	//we'll be forcing the width static
-		GetWindowText(hwndEditExportWidth, &buffer[0], 255);
-		exportWidth=atol(&buffer[0]);
-		exportHeight=exportWidth*o->height/o->width;
-		sprintf(&buffer[0], "%i", exportHeight);
-		SetWindowText(hwndEditExportHeight, &buffer[0]);
-	}
-	InvalidateRect(hwndEditExportWidth, NULL, 0);
-	InvalidateRect(hwndEditExportHeight, NULL, 0);
-	return 1;
-}
 
 
 

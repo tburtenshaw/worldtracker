@@ -171,8 +171,8 @@ struct sTrip	{
 struct sWorldRegion	{
 	NSWE nswe;
 	COLOUR baseColour;
-	char * szTitle;
-	int regionType;
+	char * title;
+	int type;
 	WORLDREGION * next;	//next in the linked list
 };
 
@@ -254,7 +254,7 @@ double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2
 
 
 WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c);
-TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh);
+TRIP * GetLinkedListOfTrips(WORLDREGION * regions, LOCATIONHISTORY *lh);
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);
 

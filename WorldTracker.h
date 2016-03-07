@@ -21,11 +21,11 @@ HWND hwndEditEast;
 HWND hwndStaticPreset;
 HWND hwndEditPreset;
 
-HWND hwndStaticExportHeading;
-HWND hwndStaticExportWidth;
-HWND hwndEditExportWidth;
-HWND hwndStaticExportHeight;
-HWND hwndEditExportHeight;
+//HWND hwndStaticExportHeading;
+//HWND hwndStaticExportWidth;
+//HWND hwndEditExportWidth;
+//HWND hwndStaticExportHeight;
+//HWND hwndEditExportHeight;
 
 HWND hwndEditDateTo;
 HWND hwndEditDateFrom;
@@ -76,14 +76,14 @@ int	mouseDragDateSlider;
 
 int UpdateEditNSWEControls(NSWE * d);
 int UpdateBarsFromNSWE(NSWE * d);
-int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
+//int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
 int UpdateDateControlsFromOptions(OPTIONS * o);
 
 int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio);	//aspect ratio here is width/height, if 0, it doesn't fits to the screen
 
 int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o);
 
-int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o, LOCATIONHISTORY *lh);
+int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o);
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);

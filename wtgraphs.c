@@ -11,9 +11,7 @@
     ((fn)((hwnd), (HWND)(wParam), GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)), 0L)
 
 
-extern WORLDREGION regionHome;
-extern WORLDREGION regionAway;
-extern WORLDREGION *pRegionFirstExcluded;
+extern WORLDREGION *regionFirst;
 extern LOCATIONHISTORY locationHistory;
 
 extern COLOUR cDaySwatch[7];
@@ -38,7 +36,7 @@ int RecalculateData(GRAPHINFO * gi)
 		}
 
 		printf("\n recalc graph");
-		gi->trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, pRegionFirstExcluded, gi->locationHistory);
+		gi->trip = GetLinkedListOfTrips(regionFirst, gi->locationHistory);
 	}
 	return 0;
 }
@@ -285,7 +283,7 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		SetWindowLong(hwnd, GWL_USERDATA, (long)info);
 		info->hbmGraph = NULL;
 		info->locationHistory= &locationHistory;
-		info->region = &regionAway;
+		info->region = regionFirst;
 
 		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_TRIP;
 		//info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;

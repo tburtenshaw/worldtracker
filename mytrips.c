@@ -1530,15 +1530,15 @@ WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title,
 
 	//Set the title - NOT STRING SAFE
 	if (title)	{
-		outputRegion->szTitle = malloc(strlen(title)+1);
-		strcpy(outputRegion->szTitle, title);
+		outputRegion->title = malloc(strlen(title)+1);
+		strcpy(outputRegion->title, title);
 	}
 	else	{
-		outputRegion->szTitle = NULL;
+		outputRegion->title = NULL;
 	}
 
 	//set the type
-	outputRegion->regionType = type;
+	outputRegion->type = type;
 
 	//set this as the next region in the list
 	if (parentRegion)	{
@@ -1666,8 +1666,8 @@ int FreeLinkedListOfStays(STAY * stay)
 	return 0;
 }
 
-
-TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
+/*
+TRIP * GetLinkedListOfTripsOld(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
 {
 	LOCATION *loc;
 	WORLDCOORD coord;
@@ -1745,6 +1745,92 @@ TRIP * GetLinkedListOfTrips(NSWE * home, NSWE * away, WORLDREGION * excludedRegi
 
 	return firsttrip;
 }
+*/
+
+
+TRIP * GetLinkedListOfTrips(WORLDREGION * regions, LOCATIONHISTORY *lh)
+{
+	LOCATION *loc;
+	WORLDCOORD coord;
+
+	int dir;
+
+	TRIP * trip;
+	TRIP * oldtrip;
+	TRIP * firsttrip;
+
+	WORLDREGION * firstRegion;
+	WORLDREGION * reg;
+
+	long leavetime;
+
+	leavetime=0;
+	trip=NULL;
+	oldtrip=NULL;
+	firsttrip=NULL;
+
+	firstRegion=regions;
+
+	dir = 0;
+	loc=lh->first;
+	while (loc)	{
+		coord.latitude = loc->latitude;
+		coord.longitude = loc->longitude;
+
+		//go through all the regions.
+		reg = firstRegion;
+		while (reg)	{
+			if (CoordInNSWE(&coord, &reg->nswe))	{
+				if (reg->type == REGIONTYPE_EXCLUSION)	{
+					dir = 0;
+				}
+				else if (reg->type == REGIONTYPE_HOME)	{
+					if (dir<1)	{
+						trip = malloc(sizeof(TRIP));
+						trip->next=NULL;
+						if (!firsttrip)	firsttrip=trip;
+						if (oldtrip)	oldtrip->next=trip;
+						trip->arrivetime = loc->timestampS;
+						trip->leavetime = leavetime;
+						trip->direction=dir;
+						oldtrip=trip;
+						dir =1;
+					}
+					else	{
+						leavetime=loc->timestampS;
+					}
+				}
+				else if (reg->type == REGIONTYPE_AWAY)	{
+					if (dir>-1)	{
+						trip = malloc(sizeof(TRIP));
+						trip->next=NULL;
+						if (!firsttrip)	firsttrip=trip;
+						if (oldtrip)	oldtrip->next=trip;
+						trip->arrivetime = loc->timestampS;
+						trip->leavetime = leavetime;
+						trip->direction=dir;
+						oldtrip=trip;
+						dir =-1;
+					}
+					else	{
+						leavetime=loc->timestampS;
+					}
+
+				}
+			}
+			reg = reg->next;
+		}
+
+
+		loc=loc->next;
+	}
+
+	return firsttrip;
+}
+
+
+
+
 
 int ExportTripData(TRIP * firsttrip, char * filename)
 {
