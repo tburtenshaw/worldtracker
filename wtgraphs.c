@@ -179,6 +179,11 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 		long s;
 
+		int	bucketnumber=0;
+		int allocatedbuckets=3600;
+		int numberofbuckets=0;
+		int *bucket;
+
 		tsstart = gi->fromtimestamp;
 		tsfinish = gi->totimestamp;
 
@@ -190,6 +195,10 @@ int DrawScatterGraph(GRAPHINFO *gi)
 		ylabelfn=NULL;
 
 		printf("graphing stay");
+		bucket=malloc(sizeof(int)*allocatedbuckets);
+		bucket[0]=0;	//set the first bucket empty
+		memset(bucket,0,sizeof(int)*24);
+
 		for (timestamp = tsstart; timestamp<tsfinish;)	{
 			localtime_s(&timestamp, &time);
 
@@ -207,6 +216,19 @@ int DrawScatterGraph(GRAPHINFO *gi)
 				time.tm_mday=1;
 				timestamp = mktime(&time);
 			}
+			else if (gi->xAxisSeries == WT_SERIES_TIMEOFDAY)	{
+				time.tm_min=0;
+				time.tm_sec=0;
+				timestamp = mktime(&time);
+			}
+			else if (gi->xAxisSeries == WT_SERIES_WEEKDAY)	{
+				time.tm_hour=0;
+				time.tm_min=0;
+				time.tm_sec=0;
+				timestamp = mktime(&time);
+			}
+
+
 
 			//SET COLOUR
 			//if we want to colour by day of week
@@ -222,6 +244,15 @@ int DrawScatterGraph(GRAPHINFO *gi)
 			else if (gi->xAxisSeries == WT_SERIES_MONTH)	{
 				time.tm_mon++;
 			}
+			else if (gi->xAxisSeries == WT_SERIES_TIMEOFDAY)	{
+				bucketnumber=time.tm_hour;
+				time.tm_hour++;
+			}
+			else if (gi->xAxisSeries == WT_SERIES_WEEKDAY)	{
+				bucketnumber=time.tm_wday;
+				time.tm_mday++;
+			}
+
 
 
 			//time.tm_isdst = -1;	??do i need this
@@ -229,6 +260,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 			timestampend=mktime(&time);
 			workingStay=stay;
 			s =  SecondsInStay(workingStay, timestamp,timestampend);
+			bucket[bucketnumber]+=s;
 			xdata=timestamp;
 			ydata = s;
 
@@ -253,12 +285,25 @@ int DrawScatterGraph(GRAPHINFO *gi)
 			if (ydata>0)
 				GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
 
+			bucketnumber++;
+			if (bucketnumber>numberofbuckets)
+				numberofbuckets=bucketnumber;
+			if (bucketnumber>allocatedbuckets)	{	//if we need more buckets
+				printf("%i ", bucketnumber);
+				allocatedbuckets+=3600;
+				bucket = realloc(bucket,3600*sizeof(int));
+			}
+			//bucket[bucketnumber]=0;	//set the next bucket to empty
 			timestamp=timestampend;
 
-
+		}
+		//Now go through the buckets
+		for (int i=0;i<numberofbuckets;i++)	{
+			printf("\n%i:\t%i", i, bucket[i]);
 		}
 
-
+		//Free the buckets
+		free(bucket);
 
 	}
 
@@ -286,7 +331,6 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		info->region = regionFirst;
 
 		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_TRIP;
-		//info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
 
 
 
@@ -302,11 +346,13 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		info->fromtimestamp=1336938800;	//default
 		info->totimestamp=1452834934;
 
-		//info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
-		//info->xAxisSeries = WT_SERIES_MONTH;
+		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
+		info->xAxisSeries = WT_SERIES_MONTH;
 		info->yAxisSeries = WT_SERIES_DUR_DAYS;
 		info->colourSeries =WT_SERIES_WEEKDAY;
 
+		info->xAxisSeries = WT_SERIES_TIMEOFDAY;
+		info->xAxisSeries =WT_SERIES_WEEKDAY;
 
 		break;
 	case WM_PAINT:

@@ -130,7 +130,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	twofiftysixth = locationHistory->filesize/256;
 
-	while (ReadLocation(locationHistory, coord)==1)	{
+	while (ReadLocation(locationHistory, coord, FILETYPE_NMEA))	{
 
 		if (progressfn)	{
 			if (locationHistory->filepos > twofiftysixth * progress)	{
@@ -148,27 +148,27 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 		locationHistory->numPoints++;
 
 		//set the next of the previous depending on our zoom resolution
-		if ((fabs(waitingFor1->latitude - coord->latitude) >1) ||(fabs(waitingFor1->latitude - coord->latitude) >1))	{
+		if ((fabs(waitingFor1->latitude - coord->latitude) >1) ||(fabs(waitingFor1->longitude - coord->longitude) >1))	{
 			waitingFor1->next1ppd = coord;
 			waitingFor1=coord;
 		}
 
-		if ((fabs(waitingFor10->latitude - coord->latitude) >0.1) ||(fabs(waitingFor10->latitude - coord->latitude) >0.1))	{
+		if ((fabs(waitingFor10->latitude - coord->latitude) >0.1) ||(fabs(waitingFor10->longitude - coord->longitude) >0.1))	{
 			waitingFor10->next10ppd = coord;
 			waitingFor10=coord;
 		}
 
-		if ((fabs(waitingFor100->latitude - coord->latitude) >0.01) ||(fabs(waitingFor100->latitude - coord->latitude) >0.01))	{
+		if ((fabs(waitingFor100->latitude - coord->latitude) >0.01) ||(fabs(waitingFor100->longitude - coord->longitude) >0.01))	{
 			waitingFor100->next100ppd = coord;
 			waitingFor100=coord;
 		}
 
-		if ((fabs(waitingFor1000->latitude - coord->latitude) >0.001) ||(fabs(waitingFor1000->latitude - coord->latitude) >0.001))	{
+		if ((fabs(waitingFor1000->latitude - coord->latitude) >0.001) ||(fabs(waitingFor1000->longitude - coord->longitude) >0.001))	{
 			waitingFor1000->next1000ppd = coord;
 			waitingFor1000=coord;
 		}
 
-		if ((fabs(waitingFor10000->latitude - coord->latitude) >0.0001) ||(fabs(waitingFor10000->latitude - coord->latitude) >0.0001))	{
+		if ((fabs(waitingFor10000->latitude - coord->latitude) >0.0001) ||(fabs(waitingFor10000->longitude - coord->longitude) >0.0001))	{
 			waitingFor10000->next10000ppd = coord;
 			waitingFor10000=coord;
 		}
@@ -189,6 +189,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 		coord->prev=prevCoord;
 		coord->next=malloc(sizeof(LOCATION));	//allocation memory for the next in the linked list
+		memset(coord->next, 0, sizeof(LOCATION));	//next to reset everything to zero - I think this was causing a frequent crash
 		prevCoord=coord;
 
 		//Advance to the next in the list
@@ -222,7 +223,123 @@ int FreeLocations(LOCATIONHISTORY *locationHistory)
 	return 0;
 }
 
-int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location)
+
+int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location, int filetype)
+{
+	switch (filetype)	{
+		case FILETYPE_NMEA:
+			return ReadLocationFromNmea(lh, location);
+			break;
+		default:
+			return ReadLocationFromJson(lh, location);
+	}
+}
+
+int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location)
+{
+	char buffer[256];
+	const int cmdGGA=1;
+	const int cmdRMC=2;
+	int nmeaCmd;
+
+	char * pUTCtime;
+	char * pStatus;
+	char * pLat;
+	char * pNorS;
+	char * pLong;
+	char * pEorW;
+	char * pSpeed;
+	char * pTrack;
+	char * pDate;
+	char * pMagVar;
+
+	struct tm time;
+
+	//there are more, but we won't use these
+
+
+	while (fgets(buffer, 256, lh->json) != NULL)	{
+		lh->filepos+=strlen(buffer);
+		if (buffer[0]=='$')	{	//we have a proper line
+			if ((buffer[3]=='G') && (buffer[4]=='G') && (buffer[5]=='A'))	{
+				nmeaCmd  = cmdGGA;
+			}
+			else if ((buffer[3]=='R') && (buffer[4]=='M') && (buffer[5]=='C'))	{
+				nmeaCmd  = cmdRMC;
+			}
+			else nmeaCmd = 0;
+
+		//$--RMC,hhmmss.ss,A,llll.ll,a,yyyyy.yy,a,x.x,x.x,xxxx,x.x,a,m,*hh<CR><LF>
+			if (nmeaCmd == cmdRMC)	{
+				pUTCtime = strchr(buffer,',');	//find the first comma
+				*pUTCtime = (char)0; pUTCtime++;	//change the comma to a /0 (to terminate string), then advance by one to get the start of the next string
+
+				pStatus = strchr(pUTCtime,',');
+				*pStatus = (char)0; pStatus++;
+
+				pLat = strchr(pStatus,',');	//note we use the string one before
+				*pLat = (char)0; pLat++;
+
+				pNorS = strchr(pLat,',');
+				*pNorS = (char)0; pNorS++;
+
+				pLong = strchr(pNorS,',');
+				*pLong = (char)0; pLong++;
+
+				pEorW = strchr(pLong,',');
+				*pEorW = (char)0; pEorW++;
+
+				pSpeed = strchr(pEorW,',');
+				*pSpeed = (char)0; pSpeed++;
+
+				pTrack = strchr(pSpeed,',');
+				*pTrack = (char)0; pTrack++;
+
+				pDate = strchr(pTrack,',');
+				*pDate = (char)0; pDate++;
+
+				pMagVar = strchr(pDate,',');
+				*pMagVar = (char)0; pMagVar++;
+
+				time.tm_hour = (pUTCtime[0]-48)*10 + (pUTCtime[1]-48);
+				time.tm_min  = (pUTCtime[2]-48)*10 + (pUTCtime[3]-48);
+				time.tm_sec  = (pUTCtime[4]-48)*10 + (pUTCtime[5]-48);
+
+				time.tm_mday  = (pDate[0]-48)*10 + (pDate[1]-48);
+				time.tm_mon = (pDate[2]-48)*10 + (pDate[3]-48) - 1;
+				time.tm_year  = (pDate[4]-48)*10 + (pDate[5]-48) + 100;
+
+				location->timestampS =	mktime(&time);
+
+				//Format is lat: DDMM.MM (degrees and minutes to 1/100th a minute)
+				location->latitude=(pLat[0]-48)*10+(pLat[1]-48) + (((double)pLat[2]-48)*10 + ((double)pLat[3]-48) + ((double)pLat[5]-48)/10 + ((double)pLat[6]-48)/100)/60;
+				if (pNorS[0]=='S')	{
+					location->latitude*=-1;
+				}
+
+
+
+				location->longitude=(pLong[0]-48)*100+(pLong[1]-48)*10 + (pLong[2]-48) + (((double)pLong[3]-48)*10 + ((double)pLong[4]-48) + ((double)pLong[6]-48)/10 + ((double)pLong[7]-48)/100)/60;
+				if (pEorW[0]=='W')	{
+					location->longitude*=-1;
+				}
+
+				printf("TS: %i\n", location->timestampS);
+				//printf("Lat:string%s calc:%i %i 0:%i 1:%i 2:%i 0:%i %i\n", pLat, location->latitude, (pLat[1]-48)*10+(pLat[2]-48), pLat[0], pLat[1], pLat[2], *pLat, *(pLat+1));
+
+				printf("Lat: %f Long: %f\n", location->latitude, location->longitude);
+
+				printf("Time:%s  Stat:%s Lat:%s%s Long:%s%s Track:%s Date:%s\n", pUTCtime, pStatus, pLat, pNorS, pLong, pEorW, pTrack, pDate);
+				return 1;
+			}
+
+
+		}
+	}
+	return 0;
+}
+
+int ReadLocationFromJson(LOCATIONHISTORY *lh, LOCATION *location)
 {
 	int step;
 	char buffer[256];

@@ -1266,7 +1266,7 @@ int PaintOverview(HWND hwnd)
 
 	printf("\npaintov");
 	if (!hbmOverview)
-		printf("\nHBMOVERVIEWNOT HERE ??CRASH!!");
+		printf("\nHBMOVERVIEWNOT HERE!!");
 
 	hdc= BeginPaint(hwnd, &ps);
 	if (!hdc)	printf("\nHDC NULL");
@@ -1274,7 +1274,7 @@ int PaintOverview(HWND hwnd)
 	memDC = CreateCompatibleDC(hdc);
 
 	oldBitmap = SelectObject(memDC, hbmOverview);
-	if (!oldBitmap)	printf("\noldbitmap NULL");
+	if (!oldBitmap)	printf("\noldbitmap NULL");		//this seems to be the problem, sometimes this is NULL
 	r = BitBlt(hdc,0, 0, 360, 180, memDC, 0, 0, SRCCOPY);
 	if (!r)	printf("\nbitblt NULL");
 	SelectObject(memDC, oldBitmap);
@@ -1424,9 +1424,14 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	switch (msg) {
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
-//			hdc = GetDC(hwnd);
-//			hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
-//			ReleaseDC(hwnd, hdc);
+
+			//Should this be removed?
+			/*
+			hdc = GetDC(hwnd);
+			hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
+			ReleaseDC(hwnd, hdc);
+			*/
+
 			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
 			CreateOverviewMovebarWindows(hwnd);
 

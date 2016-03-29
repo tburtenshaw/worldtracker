@@ -21,6 +21,10 @@ typedef struct sPreset PRESET;
 typedef struct sRasterFont RASTERFONT;
 typedef struct sRasterChar RASTERCHAR;
 
+#define FILETYPE_JSON 1
+#define FILETYPE_NMEA 2
+#define FILETYPE_GPX 3
+
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -188,7 +192,9 @@ struct sPreset	{
 //It can be Null, and it is ignored. It is NOT PRECISE.
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int));
 int FreeLocations(LOCATIONHISTORY *locationHistory);
-int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location);
+int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location, int filetype);
+int ReadLocationFromJson(LOCATIONHISTORY *lh, LOCATION *location);
+int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location);
 
 void LoadPresets(PRESET *preset, int * pCount, int maxCount);
 int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets);
