@@ -89,12 +89,13 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
-	LOCATION *waitingFor1;
-	LOCATION *waitingFor10;
-	LOCATION *waitingFor100;
-	LOCATION *waitingFor1000;
-	LOCATION *waitingFor10000;
+//	LOCATION *waitingFor1;
+//	LOCATION *waitingFor10;
+//	LOCATION *waitingFor100;
+//	LOCATION *waitingFor1000;
+//	LOCATION *waitingFor10000;
 
+	int inputfiletype;
 
 	//Initialise some statistics
 	locationHistory->earliesttimestamp=-1;
@@ -113,13 +114,14 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	//Now read it and load it into a linked list
 	prevCoord=NULL;
-	coord=malloc(sizeof(LOCATION));
+	coord=calloc(sizeof(LOCATION),1);
+
 	locationHistory->first = coord;
-	waitingFor1 = coord;
-	waitingFor10 = coord;
-	waitingFor100 = coord;
-	waitingFor1000 = coord;
-	waitingFor10000 = coord;
+	//waitingFor1 = coord;
+	//waitingFor10 = coord;
+	//waitingFor100 = coord;
+	//waitingFor1000 = coord;
+	//waitingFor10000 = coord;
 
 	int progress=0;
 	long twofiftysixth;
@@ -130,7 +132,9 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	twofiftysixth = locationHistory->filesize/256;
 
-	while (ReadLocation(locationHistory, coord, FILETYPE_NMEA))	{
+	inputfiletype = GuessInputFileType(locationHistory);
+
+	while (ReadLocation(locationHistory, coord, inputfiletype))	{
 
 		if (progressfn)	{
 			if (locationHistory->filepos > twofiftysixth * progress)	{
@@ -147,6 +151,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 			locationHistory->earliesttimestamp = coord->timestampS;
 		locationHistory->numPoints++;
 
+		/*
 		//set the next of the previous depending on our zoom resolution
 		if ((fabs(waitingFor1->latitude - coord->latitude) >1) ||(fabs(waitingFor1->longitude - coord->longitude) >1))	{
 			waitingFor1->next1ppd = coord;
@@ -172,7 +177,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 			waitingFor10000->next10000ppd = coord;
 			waitingFor10000=coord;
 		}
-
+*/
 
 		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
 		if (prevCoord)	{
@@ -188,8 +193,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 
 		coord->prev=prevCoord;
-		coord->next=malloc(sizeof(LOCATION));	//allocation memory for the next in the linked list
-		memset(coord->next, 0, sizeof(LOCATION));	//next to reset everything to zero - I think this was causing a frequent crash
+		coord->next=calloc(sizeof(LOCATION),1);	//allocate memory for the next in the linked list
+
 		prevCoord=coord;
 
 		//Advance to the next in the list
@@ -204,8 +209,135 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	fclose(locationHistory->json);
 
+	printf("\nprinting");
+//	PrintLocations(locationHistory);
+	printf("\nSorting...");
+	SortLocationsInsertSort(locationHistory);
+	OptimiseLocations(locationHistory);
+//	printf("\nreprinting");
+//	PrintLocations(locationHistory);
+
+	//SortLocationsInsertSort(locationHistory);
+
 	return 0;
 }
+
+int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory)
+{
+	LOCATION *loc;
+	LOCATION *place;
+	LOCATION *chosen;
+
+	loc=locationHistory->first;
+	if (!loc) return 0;
+
+	while (loc->next)	{
+		//printf("\n%i", loc->timestampS);
+		if (loc->timestampS > loc->next->timestampS)	{		//if the timestamp is later than the ->next element, there is disorder
+//			printf("\n%i > %i, at %i > %i",loc->timestampS, loc->next->timestampS, loc, loc->next);
+			chosen=loc->next;
+			place=locationHistory->first;						//set at the start
+
+
+//			printf("\nplace %i chosen:%i",place->timestampS, chosen->timestampS, loc);
+			while (place->timestampS < chosen->timestampS)	{	//then find where to insert the next element
+//				printf("\nnext place");
+				place=place->next;
+			}
+//			printf("\n1st %i. Removing %i, and inserting to before %i",locationHistory->first,  loc->next, place);
+			RemoveLocationFromList(locationHistory, chosen);	//remove the location from its current position
+			InsertLocationBefore(locationHistory, chosen, place);	//then insert it after the next pos
+		}
+		else	{	//move onto the next one, otherwise we stay the same, but check the next
+			loc = loc->next;
+		}
+	}
+
+	return 1;
+}
+
+int OptimiseLocations(LOCATIONHISTORY *locationHistory)
+{
+
+	LOCATION *loc;
+
+	LOCATION *waitingFor1;
+	LOCATION *waitingFor10;
+	LOCATION *waitingFor100;
+	LOCATION *waitingFor1000;
+	LOCATION *waitingFor10000;
+
+	//This function allows the plotter to skip to the next significant line at a given resolution (pixels per degree)
+	loc=locationHistory->first;
+
+	waitingFor1 = loc;	//these are the points waiting to see for the next one at a given resolution
+	waitingFor10 = loc;
+	waitingFor100 = loc;
+	waitingFor1000 = loc;
+	waitingFor10000 = loc;
+
+
+	while (loc)	{
+		//the "waiting fors" are a chain, only calculated for the links in the chain
+		//so if I accidentally went to a ->waitingFor10 in something that it wasn't calculated for, it would potentially crash
+		//this makes the default move onto the next, until it finds one with a defined next point
+		loc->next1ppd = loc->next;
+		loc->next10ppd = loc->next;
+		loc->next100ppd = loc->next;
+		loc->next1000ppd = loc->next;
+		loc->next10000ppd = loc->next;
+
+
+
+		//set the next of the previous depending on our zoom resolution
+		if ((fabs(waitingFor1->latitude - loc->latitude) >1) ||(fabs(waitingFor1->longitude - loc->longitude) >1))	{
+			waitingFor1->next1ppd = loc;
+			waitingFor1=loc;
+		}
+
+		if ((fabs(waitingFor10->latitude - loc->latitude) >0.1) ||(fabs(waitingFor10->longitude - loc->longitude) >0.1))	{
+			waitingFor10->next10ppd = loc;
+			waitingFor10=loc;
+		}
+
+		if ((fabs(waitingFor100->latitude - loc->latitude) >0.01) ||(fabs(waitingFor100->longitude - loc->longitude) >0.01))	{
+			waitingFor100->next100ppd = loc;
+			waitingFor100=loc;
+		}
+
+		if ((fabs(waitingFor1000->latitude - loc->latitude) >0.001) ||(fabs(waitingFor1000->longitude - loc->longitude) >0.001))	{
+			waitingFor1000->next1000ppd = loc;
+			waitingFor1000=loc;
+		}
+
+		if ((fabs(waitingFor10000->latitude - loc->latitude) >0.0001) ||(fabs(waitingFor10000->longitude - loc->longitude) >0.0001))	{
+			waitingFor10000->next10000ppd = loc;
+			waitingFor10000=loc;
+		}
+
+
+
+	loc=loc->next;
+
+
+
+	}
+}
+
+
+int PrintLocations(LOCATIONHISTORY *locationHistory)
+{
+	LOCATION *loc;
+
+	int i=0;
+	loc = locationHistory->first;
+	while (loc)	{
+		printf("\n%i->%i",loc, loc->timestampS);
+		loc=loc->next;
+	}
+	return i;
+}
+
 
 int FreeLocations(LOCATIONHISTORY *locationHistory)
 {
@@ -223,16 +355,147 @@ int FreeLocations(LOCATIONHISTORY *locationHistory)
 	return 0;
 }
 
+void RemoveLocationFromList(LOCATIONHISTORY *lh, LOCATION *loc)
+{
+	//fix the previous one to skip over
+	if (loc->prev)	{	//if it's not the first
+		loc->prev->next = loc->next;
+	}
+	else	{
+		lh->first = loc->next;
+	}
+
+
+	//then the next one
+	if (loc->next)	{	//if it's not the first
+		loc->next->prev = loc->prev;
+	}
+	else	{
+		lh->last = loc->prev;
+	}
+
+	return;
+}
+
+void InsertLocationBefore(LOCATIONHISTORY *lh, LOCATION *loc, LOCATION *target)
+{
+	loc->next=target;
+	loc->prev=target->prev;
+
+	if (target->prev)	{
+		target->prev->next = loc;
+	}
+	else	{
+		lh->first=loc;
+	}
+
+	target->prev=loc;
+
+	return;
+
+}
+
+int GuessInputFileType(LOCATIONHISTORY *lh)
+{
+	char buffer[256];
+
+	rewind(lh->json);
+	fgets(buffer, 256, lh->json);
+
+	rewind(lh->json);
+	if (buffer[0] == '{')	{
+		return FT_JSON;
+	}
+	if (buffer[0] == '@')	{
+		return FT_NMEA;
+	}
+	if (buffer[0] == 'L')	{
+		return FT_BACKITUDECSV;
+	}
+
+
+	return FT_UNKNOWN;
+}
+
 
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location, int filetype)
 {
 	switch (filetype)	{
-		case FILETYPE_NMEA:
+		case FT_NMEA:
 			return ReadLocationFromNmea(lh, location);
 			break;
+		case FT_BACKITUDECSV:
+			return ReadLocationFromBackitudeCSV(lh, location);
+			break;
+
 		default:
 			return ReadLocationFromJson(lh, location);
 	}
+}
+
+int ReadLocationFromBackitudeCSV(LOCATIONHISTORY *lh, LOCATION *location)
+{
+	char buffer[256];
+	char * pLat;
+	char * pLong;
+	char * pAcc;
+	char * pAlt;
+	char * pTSLoc;
+	char * pTSUTC;
+
+	struct tm time;
+
+
+	while (fgets(buffer, 256, lh->json))	{
+		lh->filepos+=strlen(buffer);
+
+		if ((buffer[0]<45) || (buffer[0]>57))	{	//if it's not -./012345678 or 9
+			if (strncmp("Latitude,Longitude,Accuracy,Altitude,Location Timestamp,Request Timestamp", buffer, 73))	{
+				//if it's not identical to that starting string, we don't trust it
+				return 0;
+			}
+		}
+		else	{	//we start with a number, minus (or a slash)
+			pLat=buffer;
+			pLong = strchr(pLat,',');
+			*pLong = (char)0; pLong++;
+
+			pAcc = strchr(pLong,',');
+			*pAcc = (char)0; pAcc++;
+
+			pAlt = strchr(pAcc,',');
+			*pAlt = (char)0; pAlt++;
+
+			pTSLoc = strchr(pAlt,',');
+			*pTSLoc = (char)0; pTSLoc++;
+
+			pTSUTC = strchr(pTSLoc,',');
+			*pTSUTC = (char)0; pTSUTC++;
+
+			location->latitude = strtod(pLat, NULL);
+			location->longitude = strtod(pLong, NULL);
+
+			time.tm_year  = ((pTSUTC[0]-48)*1000 + (pTSUTC[1]-48)*100 + (pTSUTC[2]-48)*10 + (pTSUTC[3]-48))-1900;
+			time.tm_mon = (pTSUTC[5]-48)*10 + (pTSUTC[6]-48) - 1;
+			time.tm_mday = (pTSUTC[8]-48)*10 + (pTSUTC[9]-48);
+
+
+			time.tm_hour = (pTSUTC[11]-48)*10 + (pTSUTC[12]-48);
+			time.tm_min  = (pTSUTC[14]-48)*10 + (pTSUTC[15]-48);
+			time.tm_sec  = (pTSUTC[17]-48)*10 + (pTSUTC[18]-48);
+
+			location->timestampS =	mktime(&time);
+
+
+
+			printf("\n%f %f %i", location->latitude,location->longitude,location->timestampS);
+			return 1;
+
+
+		}
+	}
+
+	return 0;
 }
 
 int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location)

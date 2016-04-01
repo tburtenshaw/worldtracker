@@ -21,10 +21,19 @@ typedef struct sPreset PRESET;
 typedef struct sRasterFont RASTERFONT;
 typedef struct sRasterChar RASTERCHAR;
 
-#define FILETYPE_JSON 1
-#define FILETYPE_NMEA 2
-#define FILETYPE_GPX 3
+//#define FILETYPE_JSON 1
+//#define FILETYPE_NMEA 2
+//#define FILETYPE_GPX 3
+//#define FILETYPE_BACKITUDECSV 3
 
+typedef enum Input_Filetype
+{
+	FT_UNKNOWN,
+	FT_JSON,
+	FT_NMEA,
+	FT_GPX,
+	FT_BACKITUDECSV
+} Input_Filetype;
 
 #define MAX_DIMENSION 4096*2
 #define PI 3.14159265
@@ -130,6 +139,7 @@ struct sLocation	{
 	double longitude;
 	long timestampS; //we'll use a long instead of the high precision of google
 	int accuracy;
+	int altitude;
 
 	double distancefromprev;
 	long secondsfromprev;
@@ -192,9 +202,18 @@ struct sPreset	{
 //It can be Null, and it is ignored. It is NOT PRECISE.
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int));
 int FreeLocations(LOCATIONHISTORY *locationHistory);
+
+void RemoveLocationFromList(LOCATIONHISTORY *lh, LOCATION *location);
+void InsertLocationBefore(LOCATIONHISTORY *lh, LOCATION *loc, LOCATION *target);
+int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory);
+int OptimiseLocations(LOCATIONHISTORY *locationHistory);
+int PrintLocations(LOCATIONHISTORY *locationHistory); //for debugging
+
 int ReadLocation(LOCATIONHISTORY *lh, LOCATION *location, int filetype);
 int ReadLocationFromJson(LOCATIONHISTORY *lh, LOCATION *location);
 int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location);
+int ReadLocationFromBackitudeCSV(LOCATIONHISTORY *lh, LOCATION *location);
+int GuessInputFileType(LOCATIONHISTORY *lh);
 
 void LoadPresets(PRESET *preset, int * pCount, int maxCount);
 int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets);
