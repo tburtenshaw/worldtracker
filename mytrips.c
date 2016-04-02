@@ -89,18 +89,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
-//	LOCATION *waitingFor1;
-//	LOCATION *waitingFor10;
-//	LOCATION *waitingFor100;
-//	LOCATION *waitingFor1000;
-//	LOCATION *waitingFor10000;
 
 	int inputfiletype;
-
-	//Initialise some statistics
-	locationHistory->earliesttimestamp=-1;
-	locationHistory->latesttimestamp=0;
-
 
 	//Open the input file
 	locationHistory->json=fopen(jsonfilename,"r");
@@ -113,15 +103,16 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 
 	//Now read it and load it into a linked list
-	prevCoord=NULL;
 	coord=calloc(sizeof(LOCATION),1);
 
-	locationHistory->first = coord;
-	//waitingFor1 = coord;
-	//waitingFor10 = coord;
-	//waitingFor100 = coord;
-	//waitingFor1000 = coord;
-	//waitingFor10000 = coord;
+	if (!locationHistory->first)	{	//if there is no JSON open
+		locationHistory->first = coord;
+		prevCoord=NULL;
+	}
+	else	{	//if we already have loaded something
+		locationHistory->last->next = coord;
+		prevCoord=locationHistory->last;
+	}
 
 	int progress=0;
 	long twofiftysixth;
@@ -143,42 +134,6 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 			}
 		}
 
-
-		//get the timestamp max and min
-		if (coord->timestampS > locationHistory->latesttimestamp)
-			locationHistory->latesttimestamp = coord->timestampS;
-		if (coord->timestampS<locationHistory->earliesttimestamp)
-			locationHistory->earliesttimestamp = coord->timestampS;
-		locationHistory->numPoints++;
-
-		/*
-		//set the next of the previous depending on our zoom resolution
-		if ((fabs(waitingFor1->latitude - coord->latitude) >1) ||(fabs(waitingFor1->longitude - coord->longitude) >1))	{
-			waitingFor1->next1ppd = coord;
-			waitingFor1=coord;
-		}
-
-		if ((fabs(waitingFor10->latitude - coord->latitude) >0.1) ||(fabs(waitingFor10->longitude - coord->longitude) >0.1))	{
-			waitingFor10->next10ppd = coord;
-			waitingFor10=coord;
-		}
-
-		if ((fabs(waitingFor100->latitude - coord->latitude) >0.01) ||(fabs(waitingFor100->longitude - coord->longitude) >0.01))	{
-			waitingFor100->next100ppd = coord;
-			waitingFor100=coord;
-		}
-
-		if ((fabs(waitingFor1000->latitude - coord->latitude) >0.001) ||(fabs(waitingFor1000->longitude - coord->longitude) >0.001))	{
-			waitingFor1000->next1000ppd = coord;
-			waitingFor1000=coord;
-		}
-
-		if ((fabs(waitingFor10000->latitude - coord->latitude) >0.0001) ||(fabs(waitingFor10000->longitude - coord->longitude) >0.0001))	{
-			waitingFor10000->next10000ppd = coord;
-			waitingFor10000=coord;
-		}
-*/
-
 		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
 		if (prevCoord)	{
 			coord->distancefromprev = MetersApartFlatEarth(prevCoord->latitude, prevCoord->longitude, coord->latitude, coord->longitude);
@@ -199,9 +154,9 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 		//Advance to the next in the list
 		coord= coord->next;
-		//printf("%i/t",(long)coord);
 	}
 	free(coord);//remove the last allocated
+
 	if (prevCoord)	{
 		prevCoord->next=NULL;	//close off the linked list
 		locationHistory->last=prevCoord;
@@ -209,15 +164,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	fclose(locationHistory->json);
 
-	printf("\nprinting");
-//	PrintLocations(locationHistory);
-	printf("\nSorting...");
 	SortLocationsInsertSort(locationHistory);
 	OptimiseLocations(locationHistory);
-//	printf("\nreprinting");
-//	PrintLocations(locationHistory);
-
-	//SortLocationsInsertSort(locationHistory);
 
 	return 0;
 }
@@ -231,6 +179,7 @@ int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory)
 	loc=locationHistory->first;
 	if (!loc) return 0;
 
+	locationHistory->numPoints=0;
 	while (loc->next)	{
 		//printf("\n%i", loc->timestampS);
 		if (loc->timestampS > loc->next->timestampS)	{		//if the timestamp is later than the ->next element, there is disorder
@@ -251,7 +200,13 @@ int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory)
 		else	{	//move onto the next one, otherwise we stay the same, but check the next
 			loc = loc->next;
 		}
+	locationHistory->numPoints++;
 	}
+
+
+	locationHistory->earliesttimestamp=locationHistory->first->timestampS;
+	locationHistory->latesttimestamp=loc->timestampS;
+//	printf("\nlast %i %i", loc, locationHistory->last);
 
 	return 1;
 }
@@ -318,9 +273,6 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 
 
 	loc=loc->next;
-
-
-
 	}
 }
 
@@ -1947,7 +1899,7 @@ STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
 	inregion = 0;
 
 	FILE * f;
-	f= fopen("output2.txt", "w");
+//	f= fopen("output2.txt", "w");
 
 	while (loc)	{
 		coord.latitude = loc->latitude;
@@ -1969,14 +1921,6 @@ STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
 			if (inregion)	{
 				stay->leavetime = loc->timestampS;
 
-		long templong;
-		templong=stay->leavetime;
-		stay->leavetime=stay->arrivetime;
-		stay->arrivetime=templong;
-
-
-
-				fprintf(f, "Stay: %i %i\n", stay->arrivetime, stay->leavetime);
 
 				inregion=0;
 			}
@@ -1986,7 +1930,7 @@ STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
 		loc=loc->next;
 	}
 
-	fclose(f);
+	//fclose(f);
 	return firststay;
 }
 
@@ -1997,13 +1941,13 @@ long SecondsInStay(STAY *stay, long starttime, long endtime)
 	staylength = 0;
 
 	while (stay)	{
-		//fprintf(stdout, "\n%i %i %i %i", starttime, endtime, stay->leavetime, stay->arrivetime);
 		if ((stay->leavetime > starttime) && (stay->arrivetime < endtime))	{
 			staylength += min(stay->leavetime, endtime) - max(stay->arrivetime, starttime);
-		//	fprintf(stdout, " added %is", staylength);
+		//fprintf(stdout, "\nst%i et%i at%i lt%i", starttime, endtime, stay->arrivetime, stay->leavetime);
+			//fprintf(stdout, " added %is", staylength);
 		}
 		if (stay->leavetime >= endtime)	{
-//			return staylength;	//this should work if the linked list is in order, and it would speed things up significantly
+			return staylength;	//this should work if the linked list is in order, and it would speed things up significantly
 
 		}
 
@@ -2045,87 +1989,6 @@ int FreeLinkedListOfStays(STAY * stay)
 	}
 	return 0;
 }
-
-/*
-TRIP * GetLinkedListOfTripsOld(NSWE * home, NSWE * away, WORLDREGION * excludedRegions, LOCATIONHISTORY *lh)
-{
-	LOCATION *loc;
-	WORLDCOORD coord;
-
-	int dir;
-
-	TRIP * trip;
-	TRIP * oldtrip;
-	TRIP * firsttrip;
-
-	WORLDREGION *firstexcludedRegion;
-	WORLDREGION * exc;
-
-	long leavetime;
-
-	leavetime=0;
-	trip=NULL;
-	oldtrip=NULL;
-	firsttrip=NULL;
-
-	firstexcludedRegion=excludedRegions;
-
-	dir = 0;
-	loc=lh->first;
-	while (loc)	{
-		coord.latitude = loc->latitude;
-		coord.longitude = loc->longitude;
-
-		//go through all the exclusion areas.
-		exc = firstexcludedRegion;
-		while (exc)	{
-			if (CoordInNSWE(&coord, &exc->nswe))	{
-				dir = 0;
-			}
-			exc = exc->next;
-		}
-
-		if (CoordInNSWE(&coord, home))	{
-			if (dir<1)	{
-				trip = malloc(sizeof(TRIP));
-				trip->next=NULL;
-				if (!firsttrip)	firsttrip=trip;
-				if (oldtrip)	oldtrip->next=trip;
-				trip->arrivetime = loc->timestampS;
-				trip->leavetime = leavetime;
-				trip->direction=dir;
-				oldtrip=trip;
-				dir =1;
-			}
-			else	{
-				leavetime=loc->timestampS;
-			}
-		}
-
-		else if (CoordInNSWE(&coord, away))	{
-			if (dir>-1)	{
-				trip = malloc(sizeof(TRIP));
-				trip->next=NULL;
-				if (!firsttrip)	firsttrip=trip;
-				if (oldtrip)	oldtrip->next=trip;
-				trip->arrivetime = loc->timestampS;
-				trip->leavetime = leavetime;
-				trip->direction=dir;
-				oldtrip=trip;
-				dir =-1;
-			}
-			else	{
-				leavetime=loc->timestampS;
-			}
-		}
-
-
-		loc=loc->next;
-	}
-
-	return firsttrip;
-}
-*/
 
 
 TRIP * GetLinkedListOfTrips(WORLDREGION * regions, LOCATIONHISTORY *lh)

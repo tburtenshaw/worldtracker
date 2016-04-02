@@ -21,6 +21,14 @@ extern COLOUR cWhite;
 
 int RecalculateData(GRAPHINFO * gi)
 {
+
+//this should be under function FitEntireTime
+		gi->fromtimestamp=gi->locationHistory->earliesttimestamp;
+		printf("\nETS: %i", gi->fromtimestamp);
+		gi->totimestamp=gi->locationHistory->latesttimestamp;
+
+
+
 	printf("\ngraphtype %i", gi->graphType);
 	if (gi->graphType & WT_GRAPHTYPE_STAY)	{
 		printf("\nstay type");
@@ -259,7 +267,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 			timestampend=mktime(&time);
 			workingStay=stay;
-			s =  SecondsInStay(workingStay, timestamp,timestampend);
+			s =  SecondsInStay(workingStay, timestamp, timestampend);
 			bucket[bucketnumber]+=s;
 			xdata=timestamp;
 			ydata = s;
@@ -299,7 +307,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 		}
 		//Now go through the buckets
 		for (int i=0;i<numberofbuckets;i++)	{
-			printf("\n%i:\t%i", i, bucket[i]);
+			printf("\nbucket: %i:\tseconds: %i", i, bucket[i]);
 		}
 
 		//Free the buckets
@@ -309,6 +317,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 
 	//draw axis
+	printf("\nxmin %i, ymin %i, xmax %i, ymax %i, xmajorunit %i, ymajorunit %i",xmin, ymin, xmax, ymax, xmajorunit, ymajorunit);
 	GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, &cBlack, NULL, NULL, xlabelfn, ylabelfn, NULL,5, 1, NULL, NULL);
 
 
@@ -343,8 +352,9 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		info->xAxisSeries =WT_SERIES_WEEKDAY;
 
 
-		info->fromtimestamp=1336938800;	//default
-		info->totimestamp=1452834934;
+		info->fromtimestamp=info->locationHistory->earliesttimestamp;
+		printf("\nETS: %i", info->fromtimestamp);
+		info->totimestamp=info->locationHistory->latesttimestamp;
 
 		info->graphType = WT_GRAPHTYPE_SCATTER|WT_GRAPHTYPE_STAY;
 		info->xAxisSeries = WT_SERIES_MONTH;

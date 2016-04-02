@@ -836,7 +836,7 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 
 //    EnterCriticalSection(&critAccessLocations);
 
-	FreeLocations(&locationHistory);	//first free any locations
+//	FreeLocations(&locationHistory);	//first free any locations
 	LoadLocations(&locationHistory, JSONfilename, UpdateProgressBar);
 
 //	LeaveCriticalSection(&critAccessLocations);
