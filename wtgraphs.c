@@ -306,9 +306,21 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 		}
 		//Now go through the buckets
+		ymax=0;
 		for (int i=0;i<numberofbuckets;i++)	{
+			if (ymax<bucket[i])	ymax=bucket[i];
 			printf("\nbucket: %i:\tseconds: %i", i, bucket[i]);
 		}
+
+		for (int i=0;i<numberofbuckets;i++)	{
+			xmax=numberofbuckets; xmin=0;
+			xdata=i;
+			ydata=bucket[i];
+			ymin=0;
+			GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, NULL, NULL, NULL, NULL, NULL, &pointColour,5, 1, &xdata, &ydata);
+			printf("\nbucket: %i:\tseconds: %i", i, bucket[i]);
+		}
+
 
 		//Free the buckets
 		free(bucket);
@@ -317,7 +329,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 
 
 	//draw axis
-	printf("\nxmin %i, ymin %i, xmax %i, ymax %i, xmajorunit %i, ymajorunit %i",xmin, ymin, xmax, ymax, xmajorunit, ymajorunit);
+	printf("\nxmin %f, ymin %f, xmax %f, ymax %f, xmajorunit %f, ymajorunit %f",xmin, ymin, xmax, ymax, xmajorunit, ymajorunit);
 	GraphScatter(&gi->bmGraph, NULL, xmin, ymin, xmax, ymax, xmajorunit, ymajorunit, &cBlack, NULL, NULL, xlabelfn, ylabelfn, NULL,5, 1, NULL, NULL);
 
 

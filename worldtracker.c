@@ -353,6 +353,7 @@ void InitStrings(void)
 	szColourByOption[COLOUR_BY_DAYOFWEEK]="Day";
 	szColourByOption[COLOUR_BY_HOUR]="Hour";
 	szColourByOption[COLOUR_BY_MONTH]="Month";
+	szColourByOption[COLOUR_BY_GROUP]="Group";
 
 	return;
 }
@@ -1264,7 +1265,6 @@ int PaintOverview(HWND hwnd)
 
 	int r;
 
-	printf("\npaintov");
 	if (!hbmOverview)
 		printf("\nHBMOVERVIEWNOT HERE!!");
 
@@ -2142,8 +2142,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x=MARGIN+OVERVIEW_WIDTH+MARGIN+MARGIN;
 		y=MARGIN;
 
-		hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 200, hwnd,NULL,hInst,NULL);
-		y+=200+MARGIN;
+		//Create the Graph Window
+		//hwndMainGraph = CreateWindow("MainGraph", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,640, 200, hwnd,NULL,hInst,NULL);
+		//y+=200+MARGIN;
 
 
 		//tabs

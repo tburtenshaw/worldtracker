@@ -45,8 +45,9 @@ typedef enum Input_Filetype
 #define COLOUR_BY_DAYOFWEEK 3
 #define COLOUR_BY_HOUR 4
 #define COLOUR_BY_MONTH 5
+#define COLOUR_BY_GROUP 6
 
-#define MAX_COLOURBY_OPTION COLOUR_BY_MONTH
+#define MAX_COLOURBY_OPTION COLOUR_BY_GROUP
 
 #define REGIONTYPE_HOME 1
 #define REGIONTYPE_AWAY 2
@@ -140,6 +141,7 @@ struct sLocation	{
 	long timestampS; //we'll use a long instead of the high precision of google
 	int accuracy;
 	int altitude;
+	int group;	//which input file it was loaded from
 
 	double distancefromprev;
 	long secondsfromprev;
@@ -159,6 +161,7 @@ struct sLocationHistory	{
 	unsigned long	filepos;
 	//char *jsonfilename;
 
+	int numgroups;	//groups of locations
 
 	unsigned long	numPoints;
 	unsigned long	earliesttimestamp;
@@ -171,7 +174,6 @@ struct sStay	{
 	STAY *next;
 	unsigned long	leavetime;
 	unsigned long	arrivetime;
-
 };
 
 struct sTrip	{
@@ -203,8 +205,8 @@ struct sPreset	{
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int));
 int FreeLocations(LOCATIONHISTORY *locationHistory);
 
-void RemoveLocationFromList(LOCATIONHISTORY *lh, LOCATION *location);
-void InsertLocationBefore(LOCATIONHISTORY *lh, LOCATION *loc, LOCATION *target);
+void RemoveLocationFromList(LOCATION **ppFirst, LOCATION **ppLast, LOCATION *loc);
+void InsertLocationBefore(LOCATION **ppFirst, LOCATION *loc, LOCATION *target);
 int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory);
 int OptimiseLocations(LOCATIONHISTORY *locationHistory);
 int PrintLocations(LOCATIONHISTORY *locationHistory); //for debugging

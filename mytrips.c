@@ -24,13 +24,10 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 	oldlat=1000;oldlon=1000;
 	bm->countPoints=0;
 
-	//options->zoom=options->width/(options->nswe.east-options->nswe.west);
-	//bm->zoom = options->zoom;
-
 	bm->zoom = bm->width/(bm->nswe.east-bm->nswe.west);
 
+for (int g=0; g<locationHistory->numgroups; g++)	{
 	coord=locationHistory->first;
-
 	while (coord)	{
 		//Set the colour to draw the line.
 		c.A=options->alpha;
@@ -55,16 +52,24 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 		else if (options->colourby == COLOUR_BY_MONTH)	{
 			c=MonthToRgb(coord->timestampS, options->colourextra);
 		}
+		else if (options->colourby == COLOUR_BY_GROUP)	{
+			if (g==0)	{c.R=255; c.G=200; c.B =255; c.A=120;}
+			if (g==1)	{c.R=200; c.G=255; c.B =255; c.A=120;}
+			if (g==2)	{c.R=255; c.G=255; c.B =200; c.A=120;}
+			if (g==3)	{c.R=255; c.G=200; c.B =200; c.A=120;}
+			if (g==4)	{c.R=200; c.G=255; c.B =200; c.A=120;}
+			if (g==5)	{c.R=200; c.G=200; c.B =255; c.A=120;}
+		}
 
 
-		if (coord->accuracy <200000 && (coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp))	{
+
+		if ((coord->timestampS >= options->fromtimestamp) && (coord->timestampS <= options->totimestamp) && (coord->group == g))	{
 			//draw a line from last point to the current one.
-			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon,options->thickness, &c);
+			bm->countPoints+= bitmapCoordLine(bm, coord->latitude, coord->longitude, oldlat, oldlon, options->thickness, &c);
 			oldlat=coord->latitude;oldlon=coord->longitude;
 		}
 
 		//Move onto the next appropriate coord
-		//?i'll move this outside the loop for speed reasons
 		if (bm->zoom>10000)	coord=coord->next;
 		else if (bm->zoom>1000) coord=coord->next10000ppd;
 		else if (bm->zoom>100) coord=coord->next1000ppd;
@@ -74,21 +79,91 @@ int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 
 	}
 
+}
+
+
 	RASTERFONT rf;
 	LoadRasterFont(&rf);
-	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
-	plotChar(bm, &rf,0,0,65, &c);
-	plotChar(bm, &rf,10,0,65, &c);
-	plotChar(bm, &rf,20,0,67, &c);
+//	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
+//	plotChar(bm, &rf,0,0,65, &c);
+
 	DestroyRasterFont(&rf);
 	return 0;
 }
 
+//int mixColoursNew(COLOUR *cCanvas, COLOUR *cBrush);	//this alters the canvas
+/*
+void TestAlphaBlending(int fnnum);
+void TestAlphaBlending(int fnnum)
+{
+
+	int n;
+	int v[3]={0,120,255}; n=3;
+	//int v[10]={0,1,30,120,128,192,200, 248, 254, 255};
+	//n=10;
+
+	COLOUR canvas;
+	COLOUR brush;
+
+
+
+
+	for (int a=0;a<n;a++)	{
+		for (int b=0;b<n;b++)	{
+			for (int c=0;c<n;c++)	{
+				for (int d=0;d<n;d++)	{
+					for (int e=0;e<n;e++)	{
+						for (int f=0;f<n;f++)	{
+							for (int g=0;g<n;g++)	{
+								for (int h=0;h<n;h++)	{
+									canvas.R=v[a];
+									canvas.G=v[b];
+									canvas.B=v[c];
+									canvas.A=v[d];
+									brush.R=v[e];
+									brush.G=v[f];
+									brush.B=v[g];
+									brush.A=v[h];
+
+									//printf("\n%02x%02x%02x %02x\t%02x%02x%02x %02x",canvas.R, canvas.G,canvas.B,canvas.A, brush.R, brush.G, brush.B, brush.A);
+									if (fnnum==1)	{
+										mixColoursNew(&canvas, &brush);
+									}
+									else if (fnnum==2)	{
+										mixColours(&canvas, &brush);
+									}
+									//printf("\t %02x%02x%02x %02x",canvas.R, canvas.G,canvas.B,canvas.A);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+*/
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int))
 {
 	LOCATION *coord;
 	LOCATION *prevCoord;
 
+/*
+clock_t start,diff;
+start = clock();
+TestAlphaBlending(1);
+diff = clock() - start;
+int msec = diff * 1000 / CLOCKS_PER_SEC;
+printf("\n1: Time taken %d.%d seconds", msec/1000, msec%1000);
+
+start = clock();
+TestAlphaBlending(2);
+diff = clock() - start;
+msec = diff * 1000 / CLOCKS_PER_SEC;
+printf("\n2: Time taken %d.%d seconds", msec/1000, msec%1000);
+
+*/
 
 	int inputfiletype;
 
@@ -116,6 +191,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	int progress=0;
 	long twofiftysixth;
+
+	//get the file size, then reset the position
 	fseek(locationHistory->json,0, SEEK_END);
 	locationHistory->filesize = ftell(locationHistory->json);
 	rewind(locationHistory->json);
@@ -126,7 +203,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	inputfiletype = GuessInputFileType(locationHistory);
 
 	while (ReadLocation(locationHistory, coord, inputfiletype))	{
-
+		locationHistory->numPoints++;
 		if (progressfn)	{
 			if (locationHistory->filepos > twofiftysixth * progress)	{
 				progress++;
@@ -134,18 +211,8 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 			}
 		}
 
-		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
-		if (prevCoord)	{
-			coord->distancefromprev = MetersApartFlatEarth(prevCoord->latitude, prevCoord->longitude, coord->latitude, coord->longitude);
-			coord->secondsfromprev = coord->timestampS - prevCoord->timestampS;
-//		printf("%fm (%i to %i) %is\t",coord->distancefromprev, prevCoord->timestampS, coord->timestampS, coord->secondsfromprev);
-		}
-		else	{
-			coord->distancefromprev = 0;
-			coord->secondsfromprev = 0;
-		}
 
-
+		coord->group=locationHistory->numgroups;	//set the group number
 
 		coord->prev=prevCoord;
 		coord->next=calloc(sizeof(LOCATION),1);	//allocate memory for the next in the linked list
@@ -164,7 +231,11 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	fclose(locationHistory->json);
 
-	SortLocationsInsertSort(locationHistory);
+	locationHistory->numgroups++;
+	printf("\nSorting...");
+	int n = SortLocationsInsertSort(locationHistory);
+	printf("\nSorted %i", n);
+	printf("\nOptimising...");
 	OptimiseLocations(locationHistory);
 
 	return 0;
@@ -179,36 +250,39 @@ int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory)
 	loc=locationHistory->first;
 	if (!loc) return 0;
 
-	locationHistory->numPoints=0;
+	int n=0;
+	int s=0;
+	long i=0;
 	while (loc->next)	{
+		n++;
 		//printf("\n%i", loc->timestampS);
 		if (loc->timestampS > loc->next->timestampS)	{		//if the timestamp is later than the ->next element, there is disorder
 //			printf("\n%i > %i, at %i > %i",loc->timestampS, loc->next->timestampS, loc, loc->next);
+			s++;
 			chosen=loc->next;
 			place=locationHistory->first;						//set at the start
 
 
 //			printf("\nplace %i chosen:%i",place->timestampS, chosen->timestampS, loc);
 			while (place->timestampS < chosen->timestampS)	{	//then find where to insert the next element
-//				printf("\nnext place");
+				i++;
 				place=place->next;
 			}
 //			printf("\n1st %i. Removing %i, and inserting to before %i",locationHistory->first,  loc->next, place);
-			RemoveLocationFromList(locationHistory, chosen);	//remove the location from its current position
-			InsertLocationBefore(locationHistory, chosen, place);	//then insert it after the next pos
+			RemoveLocationFromList(&locationHistory->first, &locationHistory->last, chosen);	//remove the location from its current position
+			InsertLocationBefore(&locationHistory->first, chosen, place);	//then insert it after the next pos
 		}
 		else	{	//move onto the next one, otherwise we stay the same, but check the next
 			loc = loc->next;
 		}
-	locationHistory->numPoints++;
 	}
 
 
 	locationHistory->earliesttimestamp=locationHistory->first->timestampS;
 	locationHistory->latesttimestamp=loc->timestampS;
 //	printf("\nlast %i %i", loc, locationHistory->last);
-
-	return 1;
+	printf("\n%i iterated, %i moved", i, s);
+	return n;
 }
 
 int OptimiseLocations(LOCATIONHISTORY *locationHistory)
@@ -222,6 +296,8 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 	LOCATION *waitingFor1000;
 	LOCATION *waitingFor10000;
 
+	LOCATION *prevLoc;
+
 	//This function allows the plotter to skip to the next significant line at a given resolution (pixels per degree)
 	loc=locationHistory->first;
 
@@ -231,6 +307,8 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 	waitingFor1000 = loc;
 	waitingFor10000 = loc;
 
+	//It also calculates speed and time difference and distance between points
+	prevLoc = NULL;
 
 	while (loc)	{
 		//the "waiting fors" are a chain, only calculated for the links in the chain
@@ -271,13 +349,22 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 		}
 
 
+		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
+		if (prevLoc)	{
+			loc->distancefromprev = MetersApartFlatEarth(prevLoc->latitude, prevLoc->longitude, loc->latitude, loc->longitude);
+			loc->secondsfromprev = loc->timestampS - prevLoc->timestampS;
+//		printf("%fm (%i to %i) %is\t",coord->distancefromprev, prevCoord->timestampS, coord->timestampS, coord->secondsfromprev);
+		}
+		prevLoc=loc;
 
-	loc=loc->next;
+
+		loc=loc->next;
 	}
+	return 0;
 }
 
 
-int PrintLocations(LOCATIONHISTORY *locationHistory)
+int PrintLocations(LOCATIONHISTORY *locationHistory)	//for debugging
 {
 	LOCATION *loc;
 
@@ -307,29 +394,29 @@ int FreeLocations(LOCATIONHISTORY *locationHistory)
 	return 0;
 }
 
-void RemoveLocationFromList(LOCATIONHISTORY *lh, LOCATION *loc)
+void RemoveLocationFromList(LOCATION **ppFirst, LOCATION **ppLast, LOCATION *loc)
 {
 	//fix the previous one to skip over
 	if (loc->prev)	{	//if it's not the first
 		loc->prev->next = loc->next;
 	}
 	else	{
-		lh->first = loc->next;
+		*ppFirst = loc->next;
 	}
 
 
 	//then the next one
-	if (loc->next)	{	//if it's not the first
+	if (loc->next)	{	//if it's not the last item
 		loc->next->prev = loc->prev;
 	}
 	else	{
-		lh->last = loc->prev;
+		*ppLast = loc->prev;
 	}
 
 	return;
 }
 
-void InsertLocationBefore(LOCATIONHISTORY *lh, LOCATION *loc, LOCATION *target)
+void InsertLocationBefore(LOCATION **ppFirst, LOCATION *loc, LOCATION *target)
 {
 	loc->next=target;
 	loc->prev=target->prev;
@@ -338,7 +425,7 @@ void InsertLocationBefore(LOCATIONHISTORY *lh, LOCATION *loc, LOCATION *target)
 		target->prev->next = loc;
 	}
 	else	{
-		lh->first=loc;
+		*ppFirst = loc;
 	}
 
 	target->prev=loc;
@@ -539,12 +626,12 @@ int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location)
 					location->longitude*=-1;
 				}
 
-				printf("TS: %i\n", location->timestampS);
+				printf("\nTS: %i", location->timestampS);
 				//printf("Lat:string%s calc:%i %i 0:%i 1:%i 2:%i 0:%i %i\n", pLat, location->latitude, (pLat[1]-48)*10+(pLat[2]-48), pLat[0], pLat[1], pLat[2], *pLat, *(pLat+1));
 
-				printf("Lat: %f Long: %f\n", location->latitude, location->longitude);
+				printf("\nLat: %f Long: %f", location->latitude, location->longitude);
 
-				printf("Time:%s  Stat:%s Lat:%s%s Long:%s%s Track:%s Date:%s\n", pUTCtime, pStatus, pLat, pNorS, pLong, pEorW, pTrack, pDate);
+				printf("\nTime:%s  Stat:%s Lat:%s%s Long:%s%s Track:%s Date:%s", pUTCtime, pStatus, pLat, pNorS, pLong, pEorW, pTrack, pDate);
 				return 1;
 			}
 
@@ -684,9 +771,7 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c)
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 {
-
 	int r,g,b,a;
-
 
 	if ((cBrush->A)==0)	{//if we're painting with a transparent brush, just return
 		return 1;
@@ -702,41 +787,27 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 
 	//first work out the output alpha
 	a=cBrush->A + (cCanvas->A * (255 - cBrush->A))/255;	//proper way to do it, it's not simply additive
-	if (a>255)
-			a = 255;
 
-	if (a>0)	{	//only bother writing if there is an alpha
+	//This is essentially doing the RGB function in https://en.wikipedia.org/wiki/Alpha_compositing
+	//I rearranged equation in wolfram alpha to take care of the fact by alphas are between 0 and 255
+	//And ensured that minimal divisions were done.
+	r = (255*cBrush->R * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->R) + (255*cCanvas->A * cCanvas->R);
+	r /=255;
+	r /=a;
 
-		//printf("r%i g%i b%i a%i + r%i g%i b%i a%i = ",cCanvas->R,cCanvas->G,cCanvas->B,cCanvas->A, cBrush->R,cBrush->G,cBrush->B,cBrush->A);
+	g = (255*cBrush->G * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->G) + (255*cCanvas->A * cCanvas->G);
+	g /=255;
+	g /=a;
 
-		//This is essentially doing the RGB function in https://en.wikipedia.org/wiki/Alpha_compositing
-		//I rearranged equation in wolfram alpha to take care of the fact by alphas are between 0 and 255
-		//And ensured that minimal divisions were done.
-		r = (255*cBrush->R * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->R) + (255*cCanvas->A * cCanvas->R);
-		r /=255;
-		r /=a;
+	b = (255*cBrush->B * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->B) + (255*cCanvas->A * cCanvas->B);
+	b /=255;
+	b /=a;
 
-		g = (255*cBrush->G * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->G) + (255*cCanvas->A * cCanvas->G);
-		g /=255;
-		g /=a;
+	if (r>255)	r=255;
+	if (g>255)	g=255;
+	if (b>255)	b=255;
+	//printf("r%i g%i b%i a%i\r\n",r,g,b,a);
 
-		b = (255*cBrush->B * cBrush->A) - (cBrush->A * cCanvas->A * cCanvas->B) + (255*cCanvas->A * cCanvas->B);
-		b /=255;
-		b /=a;
-
-		if (r>255)	r=255;
-		if (g>255)	g=255;
-		if (b>255)	b=255;
-		//printf("r%i g%i b%i a%i\r\n",r,g,b,a);
-
-	}
-	else	{	//if there's no alpha in the output, then remove all colour
-		cCanvas->R=0;
-		cCanvas->G=0;
-		cCanvas->B=0;
-		cCanvas->A=0;
-		return 0;
-	}
 
 
 	//set the canvas
@@ -747,6 +818,7 @@ int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 	return 1;
 
 }
+
 
 int bitmapFilledCircle(BM* bm, int x, int y, int diameter, COLOUR *c)
 {
@@ -993,7 +1065,7 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 
 	if (abs(gradient)>1)	{
-		printf("(%.1f, %.1f) (%.1f, %.1f) %.2f\t %i\t %.4f \r\n", x0,y0, x1,y1, hypotenusethickness, thickness,gradient);
+		printf("\n Gradient>1 (%.1f, %.1f) (%.1f, %.1f) %.2f\t %i\t %.4f \r\n", x0,y0, x1,y1, hypotenusethickness, thickness,gradient);
 	}
 
 	//Convert to int and round;
@@ -1653,7 +1725,7 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[0].abbrev="nz";preset[0].nswe.north=-34;preset[0].nswe.south=-47.5;preset[0].nswe.west=166;preset[0].nswe.east=178.5;preset[0].name="New Zealand";
 	preset[1].abbrev="northisland";preset[1].nswe.north=-34.37;preset[1].nswe.south=-41.62;preset[1].nswe.west=172.6;preset[1].nswe.east=178.6;preset[1].name="North Island";
 	preset[2].abbrev="auckland";preset[2].nswe.north=-36.7;preset[2].nswe.south=-37.1;preset[2].nswe.west=174.5;preset[2].nswe.east=175;preset[2].name="Auckland";
-	preset[3].abbrev="aucklandcentral";preset[3].nswe.north=-36.835;preset[3].nswe.south=-36.935;preset[3].nswe.west=174.69;preset[3].nswe.east=174.89;preset[3].name="aucklandcentral";
+	preset[3].abbrev="aucklandcentral";preset[3].nswe.north=-36.835;preset[3].nswe.south=-36.935;preset[3].nswe.west=174.69;preset[3].nswe.east=174.89;preset[3].name="Central Auckland";
 	preset[4].abbrev="tauranga";preset[4].nswe.north=-37.6;preset[4].nswe.south=-37.76;preset[4].nswe.west=176.07;preset[4].nswe.east=176.36;preset[4].name="Tauranga";
 	preset[5].abbrev="wellington";preset[5].nswe.north=-41.06;preset[5].nswe.south=-41.4;preset[5].nswe.west=174.6;preset[5].nswe.east=175.15;preset[5].name="Wellington";
 	preset[6].abbrev="christchurch";preset[6].nswe.north=-43.43;preset[6].nswe.south=-43.62;preset[6].nswe.west=172.5;preset[6].nswe.east=172.81;preset[6].name="Christchurch";
@@ -1898,7 +1970,7 @@ STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
 	loc=lh->first;
 	inregion = 0;
 
-	FILE * f;
+//	FILE * f;
 //	f= fopen("output2.txt", "w");
 
 	while (loc)	{
