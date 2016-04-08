@@ -138,9 +138,10 @@ struct sBitmap	{
 struct sLocation	{
 	double latitude;
 	double longitude;
-	long timestampS; //we'll use a long instead of the high precision of google
+	long timestampS; //we'll use a long instead of the high precision of google (seconds rather than ms)
 	int accuracy;
 	int altitude;
+	int inputfile;
 	int group;	//which input file it was loaded from
 
 	double distancefromprev;
@@ -161,7 +162,8 @@ struct sLocationHistory	{
 	unsigned long	filepos;
 	//char *jsonfilename;
 
-	int numgroups;	//groups of locations
+	int numinputfiles;	//number of files used for input
+	int numgroups;	//groups of input files, initially 1:1, but we can merge them
 
 	unsigned long	numPoints;
 	unsigned long	earliesttimestamp;
@@ -207,7 +209,8 @@ int FreeLocations(LOCATIONHISTORY *locationHistory);
 
 void RemoveLocationFromList(LOCATION **ppFirst, LOCATION **ppLast, LOCATION *loc);
 void InsertLocationBefore(LOCATION **ppFirst, LOCATION *loc, LOCATION *target);
-int SortLocationsInsertSort(LOCATIONHISTORY *locationHistory);
+int SortLocationsInsertSort(LOCATION **ppFirst, LOCATION **ppLast);	//pointer to pointer of first and last - it edits the values
+int MergeLocationGroup(LOCATION **ppFirstBase, LOCATION **ppLastBase, LOCATION **ppFirstNew, LOCATION **ppLastNew);
 int OptimiseLocations(LOCATIONHISTORY *locationHistory);
 int PrintLocations(LOCATIONHISTORY *locationHistory); //for debugging
 

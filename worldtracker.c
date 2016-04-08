@@ -256,10 +256,10 @@ static BOOL CreateSBar(HWND hwndParent,char *initialText,int nrOfParts)
 
 int GetFileName(char *buffer,int buflen)
 {
-	const int filtersize = 64;
+	const int filtersize = 256;
 
 	char tmpfilter[filtersize];
-	int i = 0;
+//	int i = 0;
 	OPENFILENAME ofn;
 
 	memset(&ofn, 0, sizeof(ofn));
@@ -269,21 +269,21 @@ int GetFileName(char *buffer,int buflen)
 	ofn.lpstrFile = buffer;
 	ofn.nMaxFile = buflen;
 	ofn.lpstrTitle = "Open";
-	ofn.nFilterIndex = 2;
+	ofn.nFilterIndex = 1;
 	ofn.lpstrDefExt = "json";
 
 	printf("Buflen: %i ", buflen);
 	strcpy(buffer, "*.json");
 
-	strcpy(tmpfilter, "All files,*.*,JSON Files,*.json");
-	while((tmpfilter[i]) && (i<filtersize-2)) {
-		if (tmpfilter[i] == ',')
-			tmpfilter[i] = 0;
-		i++;
-	}
-	tmpfilter[i++] = 0; tmpfilter[i++] = 0;
-	ofn.Flags = 539678;
-	ofn.lpstrFilter = tmpfilter;
+	//strcpy(tmpfilter, "All files\0*.*\0All supported types\0*.json;*.log;*.csv\0JSON files\0*.json\0Canon LOG files\0*.log\0Backitude CSV files\0*.csv\0\0");
+//	while((tmpfilter[i]) && (i<filtersize-2)) {
+//		if (tmpfilter[i] == ',')
+//			tmpfilter[i] = 0;
+//		i++;
+//	}
+	//tmpfilter[i++] = 0; tmpfilter[i++] = 0;
+	ofn.Flags = OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;//OFN_ALLOWMULTISELECT;
+	ofn.lpstrFilter = "All files\0*.*\0All supported types\0*.json;*.log;*.csv\0JSON files\0*.json\0Canon LOG files\0*.log\0Backitude CSV files\0*.csv\0\0";
 	return GetOpenFileName(&ofn);
 
 }
@@ -2009,7 +2009,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	}
 */
 
-	printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
+	//printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = width;
