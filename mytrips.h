@@ -227,6 +227,7 @@ int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
+int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename);
 
 int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c);

@@ -31,7 +31,8 @@ BEGIN
         BEGIN
         MENUITEM "&New", IDM_NEW
         MENUITEM "&Open...\tCtrl+O", IDM_OPEN
-        MENUITEM "&Export...", IDM_SAVE
+        MENUITEM "&Export KML...", IDM_SAVE
+        MENUITEM "&Export GPX...", IDM_EXPORTGPX
         MENUITEM "&Close", IDM_CLOSE
         MENUITEM "E&xit", IDM_EXIT
         END
@@ -49,6 +50,7 @@ BEGIN
     IDM_NEW, "Creates a new document"
     IDM_OPEN, "Opens a JSON for viewing"
     IDM_SAVE, "Exports the current viewpoint to a Google KML file"
+	IDM_EXPORTGPX, "Exports the file to GPX format"
     IDM_CLOSE, "Closes the current JSON"
     IDM_EXIT, "Quits WorldTracker"
     IDM_ABOUT, "Displays information about WorldTracker"

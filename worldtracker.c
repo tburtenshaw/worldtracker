@@ -256,10 +256,6 @@ static BOOL CreateSBar(HWND hwndParent,char *initialText,int nrOfParts)
 
 int GetFileName(char *buffer,int buflen)
 {
-	const int filtersize = 256;
-
-	char tmpfilter[filtersize];
-//	int i = 0;
 	OPENFILENAME ofn;
 
 	memset(&ofn, 0, sizeof(ofn));
@@ -268,22 +264,13 @@ int GetFileName(char *buffer,int buflen)
 	ofn.hwndOwner = GetActiveWindow();
 	ofn.lpstrFile = buffer;
 	ofn.nMaxFile = buflen;
-	ofn.lpstrTitle = "Open";
-	ofn.nFilterIndex = 1;
-	ofn.lpstrDefExt = "json";
+	ofn.lpstrTitle = "Import";
+	ofn.nFilterIndex = 2;
+	strcpy(buffer, "*.json; *.log; *.csv");
 
-	printf("Buflen: %i ", buflen);
-	strcpy(buffer, "*.json");
 
-	//strcpy(tmpfilter, "All files\0*.*\0All supported types\0*.json;*.log;*.csv\0JSON files\0*.json\0Canon LOG files\0*.log\0Backitude CSV files\0*.csv\0\0");
-//	while((tmpfilter[i]) && (i<filtersize-2)) {
-//		if (tmpfilter[i] == ',')
-//			tmpfilter[i] = 0;
-//		i++;
-//	}
-	//tmpfilter[i++] = 0; tmpfilter[i++] = 0;
-	ofn.Flags = OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;//OFN_ALLOWMULTISELECT;
-	ofn.lpstrFilter = "All files\0*.*\0All supported types\0*.json;*.log;*.csv\0JSON files\0*.json\0Canon LOG files\0*.log\0Backitude CSV files\0*.csv\0\0";
+	ofn.Flags = OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;//OFN_ALLOWMULTISELECT;
+	ofn.lpstrFilter = "All Files (*.*)\0*.*\0All Supported Files (*.json; *.log; *.csv)\0*.json;*.log;*.csv\0Google History JSON Files (*.json)\0*.json\0Canon Camera NMEA Files (*.log)\0*.log\0Backitude CSV Files (*.csv)\0*.csv\0\0";
 	return GetOpenFileName(&ofn);
 
 }
@@ -706,11 +693,16 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			ExportKMLDialogAndComplete(hwnd, &optionsPreview);
 		break;
 
+		case IDM_EXPORTGPX:
+			ExportGPXDialogAndComplete(hwnd, &locationHistory);
+		break;
+
 		case IDM_CLOSE:
 			FreeLocations(&locationHistory);
 			memset(&locationHistory,0,sizeof(locationHistory));
 			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			InvalidateRect(hwndDateSlider, NULL, 0);
 		break;
 
 		case IDM_EXIT:
@@ -1063,7 +1055,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 
 		if (needsRedraw)	{
-			printf("redraw from edit\r\n");
+			printf("redraw from edit\n");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 		}
@@ -1089,6 +1081,33 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 }
 
 
+int ExportGPXDialogAndComplete(HWND hwnd, LOCATIONHISTORY *lh)
+{
+	char filename[MAX_PATH];
+	OPENFILENAME ofn;
+
+	memset(&ofn,0,sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hwnd;
+	ofn.hInstance = hInst;
+	filename[0]=0;
+	ofn.lpstrFile = filename;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrTitle = "Export GPX to...";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrDefExt = "kml";
+	ofn.Flags =OFN_OVERWRITEPROMPT;
+	ofn.lpstrFilter = "GPX files (*.gpx)\0*.gpx\0\0";
+
+
+	if (GetSaveFileName(&ofn)==0)
+		return 0;
+
+	ExportGPXFile(lh, filename);
+
+	return 1;
+}
+
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o)
 {
 	char filename[MAX_PATH];
@@ -1112,7 +1131,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o)
 	if (GetSaveFileName(&ofn)==0)
 		return 0;
 
-	printf("Filename:%s\r\n",filename);
+//	printf("Filename:%s\n",filename);
 
 	//Create export options
 	memset(&optionsExport, 0, sizeof(optionsExport));
@@ -1164,12 +1183,12 @@ DWORD WINAPI ThreadSaveKML(OPTIONS *options)
 	DrawGrid(&exportBM);
 	PlotPaths(&exportBM, &locationHistory, options);
 
-	printf("png:%s, w:%i, h:%i size:%i\r\n",exportBM.options->pngfilenamefinal, exportBM.width, exportBM.height, exportBM.sizebitmap);
+	printf("png:%s, w:%i, h:%i size:%i\n",exportBM.options->pngfilenamefinal, exportBM.width, exportBM.height, exportBM.sizebitmap);
 	error = lodepng_encode32_file(exportBM.options->pngfilenamefinal, exportBM.bitmap, exportBM.width, exportBM.height);
 	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
 
 	//Write KML file
-	fprintf(stdout, "KML to %s. PNG to %s\r\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
+	fprintf(stdout, "KML to %s. PNG to %s\n", exportBM.options->kmlfilenamefinal, exportBM.options->pngfilenamefinal);
 	WriteKMLFile(&exportBM);
 	bitmapDestroy(&exportBM);
 
@@ -1199,7 +1218,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 
 	bitmap = LoadImage(hInst, MAKEINTRESOURCE(IDB_OVERVIEW), IMAGE_BITMAP, 0,0,LR_DEFAULTSIZE|LR_CREATEDIBSECTION);
-	printf("\r\nBMO:%x", (unsigned long)bitmap);
+	printf("\nBMO:%x", (unsigned long)bitmap);
 
 	//If there's no locations loaded, don't bother with the rest
 	if (lh->first==NULL)	return bitmap;
@@ -1213,9 +1232,9 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	GdiFlush();
 	result = GetDIBits(hdc, bitmap, 0, 180, NULL, &bi,DIB_RGB_COLORS);	//get the info
 
-	//printf("\r\nOverview\r\nbi.height: %i\t", bi.bmiHeader.biHeight);
+	//printf("\nOverview\nbi.height: %i\t", bi.bmiHeader.biHeight);
 	//printf("bi.bitcount: %i\t", bi.bmiHeader.biBitCount);
-	//printf("bi.sizeimage: %i\t\r\n", bi.bmiHeader.biSizeImage);
+	//printf("bi.sizeimage: %i\t\n", bi.bmiHeader.biSizeImage);
 
 	//bits=malloc(bi.bmiHeader.biSizeImage);
 	bits = VirtualAlloc(NULL, bi.bmiHeader.biSizeImage, MEM_COMMIT, PAGE_READWRITE);	//malloc can cause crashes see http://pastebin.com/L8rrC4mQ
@@ -1225,7 +1244,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 
 	memset(&overviewBM, 0, sizeof(overviewBM));
 	bitmapInit(&overviewBM, &optionsOverview, &locationHistory);
-	//printf("\r\n%i", overviewBM.sizebitmap);
+	//printf("\n%i", overviewBM.sizebitmap);
 	PlotPaths(&overviewBM, &locationHistory, &optionsOverview);
 
 
@@ -1469,7 +1488,7 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
 			ReleaseDC(hwnd, hdc);
 
-			printf("\r\nrecalc'd overview BM");
+			printf("\nrecalc'd overview BM");
 
 			InvalidateRect(hwnd, 0, 0);
 
@@ -1478,6 +1497,16 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
     		return 1;
 		case WM_PAINT:
 			PaintOverview(hwnd);
+			break;
+		case WT_WM_SIGNALMOUSEWHEEL:	//The is the Overview window proc
+			//Translate to corresponding position, then treat as if did it on preview
+			//At the moment I'm not doing this, so
+			POINT mousePoint;
+			mousePoint.x=GET_X_LPARAM(lParam);
+			mousePoint.y=GET_Y_LPARAM(lParam);
+
+
+			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);	//mainly to get the focus out of the edit boxes
@@ -1682,8 +1711,8 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	longitude = (double)mousePoint.x*longspan/optionsPreview.width + optionsPreview.nswe.west;
 	latitude = optionsPreview.nswe.north - latspan* (double)mousePoint.y/(double)optionsPreview.height;
 
-	//printf("\r\nInitial longspan: %f, latspan %f, aspect ratio: %f\r\n", longspan, latspan, longspan/latspan);
-//	printf("\r\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\r\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
+	//printf("\nInitial longspan: %f, latspan %f, aspect ratio: %f\n", longspan, latspan, longspan/latspan);
+//	printf("\nmw x%i, y%i ht:%i: wt:%i long:%f,lat:%f, zoom:%f\n",mousePoint.x, mousePoint.y,  optionsPreview.height, optionsPreview.width, longitude, latitude, zoomfactor);
 
 	//This shifts the origin to where the mouse was
 	optionsPreview.nswe.west-=longitude;
@@ -1732,9 +1761,9 @@ int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 		stretchPreview.useStretch = TRUE;
 
 		//printf("Stretch dest:(%i,%i,%i,%i)", stretchPreview.nXOriginDest, stretchPreview.nYOriginDest, stretchPreview.nWidthDest, stretchPreview.nHeightDest);
-		//printf(" from src (%i,%i,%i,%i)\r\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
+		//printf(" from src (%i,%i,%i,%i)\n", stretchPreview.nXOriginSrc, stretchPreview.nYOriginSrc, stretchPreview.nWidthSrc, stretchPreview.nHeightSrc);
 	}
-	else	{
+	else	{	//zoom out
 		//when zooming out the src wile be the whole window, and we'll compress it to a smaller area
 		stretchPreview.nXOriginSrc=0;
 		stretchPreview.nYOriginSrc=0;
@@ -1810,7 +1839,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WM_TIMER:
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
 		case WT_WM_RECALCBITMAP:
-			//printf("\r\n*Recalc Preview*");
+			//printf("\n*Recalc Preview*");
 			GetClientRect(hwnd, &clientRect);
 //			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
 //			optionsPreview.width = clientRect.right;
@@ -1819,7 +1848,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
     		return 1;
 			break;
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
-			//printf("***size***\r\n");
+			//printf("***size***\n");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 	ResetCropbarWindowPos(hwndPreviewCropbarWest);
 	ResetCropbarWindowPos(hwndPreviewCropbarEast);
@@ -1920,7 +1949,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh)
 
 	}
 	else if ((width!=previewBM.width) || (height!=previewBM.height))	{
-		printf("\r\nwidth not the same %i vs %i, ht: %i vs %i",width, previewBM.width, height, previewBM.height);
+		printf("\nwidth not the same %i vs %i, ht: %i vs %i",width, previewBM.width, height, previewBM.height);
 		SetStretchBltMode(hdc, HALFTONE);
 		StretchBlt(hdc,0,0,width, height, memDC, 0,0,previewBM.width, previewBM.height, SRCCOPY);
 	}
@@ -1948,7 +1977,7 @@ DWORD WINAPI ThreadSetHBitmap(long queuechit)
 
 
 	if (queuechit<hbmQueueSize)	{
-		printf("\r\nQUEUE SKIPPED start thread!!");
+		printf("\nQUEUE SKIPPED start thread!!");
 		return 0;
 	}
 
@@ -1978,7 +2007,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 
 	if (queuechit<hbmQueueSize)	{
-		printf("\r\nQUEUE SKIPPED in thread!!");
+		printf("\nQUEUE SKIPPED in thread!!");
 		return hbmPreview;
 	}
 
@@ -2009,7 +2038,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	}
 */
 
-	//printf("\r\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
+	//printf("\nCreating Preview bitmap %i %i %i %i",width,height, previewBM.width, previewBM.height);
 	memset(&bmi, 0, sizeof(bmi));
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = width;
@@ -2171,12 +2200,19 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
     	UpdateStatusBar("Ready", 0, 0);
 		break;
 	case WM_MOUSEWHEEL:
-		//if it's within the Preview message box, send it there
+		//if it's within the Preview bounding box, send it there
 		GetWindowRect(hwndPreview, &rect);
-		//printf("Rectleft %i, rectright %i, mousex %i, mousey %i. \r\n",rect.left, rect.right, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
 		if ((GET_X_LPARAM(lParam)>=rect.left) && (GET_X_LPARAM(lParam)<=rect.right) && (GET_Y_LPARAM(lParam)>=rect.top) && (GET_Y_LPARAM(lParam)<=rect.bottom))	{
 			SendMessage(hwndPreview, WT_WM_SIGNALMOUSEWHEEL, wParam, lParam);
 		}
+
+		//Do the same for the Overview
+		GetWindowRect(hwndOverview, &rect);
+		if ((GET_X_LPARAM(lParam)>=rect.left) && (GET_X_LPARAM(lParam)<=rect.right) && (GET_Y_LPARAM(lParam)>=rect.top) && (GET_Y_LPARAM(lParam)<=rect.bottom))	{
+			SendMessage(hwndOverview, WT_WM_SIGNALMOUSEWHEEL, wParam, lParam);
+		}
+
+
 		return 0;
 		break;
 	case WM_COMMAND:
@@ -2221,7 +2257,7 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 
 
 
-	//printf("ht:%i avail:%i top:%i %i\r\n", mainheight, availableheight,previewRect.top, previewPoint.y);
+	//printf("ht:%i avail:%i top:%i %i\n", mainheight, availableheight,previewRect.top, previewPoint.y);
 
 	if (availableheight*aspectratio > availablewidth)	{	//width limited
 		endheight = availablewidth/aspectratio;
@@ -2245,7 +2281,7 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 	SetWindowPos(hwndPreview,0,0,0,endwidth,endheight,SWP_NOMOVE|SWP_NOOWNERZORDER);
 
 
-	//printf("endwt: %i, endht: %i\r\n", endwidth, endheight);
+	//printf("endwt: %i, endht: %i\n", endwidth, endheight);
 
 	return 0;
 }
@@ -2428,6 +2464,9 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg) {
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);
+			if ((optionsPreview.totimestamp - optionsPreview.fromtimestamp)<24*60*60)	{	//if there's only one day, don't bother
+				return 0;
+			}
 			if ((mousePoint.x+10 > xfrom) &&(mousePoint.x-10 < xfrom) && (mousePoint.x+10 > xto) &&(mousePoint.x-10 < xto))	{	//if it's in the grabbing ranges of both
 				if (abs(mousePoint.x-xfrom) < abs(xto-mousePoint.x))
 					mouseDragDateSlider=MS_DRAGFROM;
@@ -2611,7 +2650,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					north=optionsPreview.nswe.north + dpp* mousePoint.y;
 					optionsPreview.nswe.north=TruncateByDegreesPerPixel(north, dpp);
 
-//					printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,north,dpp);
+//					printf("x: %i, y: %i w:%f d:%f\n",mousePoint.x, mousePoint.y,north,dpp);
 					//optionsPreview.nswe.north = optionsPreview.nswe.north + (optionsPreview.nswe.south-optionsPreview.nswe.north)* mousePoint.y/optionsPreview.height;
 				}
 				else if (hwnd==hwndPreviewCropbarSouth)	{
@@ -2658,7 +2697,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					EditNSWE.west=optionsPreview.nswe.west + dpp* mousePoint.x;
 					EditNSWE.west=TruncateByDegreesPerPixel(EditNSWE.west, dpp);
 
-					//printf("x: %i, y: %i w:%f d:%f\r\n",mousePoint.x, mousePoint.y,EditNSWE.west,dpp);
+					//printf("x: %i, y: %i w:%f d:%f\n",mousePoint.x, mousePoint.y,EditNSWE.west,dpp);
 				}
 				else if (hwnd==hwndPreviewCropbarEast)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
@@ -2677,7 +2716,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					dpp = (optionsPreview.nswe.east-optionsPreview.nswe.west)/optionsPreview.width;
 					EditNSWE.east=optionsPreview.nswe.west + dpp* mousePoint.x;
 					EditNSWE.east=TruncateByDegreesPerPixel(EditNSWE.east, dpp);
-					//printf("x: %i  %f\r\n",mousePoint.x, east);
+					//printf("x: %i  %f\n",mousePoint.x, east);
 				}
 				else if (hwnd==hwndPreviewCropbarNorth)	{
 					if (mousePoint.y<0)
@@ -2693,7 +2732,7 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					dpp = (optionsPreview.nswe.south-optionsPreview.nswe.north)/optionsPreview.height;
 					EditNSWE.north=optionsPreview.nswe.north + dpp* mousePoint.y;
 					EditNSWE.north=TruncateByDegreesPerPixel(EditNSWE.north, dpp);
-					//printf("x: %i, y: %i %f\r\n",mousePoint.x, mousePoint.y,north);
+					//printf("x: %i, y: %i %f\n",mousePoint.x, mousePoint.y,north);
 				}
 				else if (hwnd==hwndPreviewCropbarSouth)	{
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here

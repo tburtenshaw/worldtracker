@@ -1703,27 +1703,75 @@ int WriteKMLFile(BM* bm)
 	strftime (sEndTime,80,"%B %Y",localtime(&bm->options->totimestamp));
 
 	kml=fopen(bm->options->kmlfilenamefinal,"w");
-	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\r\n");
-	fprintf(kml, "<GroundOverlay>\r\n");
-	fprintf(kml, "<name>WorldTracker - %s</name>\r\n",bm->options->title);
+	fprintf(kml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	fprintf(kml, "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n");
+	fprintf(kml, "<GroundOverlay>\n");
+	fprintf(kml, "<name>WorldTracker - %s</name>\n",bm->options->title);
 	fprintf(kml, "<description>");
-	fprintf(kml, "From %s to %s.\r\n", sStartTime, sEndTime);
-	fprintf(kml, "Plotted %i points.\r\n", bm->countPoints);
-	fprintf(kml, "</description>\r\n");
-	fprintf(kml, "<Icon><href>%s</href></Icon>\r\n",pngnameNoDirectory);
-    fprintf(kml, "<LatLonBox>\r\n");
-	fprintf(kml, "<north>%f</north>\r\n",bm->nswe.north);
-	fprintf(kml, "<south>%f</south>\r\n",bm->nswe.south);
-	fprintf(kml, "<east>%f</east>\r\n",bm->nswe.east);
-	fprintf(kml, "<west>%f</west>\r\n",bm->nswe.west);
-	fprintf(kml, "<rotation>0</rotation>\r\n");
-	fprintf(kml, "</LatLonBox>\r\n");
-	fprintf(kml, "</GroundOverlay>\r\n");
-	fprintf(kml, "</kml>\r\n");
+	fprintf(kml, "From %s to %s.\n", sStartTime, sEndTime);
+	fprintf(kml, "Plotted %i points.\n", bm->countPoints);
+	fprintf(kml, "</description>\n");
+	fprintf(kml, "<Icon><href>%s</href></Icon>\n",pngnameNoDirectory);
+    fprintf(kml, "<LatLonBox>\n");
+	fprintf(kml, "<north>%f</north>\n",bm->nswe.north);
+	fprintf(kml, "<south>%f</south>\n",bm->nswe.south);
+	fprintf(kml, "<east>%f</east>\n",bm->nswe.east);
+	fprintf(kml, "<west>%f</west>\n",bm->nswe.west);
+	fprintf(kml, "<rotation>0</rotation>\n");
+	fprintf(kml, "</LatLonBox>\n");
+	fprintf(kml, "</GroundOverlay>\n");
+	fprintf(kml, "</kml>\n");
 
 	fclose(kml);
 
+	return 1;
+}
+
+int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
+{
+	FILE *gpx;
+	LOCATION *loc;
+	struct tm time;
+	char stringTime[255];
+
+	gpx = fopen(GPXFilename, "w");
+
+	if (!gpx)	{
+		return 0;
+	}
+
+
+	fprintf(gpx, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	fprintf(gpx, "<gpx version=\"1.1\" creator=\"WorldTracker\">\n");
+
+	fprintf(gpx, "<metadata>\n");
+	fprintf(gpx, "<link>https://github.com/tburtenshaw/worldtracker</link>\n");
+	fprintf(gpx, "<name>WorldTracker GPX Export</name>\n");
+	fprintf(gpx, "<desc>Created by WorldTracker</desc>\n");
+	fprintf(gpx, "<author>Created by WorldTracker</author>\n");
+	fprintf(gpx, "</metadata>\n");
+
+	//Write the location data to a track
+	fprintf(gpx, "<trk>\n");
+
+	fprintf(gpx, "<trkseg>\n");
+	loc=lh->first;
+	while (loc)	{
+		fprintf(gpx, "<trkpt lat=\"%f\" lon=\"%f\">\n",loc->latitude, loc->longitude);
+        //<ele>4.46</ele>
+		strftime(stringTime,255,"%Y-%m-%dT%H:%M:%SZ",gmtime_s(&loc->timestampS, &time));
+
+		fprintf(gpx, "<time>%s</time>\n",stringTime);
+     	fprintf(gpx, "</trkpt>\n");
+		loc=loc->next;
+	}
+	fprintf(gpx, "</trkseg>\n");
+
+	fprintf(gpx, "</trk>\n");
+
+	fprintf(gpx, "</gpx>\n");
+
+	fclose(gpx);
 	return 1;
 }
 

@@ -4,6 +4,7 @@
 #define	IDD_ABOUT	100
 #define	IDM_NEW	200
 #define	IDM_OPEN	210
+#define	IDM_EXPORTGPX	211
 #define	IDM_SAVE	220
 #define	IDM_SAVEAS	230
 #define	IDM_CLOSE	240

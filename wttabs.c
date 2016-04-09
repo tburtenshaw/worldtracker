@@ -30,6 +30,10 @@ int CreateTabsAndTabWindows(HWND hwnd)
 
 	int windowleft, windowbottom, windowwidth, windowheight;
 
+    tab1Data.mask=TCIF_TEXT;
+    tab1Data.pszText="Import";
+	TabCtrl_InsertItem(hwndTab, TAB_IMPORT, &tab1Data);
+
 
     tab1Data.mask=TCIF_TEXT;
     tab1Data.pszText="Export";
@@ -72,7 +76,7 @@ LRESULT CALLBACK TabExportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 		x=margin;y=margin;
 		CreateWindow("Static","Width:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
 		x+=100+margin;
-		hwndTabExportWidthEdit = CreateWindow("Edit","800", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
+		hwndTabExportWidthEdit = CreateWindow("Edit","2048", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
 		y+=margin+height;
 
 		x=margin;
@@ -145,7 +149,6 @@ LRESULT CALLBACK TabExportWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UIN
 
 int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
 {
-	char buffer[255];
 	int exportHeight;
 	int exportWidth;
 
@@ -157,7 +160,7 @@ int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
 
 		exportWidth=exportHeight*o->width/o->height;
 		printf("height: %i, ",exportHeight);
-		printf("width: %i\r\n",exportWidth);
+		printf("width: %i\n",exportWidth);
 		SendMessage(hwndTabExport, WT_WM_TAB_SETEXPORTWIDTH, exportWidth, 0);
 
 	}
@@ -165,7 +168,7 @@ int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
 		exportWidth=SendMessage(hwndTabExport, WT_WM_TAB_GETEXPORTWIDTH, 0, 0);
 		exportHeight=exportWidth*o->height/o->width;
 		printf("height: %i, ",exportHeight);
-		printf("width: %i\r\n",exportWidth);
+		printf("width: %i\n",exportWidth);
 
 		SendMessage(hwndTabExport, WT_WM_TAB_SETEXPORTHEIGHT, exportHeight, 0);
 	}

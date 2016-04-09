@@ -84,6 +84,8 @@ int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, doub
 int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o);
 
 int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o);
+int ExportGPXDialogAndComplete(HWND hwnd, LOCATIONHISTORY *lh);
+
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
