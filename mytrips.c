@@ -1892,7 +1892,7 @@ int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *
 
 	//return the number in the array
 	for (int i=0;i<countbest;i++)	{
-		printf("\nscorebest[%i] = %i %s", i, scorebest[i], presetbest[i]);
+		printf("\nscorebest[%i] = %i %s %f", i, scorebest[i], presetbest[i].name, presetbest[i].nswe.north);
 		if (scorebest[i] == 0)	{
 			printf("\nreturned: %i", i);
 			return i;
