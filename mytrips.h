@@ -223,6 +223,8 @@ int GuessInputFileType(LOCATIONHISTORY *lh);
 void LoadPresets(PRESET *preset, int * pCount, int maxCount);
 int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets);
 char * SuggestAreaFromNSWE(NSWE* viewport, PRESET * presetarray, int numberofpresets);
+int GetBestPresets(char *searchterm, PRESET *presetlist, int countlist, PRESET *presetbest, int countbest);
+
 int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 

@@ -52,9 +52,9 @@
 
 #define CS_MONTH 0x100
 
-
 typedef struct sMovebar MOVEBARINFO;
 typedef struct sStretch STRETCH;
+
 
 struct sMovebar	{
 	int direction;
@@ -107,6 +107,8 @@ STRETCH stretchPreview;
 
 BM overviewBM;
 BM previewBM;
+
+
 
 
 //Mouse dragging
@@ -484,6 +486,22 @@ int InitWindowClasses(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)DropdownPresetWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "DropdownPreset";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+
+
 	memset(&wc,0,sizeof(WNDCLASS));
 	wc.style = CS_DBLCLKS ;
 	wc.lpfnWndProc = (WNDPROC)GraphWndProc;
@@ -523,6 +541,21 @@ int InitWindowClasses(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabStatisticsWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabStatistics";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+
+
 	return 1;
 }
 
@@ -548,6 +581,15 @@ static BOOL InitApplication(void)
 
 	InitiateColours();
 
+	int height;
+	HDC hdc;
+	hdc=GetDC(0);
+	height = -MulDiv(10, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+	ReleaseDC(0,hdc);
+	hFontDialog = CreateFont(height, 0, 0, 0, FW_DONTCARE, FALSE,
+    FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS,
+    CLIP_DEFAULT_PRECIS, PROOF_QUALITY, DEFAULT_PITCH|FF_DONTCARE,
+    "Tahoma");
 
 
 COLOUR c;
@@ -1051,6 +1093,21 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			needsRedraw=1;
 			break;
 
+		case ID_EDITPRESET:
+			//SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+			SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,100,10,SWP_NOMOVE|SWP_SHOWWINDOW);
+			InvalidateRect(hwndDropdownPreset, NULL, 0);
+			//ShowWindow(hwndDropdownPreset, SW_SHOW);
+			printf("\nPreset: %s", szText);
+			//NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
+			//UpdateEditNSWEControls(&optionsPreview.nswe);
+			//UpdateBarsFromNSWE(&optionsPreview.nswe);
+			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+			//InvalidateRect(hwndOverview, NULL, FALSE);
+			//SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			break;
+
+
 
 		}
 
@@ -1064,18 +1121,93 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	else if (codeNotify == EN_KILLFOCUS)	{
 		switch (id)	{
 			case ID_EDITPRESET:
-				SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-				NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
-				UpdateEditNSWEControls(&optionsPreview.nswe);
-				UpdateBarsFromNSWE(&optionsPreview.nswe);
-				//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-				InvalidateRect(hwndOverview, NULL, FALSE);
-				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+				ShowWindow(hwndDropdownPreset, SW_HIDE);
+		//		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+//				printf("\nPreset: %s", szText);
+//				NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
+//				UpdateEditNSWEControls(&optionsPreview.nswe);
+//				UpdateBarsFromNSWE(&optionsPreview.nswe);
+//				//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+//				InvalidateRect(hwndOverview, NULL, FALSE);
+//				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				break;
 		}
 
 	}
 
+
+	return 0;
+}
+
+LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	DROPDOWNINFO *DropDown;
+
+	switch (msg) {
+		case WM_CREATE:
+ 			DROPDOWNINFO *DropDowntem = calloc(sizeof(DROPDOWNINFO),1);
+			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)DropDowntem);
+			break;
+
+		case WM_PAINT:
+			HDC hdc;
+			PAINTSTRUCT ps;
+			RECT rect;
+			SIZE textSize;
+			//int textHeight;
+			//int heightBox;
+			char szEditBox[128];
+
+
+			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+			hdc = BeginPaint(hwnd, &ps);
+			GetWindowRect(hwnd, &rect);
+			printf("\nStarting rect: %i, %i", rect.left, rect.right);
+			rect.right-=rect.left;
+
+			//heightBox = rect.bottom-rect.top;
+			rect.top=0;
+			rect.left= 0;
+
+
+
+			SendMessage(hwndEditPreset, WM_GETTEXT, 128,(long)&szEditBox[0]);
+
+			SetBkColor(hdc, RGB(255,255,255));
+			GetTextExtentPoint32(hdc, "AQZ2fgjhlM", 10 , &textSize);//we just use this to get the text height using these ten chars
+			DropDown->displayHeight = textSize.cy+1;
+
+
+			//PRESET bestPresets[6];
+		int displaycount;
+			printf("\n****Start: %i", DropDown->displayedPresets);
+			DropDown->displayedPresets =5;
+
+			printf("\n*Then: %i. Height %i", DropDown->displayedPresets, DropDown->displayHeight);
+
+//			DropDown->displayedPresets = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, 6);
+			displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, 6);
+			DropDown->displayedPresets = displaycount;
+
+			printf("\n*********************Return: %i", DropDown->displayedPresets);
+			printf("\nTEST");
+
+			SetWindowPos(hwnd, HWND_TOP, 0,0,rect.right,DropDown->displayHeight * DropDown->displayedPresets, SWP_NOMOVE);
+
+			for (int n=0;(n<DropDown->displayedPresets);n++)	{
+				rect.bottom=rect.top + DropDown->displayHeight;
+				SetBkColor(hdc, RGB(255,160+n*8,n*32));
+				printf("\nrect: %i %i %i, %i", rect.left, rect.right, rect.top, rect.bottom);
+				ExtTextOut(hdc, rect.left,rect.top,ETO_OPAQUE, &rect, DropDown->bestPresets[n].name, strlen(DropDown->bestPresets[n].name), NULL);
+				rect.top=rect.bottom;
+			}
+			EndPaint(hwnd, &ps);
+			break;
+
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+		}
 
 	return 0;
 }
@@ -1269,7 +1401,7 @@ HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh)
 	result = SetDIBits(hdc,bitmap,0,180, bits,&bi,DIB_RGB_COLORS);
 	GdiFlush();
 	VirtualFree(bits, 0, MEM_RELEASE);
-//	free(bits);
+
 	bitmapDestroy(&overviewBM);	//importantly, I missed this ?was it causing crashes.
 
 	return bitmap;
@@ -2026,15 +2158,18 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
 
-//	DrawRegion(&previewBM, &regionHome);
-//	DrawRegion(&previewBM, &regionAway);
-	DrawListOfRegions(&previewBM, regionFirst);
+//	DrawListOfRegions(&previewBM, regionFirst);
 
 //Display the presets
 /*
+	WORLDREGION displayRegion;
 	for (int i=0;i<numberOfPresets;i++	)	{
-		CopyNSWE(&regionHome.nswe, &presetArray[i].nswe);
-		DrawRegion(&previewBM, &regionHome);
+		CopyNSWE(&displayRegion.nswe, &presetArray[i].nswe);
+		displayRegion.baseColour.R=255;
+		displayRegion.baseColour.G=15;
+		displayRegion.baseColour.B=115;
+		displayRegion.baseColour.A=115;
+		DrawRegion(&previewBM, &displayRegion);
 	}
 */
 
@@ -2080,6 +2215,24 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 
 
+
+BOOL CALLBACK UpdateFont(HWND hwnd, LPARAM hFont)
+{
+	//printf("\nUpdate Font%x", hwnd);
+	SendMessage(hwnd, WM_SETFONT, (WPARAM)hFont, TRUE);
+	return TRUE;
+}
+
+
+int UpdateFontOfChildren(HWND hwnd, HFONT hFont)
+{
+//	UpdateFont(hwnd, (LPARAM)hFont);
+	EnumChildWindows(hwnd, UpdateFont, (LPARAM)hFont);
+	return 0;
+}
+
+
+
 LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	RECT rect;	//temporary rect, currently used for checkingposition of preview window
@@ -2120,9 +2273,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+ MARGIN;
 		hwndEditPreset = CreateWindow("Edit", "Type a place",  WS_CHILD | WS_VISIBLE|WS_BORDER, x,y,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITPRESET, hInst, NULL);
+		hwndDropdownPreset = CreateWindow("DropdownPreset", NULL,  WS_CHILD |WS_CLIPSIBLINGS| WS_BORDER, x,y+TEXT_HEIGHT,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT*5, hwnd, (HMENU)ID_DROPDOWNPRESET, hInst, NULL);
 
-
-				y+=MARGIN+TEXT_HEIGHT;
+		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
 
 
@@ -2178,15 +2331,22 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		//tabs
 		hwndTab = CreateWindow(WC_TABCONTROL, NULL, WS_CHILD|WS_VISIBLE, x,y,640,200,hwnd,NULL, hInst, NULL);
+		SendMessage(hwndTab, WM_SETFONT, (WPARAM)hFontDialog, TRUE);
 		y+=200+MARGIN;
 		CreateTabsAndTabWindows(hwndTab);
 
 
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
+
+		SendMessage(hwnd, WM_SETFONT, (WPARAM)hFontDialog, 1);
+
 		UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
 
+	case WM_SETFONT:
+		UpdateFontOfChildren(hwnd, hFontDialog);
+		break;
 	case WM_SIZE:
 		SendMessage(hWndStatusbar,msg,wParam,lParam);
 		InitializeStatusBar(hWndStatusbar,3);

@@ -12,6 +12,7 @@ extern WORLDREGION * regionFirst;
 extern OPTIONS optionsPreview;
 
 HWND hwndTabExport;
+HWND hwndTabStatistics;
 
 HWND hwndTabExportHeightEdit;
 HWND hwndTabExportWidthEdit;
@@ -60,6 +61,7 @@ int CreateTabsAndTabWindows(HWND hwnd)
 
 	hwndTabExport = CreateWindow("TabExport", NULL, WS_CHILD|WS_VISIBLE, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	hwndTabRegions = CreateWindow("TabRegions", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
+	hwndTabStatistics = CreateWindow("TabStatistics", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	return 0;
 }
 
@@ -214,6 +216,31 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		return DefWindowProc(hwnd,msg,wParam,lParam);
 }
 
+LRESULT CALLBACK TabStatisticsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (msg) {
+	case WM_CREATE:
+		int x,y;
+		const int margin=10;
+		const int height=20;
+		x=margin;y=margin;
+		HWND points = CreateWindow("Static","Points:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 120, height, hwnd, 0, hInst, NULL);
+		SendMessage(points, WM_SETFONT, (WPARAM)hFontDialog, TRUE);
+		y+=height+margin;
+		CreateWindow("Static","Total distance:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 120, height, hwnd, 0, hInst, NULL);
+		y+=height+margin;
+
+		break;
+
+
+	default:
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+}
+
+
 
 
 LRESULT CALLBACK MainWndProc_OnTabNotify(HWND hwnd, int id, NMHDR * nmh)
@@ -241,6 +268,13 @@ LRESULT CALLBACK MainWndProc_OnTabNotify(HWND hwnd, int id, NMHDR * nmh)
 					}	else	{
 						ShowWindow(hwndTabRegions, SW_HIDE);
 					}
+
+					if (n==TAB_STATISTICS)	{
+						ShowWindow(hwndTabStatistics, SW_SHOW);
+					}	else	{
+						ShowWindow(hwndTabStatistics, SW_HIDE);
+					}
+
 
                     break;
                 }

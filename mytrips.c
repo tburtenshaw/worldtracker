@@ -1748,7 +1748,7 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
 	fprintf(gpx, "<link>https://github.com/tburtenshaw/worldtracker</link>\n");
 	fprintf(gpx, "<name>WorldTracker GPX Export</name>\n");
 	fprintf(gpx, "<desc>Created by WorldTracker</desc>\n");
-	fprintf(gpx, "<author>Created by WorldTracker</author>\n");
+	fprintf(gpx, "<author><name>WorldTracker</name></author>\n");
 	fprintf(gpx, "</metadata>\n");
 
 	//Write the location data to a track
@@ -1775,6 +1775,132 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
 	return 1;
 }
 
+int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *presetbest, int countbest)
+{
+
+	int score[countlist];
+
+	char searchphrase[256];
+	char *searchterm;
+	char *result;
+
+
+	for (int i=0; i<countlist; i++)	{
+		score[i]=0;
+
+		strcpy(searchphrase, searchtext);
+
+		if (strcmpi(searchphrase, presetlist[i].name) == 0)	{	//if it's the whole phrase, then more points
+			//printf("\nphrase %s", searchphrase);
+			score[i]+=501;
+		}
+
+
+		searchterm = strtok(searchphrase, " ");
+		//printf("\nterm %s", searchterm);
+
+		while (searchterm)	{
+		//	printf("\nSearching %i %s from %s", i, searchterm, searchphrase);
+
+			if (strcmpi(searchterm, presetlist[i].abbrev) == 0)	{
+				score[i]+=500;
+			}
+			if (strcmpi(searchterm, presetlist[i].name) == 0)	{
+				score[i]+=500;
+			}
+
+			result = stristr(presetlist[i].name, searchterm);
+			if (result)	{
+				score[i]+=50;
+			}
+	//		printf("\n %i r:%i diff:%i", result, presetlist[i].name,  result- presetlist[i].name);
+			if (result ==presetlist[i].name)	{	//if it's a match from the beginning character it's worth more
+				score[i]+=100;
+			}
+			if (result>presetlist[i].name)	{
+				if (*(result-1) == ' ')	{
+					printf("beforespace");
+					score[i]+=60;
+				}
+			}
+
+			result = stristr(presetlist[i].abbrev, searchterm);
+			if (result)	{
+				score[i]+=30;
+			}
+			if (result ==presetlist[i].abbrev)	{	//if it's a match from the beginning character it's worth more
+				score[i]+=90;
+			}
+
+			//look for three letter runs
+			char threelength[4];
+			if (strlen(searchterm)>3)	{
+				for (unsigned int n=0; n<strlen(searchterm)-3;n++)	{
+					threelength[0] = searchterm[n];
+					threelength[1] = searchterm[n+1];
+					threelength[2] = searchterm[n+2];
+					threelength[3] = 0;
+
+					if (stristr(presetlist[i].name, threelength))	{
+						score[i]+=2;
+					}
+
+				}
+			}
+
+			//now just count the shared character, this can include small typos that would otherwise be lost
+			for (unsigned int n=0; n<strlen(searchterm);n++)	{
+				result = strchr(presetlist[i].name, searchterm[n]);
+				while (result)	{
+					score[i]+=1;
+					result = strchr(result+1, searchterm[n]);
+				}
+			}
+			score[i]-=(strlen(presetlist[i].name)/2);	//so long names aren't unfairly advantaged.
+
+			if (score[i]>0)	{
+				printf("\n%s: score:%i", presetlist[i].name,score[i]);
+			}
+
+			searchterm = strtok(NULL, " ");
+		}//close while
+	}//close for
+
+	//Now we find the best scores
+	int scorebest[countbest];
+	memset(scorebest, 0, countbest*sizeof(int));
+	memset(presetbest, 0, countbest*sizeof(PRESET));
+
+	for (int i=0; i<countlist; i++)	{
+		if (score[i]>scorebest[countbest-1])	{
+			//we add this preset to the list
+			for (int n=0; n<countbest; n++)	{
+				if (score[i]>scorebest[n])	{	//test each of the best
+					for (int x=countbest-1; x>n; x--)	{	//move down everything
+						scorebest[x] = scorebest[x-1];
+						memcpy(&presetbest[x], &presetlist[x-1], sizeof(PRESET));
+					}
+					scorebest[n]=score[i];
+					memcpy(&presetbest[n], &presetlist[i], sizeof(PRESET));
+					n=countbest;	//end the search
+				}
+			}
+		}
+
+	}
+
+
+	//return the number in the array
+	for (int i=0;i<countbest;i++)	{
+		printf("\nscorebest[%i] = %i %s", i, scorebest[i], presetbest[i]);
+		if (scorebest[i] == 0)	{
+			printf("\nreturned: %i", i);
+			return i;
+		}
+	}
+	printf("\nreturned: %i", countbest);
+	return countbest;
+}
 
 void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 {
@@ -1809,15 +1935,15 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[26].abbrev="cz";preset[26].nswe.north=51.1;preset[26].nswe.south=48.5;preset[26].nswe.west=12;preset[26].nswe.east=18.9;preset[26].name="Czech Republic";
 	preset[27].abbrev="prague";preset[27].nswe.north=50.178;preset[27].nswe.south=49.941;preset[27].nswe.west=14.246;preset[27].nswe.east=14.709;preset[27].name="Prague";
 	preset[28].abbrev="vienna";preset[28].nswe.north=48.3;preset[28].nswe.south=48.12;preset[28].nswe.west=16.25;preset[28].nswe.east=16.55;preset[28].name="Vienna";
-	preset[29].abbrev="turkeygreece";preset[29].nswe.north=42.294;preset[29].nswe.south=34.455;preset[29].nswe.west=19.33;preset[29].nswe.east=45.09;preset[29].name="turkeygreece";
-	preset[30].abbrev="istanbul";preset[30].nswe.north=41.3;preset[30].nswe.south=40.7;preset[30].nswe.west=28.4;preset[30].nswe.east=29.7;preset[30].name="istanbul";
+	preset[29].abbrev="turkeygreece";preset[29].nswe.north=42.294;preset[29].nswe.south=34.455;preset[29].nswe.west=19.33;preset[29].nswe.east=45.09;preset[29].name="Turkey and Greece";
+	preset[30].abbrev="istanbul";preset[30].nswe.north=41.3;preset[30].nswe.south=40.7;preset[30].nswe.west=28.4;preset[30].nswe.east=29.7;preset[30].name="Istanbul";
 	preset[31].abbrev="middleeast";preset[31].nswe.north=42;preset[31].nswe.south=12;preset[31].nswe.west=25;preset[31].nswe.east=69;preset[31].name="Middle East";
 	preset[32].abbrev="uae";preset[32].nswe.north=26.5;preset[32].nswe.south=22.6;preset[32].nswe.west=51.5;preset[32].nswe.east=56.6;preset[32].name="United Arab Emirates";
 	preset[33].abbrev="dubai";preset[33].nswe.north=25.7;preset[33].nswe.south=24.2;preset[33].nswe.west=54.2;preset[33].nswe.east=55.7;preset[33].name="Dubai";
 	preset[34].abbrev="israeljordan";preset[34].nswe.north=33.4;preset[34].nswe.south=29.1;preset[34].nswe.west=34;preset[34].nswe.east=39.5;preset[34].name="Israel and Jordan";
 	preset[35].abbrev="usane";preset[35].nswe.north=47.5;preset[35].nswe.south=36.5;preset[35].nswe.west=-82.7;preset[35].nswe.east=-67;preset[35].name="North Eastern USA";
 	preset[36].abbrev="usa";preset[36].nswe.north=49;preset[36].nswe.south=24;preset[36].nswe.west=-125;preset[36].nswe.east=-67;preset[36].name="United States of America";
-	preset[37].abbrev="boston";preset[37].nswe.north=42.9;preset[37].nswe.south=42;preset[37].nswe.west=-71.9;preset[37].nswe.east=-70.5;preset[37].name="boston";
+	preset[37].abbrev="boston";preset[37].nswe.north=42.9;preset[37].nswe.south=42;preset[37].nswe.west=-71.9;preset[37].nswe.east=-70.5;preset[37].name="Boston";
 	preset[38].abbrev="arkansas";preset[38].nswe.north=36.5;preset[38].nswe.south=33;preset[38].nswe.west=-94.6;preset[38].nswe.east=-89;preset[38].name="Arkansas";
 	preset[39].abbrev="lasvegas";preset[39].nswe.north=36.35;preset[39].nswe.south=35.9;preset[39].nswe.west=-115.35;preset[39].nswe.east=-114.7;preset[39].name="Las Vegas";
 	preset[40].abbrev="oceania";preset[40].nswe.north=35;preset[40].nswe.south=-50;preset[40].nswe.west=-220;preset[40].nswe.east=-110;preset[40].name="Oceania";

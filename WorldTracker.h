@@ -1,4 +1,20 @@
 /* This is the main Windows-based program */
+
+
+typedef struct sDropdownPresetInfo DROPDOWNINFO;
+
+struct sDropdownPresetInfo	{
+	PRESET bestPresets[60];
+	int	numberPresets;		//the max of the above
+	int displayedPresets;	//the number that we'll display
+
+	int displayHeight;
+	int highlightedPreset;
+};
+
+
+
+
 LOCATIONHISTORY locationHistory;
 HINSTANCE hInst;		// Instance handle
 HWND hWndMain;		//Main window handle
@@ -20,6 +36,7 @@ HWND hwndEditEast;
 
 HWND hwndStaticPreset;
 HWND hwndEditPreset;
+HWND hwndDropdownPreset;
 
 //HWND hwndStaticExportHeading;
 //HWND hwndStaticExportWidth;
@@ -48,6 +65,11 @@ COLOUR cWhite;
 
 OPTIONS optionsExport;
 
+//Fonts
+BOOL CALLBACK UpdateFont(HWND hwnd, LPARAM hFont);
+int UpdateFontOfChildren(HWND hwnd, HFONT hFont);
+HFONT hFontDialog;
+
 //Multithread stuff
 CRITICAL_SECTION critAccessLocations;	//if we are using locations (perhaps I should distinguish between reading at writing)
 long hbmQueueSize;	//this is increased when a thread is created, so the thread can check that nothing was created after it
@@ -63,7 +85,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 //LRESULT CALLBACK MainWndProc_OnNotify(HWND hwnd, int id, NMHDR * nmh); (currently this is only the tab window, so that handles everything
 
-
+LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK ColourSwatchWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 

@@ -15,3 +15,5 @@ int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);
 
 LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
+LRESULT CALLBACK TabStatisticsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
+
