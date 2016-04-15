@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <ctype.h>
 
 #include "lodepng.h"
 #include "mytrips.h"
@@ -101,6 +102,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	LOCATION *lastCoord;
 
 	int inputfiletype;
+
 
 	//Open the input file
 	locationHistory->json=fopen(jsonfilename,"r");
@@ -1775,14 +1777,15 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
 	return 1;
 }
 
-int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *presetbest, int countbest)
+int GetPresetScoreArray(char *searchtext, PRESET *presetlist, int countlist, int *scorearray);
+
+int GetPresetScoreArray(char *searchtext, PRESET *presetlist, int countlist, int *score)
 {
-
-	int score[countlist];
-
 	char searchphrase[256];
 	char *searchterm;
 	char *result;
+	char *resultupper;
+	char *resultlower;
 
 
 	for (int i=0; i<countlist; i++)	{
@@ -1817,9 +1820,8 @@ int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *
 			if (result ==presetlist[i].name)	{	//if it's a match from the beginning character it's worth more
 				score[i]+=100;
 			}
-			if (result>presetlist[i].name)	{
+			if (result>presetlist[i].name)	{	//before a space
 				if (*(result-1) == ' ')	{
-					printf("beforespace");
 					score[i]+=60;
 				}
 			}
@@ -1842,7 +1844,7 @@ int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *
 					threelength[3] = 0;
 
 					if (stristr(presetlist[i].name, threelength))	{
-						score[i]+=2;
+						score[i]+=3;
 					}
 
 				}
@@ -1858,30 +1860,87 @@ int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *
 			}
 			score[i]-=(strlen(presetlist[i].name)/2);	//so long names aren't unfairly advantaged.
 
-			if (score[i]>0)	{
-				printf("\n%s: score:%i", presetlist[i].name,score[i]);
+			//this checks for abbreviations, if the search term is shorter than the name, it checks for letters in order (e.g. WGTN = WellinGToN)
+			int n=0;
+			result = presetlist[i].name;
+			while (result)	{
+					resultupper  = strchr(result, toupper(searchterm[n]));
+					resultlower  = strchr(result, tolower(searchterm[n]));
+
+					if (resultupper && resultlower)	{
+						if (resultupper<resultlower)	{
+							result = resultupper;
+							}
+						else	{
+							result = resultlower;
+						}
+					}
+					else if (resultupper)	{
+						result = resultupper;
+					}
+					else	{
+						result = resultlower;
+					}
+
+
+					if (result)	{
+						score[i]+=3;
+						if (n==0)	{score[i]+=3;}	//bonus if first char
+						n++;
+					}
 			}
+
+//			for (unsigned int n=0; n<strlen(searchterm);n++)	{
+
+//				result = strchr(presetlist[i].name+n, toupper(searchterm[n]));
+//				if (!result)
+//				if (strchr(presetlist[i].name+n, toupper(searchterm[n])) || strchr(presetlist[i].name+n, tolower(searchterm[n])) )	{
+//					score[i]+=3;
+//				}
+//			}
+
+//
+//			if (score[i]>0)	{
+//				printf("\n%s: score:%i", presetlist[i].name,score[i]);
+//			}
 
 			searchterm = strtok(NULL, " ");
 		}//close while
 	}//close for
+	return 0;
+
+}
+
+int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *presetbest, int countbest)
+{
+	int i;
+	int score[countlist];
+
+	//Get the scores from another fuction
+	GetPresetScoreArray(searchtext, presetlist, countlist, score);
 
 	//Now we find the best scores
 	int scorebest[countbest];
+
+	//set everything to zero
 	memset(scorebest, 0, countbest*sizeof(int));
 	memset(presetbest, 0, countbest*sizeof(PRESET));
 
-	for (int i=0; i<countlist; i++)	{
+
+	//sort the top scores
+	for (i=0; i<countlist; i++)	{
 		if (score[i]>scorebest[countbest-1])	{
 			//we add this preset to the list
 			for (int n=0; n<countbest; n++)	{
 				if (score[i]>scorebest[n])	{	//test each of the best
 					for (int x=countbest-1; x>n; x--)	{	//move down everything
 						scorebest[x] = scorebest[x-1];
-						memcpy(&presetbest[x], &presetlist[x-1], sizeof(PRESET));
+						memcpy(&presetbest[x], &presetbest[x-1], sizeof(PRESET));
 					}
+					//printf("\nIn position: %i, %s (%i) becomes %s (%i)", n, presetbest[n].name,scorebest[n], presetlist[i].name,score[i]);
 					scorebest[n]=score[i];
 					memcpy(&presetbest[n], &presetlist[i], sizeof(PRESET));
+					//printf(", then %i: %s is %s", n, presetbest[n].name, presetlist[i].name);
 					n=countbest;	//end the search
 				}
 			}
@@ -1891,14 +1950,14 @@ int GetBestPresets(char *searchtext, PRESET *presetlist, int countlist, PRESET *
 
 
 	//return the number in the array
-	for (int i=0;i<countbest;i++)	{
-		printf("\nscorebest[%i] = %i %s %f", i, scorebest[i], presetbest[i].name, presetbest[i].nswe.north);
+	for (i=0;i<countbest;i++)	{
+//		printf("\nscorebest[%i] = %i %s", i, scorebest[i], presetbest[i].name);
 		if (scorebest[i] == 0)	{
-			printf("\nreturned: %i", i);
+//			printf("\nreturned: %i", i);
 			return i;
 		}
 	}
-	printf("\nreturned: %i", countbest);
+//	printf("\nreturned: %i", countbest);
 	return countbest;
 }
 
@@ -1930,7 +1989,7 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[21].abbrev="fr";preset[21].nswe.north=51.2;preset[21].nswe.south=42.2;preset[21].nswe.west=-5.5;preset[21].nswe.east=8.5;preset[21].name="France";
 	preset[22].abbrev="paris";preset[22].nswe.north=49.1;preset[22].nswe.south=48.5;preset[22].nswe.west=1.8;preset[22].nswe.east=2.8;preset[22].name="Paris";
 	preset[23].abbrev="uk";preset[23].nswe.north=60;preset[23].nswe.south=50;preset[23].nswe.west=-10.5;preset[23].nswe.east=2;preset[23].name="United Kingdom";
-	preset[24].abbrev="scandinaviabaltic";preset[24].nswe.north=71.5;preset[24].nswe.south=53.5;preset[24].nswe.west=4.3;preset[24].nswe.east=41.7;preset[24].name="scandinaviabaltic";
+	preset[24].abbrev="scandinaviabaltic";preset[24].nswe.north=71.5;preset[24].nswe.south=53.5;preset[24].nswe.west=4.3;preset[24].nswe.east=41.7;preset[24].name="Scandinavia and Baltic";
 	preset[25].abbrev="is";preset[25].nswe.north=66.6;preset[25].nswe.south=63.2;preset[25].nswe.west=-24.6;preset[25].nswe.east=-13.5;preset[25].name="Iceland";
 	preset[26].abbrev="cz";preset[26].nswe.north=51.1;preset[26].nswe.south=48.5;preset[26].nswe.west=12;preset[26].nswe.east=18.9;preset[26].name="Czech Republic";
 	preset[27].abbrev="prague";preset[27].nswe.north=50.178;preset[27].nswe.south=49.941;preset[27].nswe.west=14.246;preset[27].nswe.east=14.709;preset[27].name="Prague";

@@ -4,7 +4,7 @@
 typedef struct sDropdownPresetInfo DROPDOWNINFO;
 
 struct sDropdownPresetInfo	{
-	PRESET bestPresets[60];
+	PRESET bestPresets[6];
 	int	numberPresets;		//the max of the above
 	int displayedPresets;	//the number that we'll display
 

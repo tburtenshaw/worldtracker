@@ -1105,7 +1105,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			SendMessage(hwndDropdownPreset, WT_WM_PRESETRECALC, 0,0);
 			InvalidateRect(hwndDropdownPreset, NULL, 0);
 			//ShowWindow(hwndDropdownPreset, SW_SHOW);
-			printf("\nPreset: %s", szText);
+			//printf("\nPreset: %s", szText);
 			//NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
 			//UpdateEditNSWEControls(&optionsPreview.nswe);
 			//UpdateBarsFromNSWE(&optionsPreview.nswe);
@@ -1154,8 +1154,9 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 	switch (msg) {
 		case WM_CREATE:
- 			DropDown = calloc(sizeof(DROPDOWNINFO),1);
+			DropDown = calloc(sizeof(DROPDOWNINFO),1);
 			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)DropDown);
+			DropDown->numberPresets = 6;
 			break;
 
 		case WT_WM_PRESETRECALC:
@@ -1165,7 +1166,7 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 			SendMessage(hwndEditPreset, WM_GETTEXT, 128,(long)&szEditBox[0]);
 			int displaycount;
-			displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, 6);
+			displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, DropDown->numberPresets);
 			DropDown->displayedPresets = displaycount;
 			break;
 
@@ -1178,7 +1179,6 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 			row = y/DropDown->displayHeight;
 			if ((row>=0) && (row<6))	{
-				NSWE nswe;
 				CopyNSWE(&optionsPreview.nswe, &DropDown->bestPresets[row].nswe);
 
 				UpdateEditNSWEControls(&optionsPreview.nswe);
@@ -1227,27 +1227,11 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 			//printf("\nStarting rect: %i, %i", rect.left, rect.right);
 			rect.right-=rect.left;
 
-			//heightBox = rect.bottom-rect.top;
 			rect.top=0;
 			rect.left= 0;
 
 			GetTextExtentPoint32(hdc, "AQZ2fgjhlM", 10 , &textSize);//we just use this to get the text height using these ten chars
-			DropDown->displayHeight = textSize.cy+1;
-
-
-			//PRESET bestPresets[6];
-
-//			printf("\n****Start: %i", DropDown->displayedPresets);
-//			DropDown->displayedPresets =5;
-
-//			printf("\n*Then: %i. Height %i", DropDown->displayedPresets, DropDown->displayHeight);
-
-//			DropDown->displayedPresets = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, 6);
-			//displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, 6);
-			//DropDown->displayedPresets = displaycount;
-
-			//printf("\n*********************Return: %i", DropDown->displayedPresets);
-			//printf("\nTEST");
+			DropDown->displayHeight = textSize.cy+2;
 
 			SetWindowPos(hwnd, HWND_TOP, 0,0,rect.right,DropDown->displayHeight * DropDown->displayedPresets, SWP_NOMOVE);
 
@@ -1260,7 +1244,7 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 				else 	{
 					SetBkColor(hdc, RGB(255,160+n*8,n*32));
 				}
-			//	printf("\nrect: %i %i %i, %i", rect.left, rect.right, rect.top, rect.bottom);
+				printf("\nrect: %i %i %i, %i", rect.left, rect.right, rect.top, rect.bottom);
 				ExtTextOut(hdc, rect.left,rect.top,ETO_OPAQUE, &rect, DropDown->bestPresets[n].name, strlen(DropDown->bestPresets[n].name), NULL);
 				rect.top=rect.bottom;
 			}
