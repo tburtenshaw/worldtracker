@@ -75,8 +75,6 @@ struct sStretch	{
 };
 
 
-extern HWND hwndTabExport;
-
 HWND hwndOverview;	//The overview is also used to hold the positions to be drawn and exported
 HWND hwndPreview;
 
@@ -108,8 +106,8 @@ STRETCH stretchPreview;
 BM overviewBM;
 BM previewBM;
 
-
-
+extern HWND hwndTabImport;
+extern HWND hwndTabExport;
 
 //Mouse dragging
 POINT overviewOriginalPoint;
@@ -515,45 +513,10 @@ int InitWindowClasses(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
-	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_DBLCLKS ;
-	wc.lpfnWndProc = (WNDPROC)TabExportWndProc;
-	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
-	wc.cbWndExtra = 4;
-	wc.lpszClassName = "TabExport";
-	wc.lpszMenuName = NULL;
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hIcon = NULL;
-	if (!RegisterClass(&wc))
-		return 0;
 
-	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_DBLCLKS ;
-	wc.lpfnWndProc = (WNDPROC)TabRegionsWndProc;
-	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
-	wc.cbWndExtra = 4;
-	wc.lpszClassName = "TabRegions";
-	wc.lpszMenuName = NULL;
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hIcon = NULL;
-	if (!RegisterClass(&wc))
+	if (!InitTabWindowClasses())	{	//in wt_tabs.c
 		return 0;
-
-	memset(&wc,0,sizeof(WNDCLASS));
-	wc.style = CS_DBLCLKS ;
-	wc.lpfnWndProc = (WNDPROC)TabStatisticsWndProc;
-	wc.hInstance = hInst;
-	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
-	wc.cbWndExtra = 4;
-	wc.lpszClassName = "TabStatistics";
-	wc.lpszMenuName = NULL;
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hIcon = NULL;
-	if (!RegisterClass(&wc))
-		return 0;
-
+	}
 
 
 	return 1;
@@ -729,6 +692,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal))==0)
 				return;
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
+			SendMessage(hwndTabImport, WT_WM_TAB_ADDIMPORTFILE, 0, (LPARAM)optionsPreview.jsonfilenamefinal);
 		break;
 
 		case IDM_SAVE:
@@ -1024,7 +988,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	double value;	//to hold the textbox value
 	int needsRedraw;
 
-//	printf("%i\t", codeNotify);
+//	printf("\n%i", codeNotify);
 
 	if (codeNotify == EN_SETFOCUS)	{
 		char szBuffer[256];
@@ -1032,10 +996,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	    UpdateStatusBar(szBuffer, 0, 0);
 
 		if (id==ID_EDITPRESET)	{
-			SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,100,10,SWP_NOMOVE|SWP_SHOWWINDOW);
 			SendMessage(hwndDropdownPreset, WT_WM_PRESETRECALC, 0,0);
-			InvalidateRect(hwndDropdownPreset, NULL, 0);
-
 		}
 
 		return 0;
@@ -1100,18 +1061,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 
 		case ID_EDITPRESET:
-			//SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-			SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,100,10,SWP_NOMOVE|SWP_SHOWWINDOW);
 			SendMessage(hwndDropdownPreset, WT_WM_PRESETRECALC, 0,0);
-			InvalidateRect(hwndDropdownPreset, NULL, 0);
-			//ShowWindow(hwndDropdownPreset, SW_SHOW);
-			//printf("\nPreset: %s", szText);
-			//NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
-			//UpdateEditNSWEControls(&optionsPreview.nswe);
-			//UpdateBarsFromNSWE(&optionsPreview.nswe);
-			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-			//InvalidateRect(hwndOverview, NULL, FALSE);
-			//SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			break;
 
 
@@ -1128,15 +1078,8 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	else if (codeNotify == EN_KILLFOCUS)	{
 		switch (id)	{
 			case ID_EDITPRESET:
+				//printf("\nhide dropdown");
 				ShowWindow(hwndDropdownPreset, SW_HIDE);
-		//		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-//				printf("\nPreset: %s", szText);
-//				NsweFromPreset(&optionsPreview, szText, presetArray, numberOfPresets);
-//				UpdateEditNSWEControls(&optionsPreview.nswe);
-//				UpdateBarsFromNSWE(&optionsPreview.nswe);
-//				//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
-//				InvalidateRect(hwndOverview, NULL, FALSE);
-//				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				break;
 		}
 
@@ -1151,12 +1094,25 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 	DROPDOWNINFO *DropDown;
 	int x,y;
 	int row;
+	HDC hdc;
+	RECT redrawRect;
 
 	switch (msg) {
 		case WM_CREATE:
+			RECT editRect;
+			SIZE textSize;
 			DropDown = calloc(sizeof(DROPDOWNINFO),1);
 			SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)DropDown);
-			DropDown->numberPresets = 6;
+			DropDown->numberPresets = 6;	//we can only go up to eight
+			hdc = GetDC(hwnd);
+			SelectObject(hdc, hFontDialog);
+			GetTextExtentPoint32(hdc, "AQZ2fgjhlM", 10 , &textSize);//we just use this to get the text height using these ten chars
+			ReleaseDC(hwnd, hdc);
+			DropDown->displayHeight = textSize.cy+2;
+			GetWindowRect(hwndEditPreset, &editRect);
+			DropDown->displayWidth = editRect.right-editRect.left;
+			SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,DropDown->displayWidth,DropDown->displayHeight*DropDown->displayedPresets,SWP_NOMOVE);
+
 			break;
 
 		case WT_WM_PRESETRECALC:
@@ -1164,10 +1120,58 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
+			char *oldPresetText[DropDown->numberPresets];
+			//memset(oldPresetText, 0, DropDown->numberPresets * sizeof(char *));
+
+			for (int i=0; i<DropDown->displayedPresets; i++)	{
+				oldPresetText[i] = DropDown->bestPresets[i].name;
+			}
+
+			//Get the messagebox text
 			SendMessage(hwndEditPreset, WM_GETTEXT, 128,(long)&szEditBox[0]);
 			int displaycount;
-			displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, DropDown->numberPresets);
-			DropDown->displayedPresets = displaycount;
+
+
+			if (strcmp(DropDown->previousEditBox, szEditBox))	{	//only bother updating if the text has changed.
+				displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, DropDown->numberPresets);
+				DropDown->displayedPresets = displaycount;
+			}
+
+			strcpy(DropDown->previousEditBox, szEditBox);
+
+			if (DropDown->displayedPresets == 0)	{	//if w're not displaying anything, we show one line
+				if (!IsWindowVisible(hwndDropdownPreset))	{
+					SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,DropDown->displayWidth,DropDown->displayHeight*1,SWP_NOMOVE|SWP_SHOWWINDOW);
+				}
+				InvalidateRect(hwnd, NULL, FALSE);
+				return 0;
+			}
+
+
+			if (!IsWindowVisible(hwndDropdownPreset))	{
+				SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,DropDown->displayWidth,DropDown->displayHeight*DropDown->displayedPresets,SWP_NOMOVE|SWP_SHOWWINDOW);
+			}
+			else	{	//if the window is technically visible, but sized to nothing
+				RECT isEmptyRect;
+				GetWindowRect(hwndDropdownPreset, &isEmptyRect);
+				if ((isEmptyRect.bottom-isEmptyRect.top)!=DropDown->displayHeight*DropDown->displayedPresets)	{
+					SetWindowPos(hwndDropdownPreset, HWND_BOTTOM,0,0,DropDown->displayWidth,DropDown->displayHeight*DropDown->displayedPresets,SWP_NOMOVE|SWP_SHOWWINDOW);
+				}
+				printf("not drawn");
+			}
+
+
+
+
+			for (int i=0; i<DropDown->numberPresets; i++)	{
+				if (oldPresetText[i] != DropDown->bestPresets[i].name)	{
+					redrawRect.top=i*DropDown->displayHeight;
+					redrawRect.bottom=(i+1)*DropDown->displayHeight;
+					redrawRect.left=0;redrawRect.right=DropDown->displayWidth;
+					InvalidateRect(hwnd, &redrawRect, FALSE);
+				}
+			}
+
 			break;
 
 		case WM_LBUTTONDOWN:
@@ -1178,7 +1182,7 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
 			row = y/DropDown->displayHeight;
-			if ((row>=0) && (row<6))	{
+			if ((row>=0) && (row<DropDown->numberPresets))	{
 				CopyNSWE(&optionsPreview.nswe, &DropDown->bestPresets[row].nswe);
 
 				UpdateEditNSWEControls(&optionsPreview.nswe);
@@ -1205,38 +1209,73 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 				row=y/DropDown->displayHeight;
 			}
 			if (row != DropDown->highlightedPreset)	{
+				//invalidate the prev and new highlighted lines
+				redrawRect.top=DropDown->highlightedPreset*DropDown->displayHeight;
+				redrawRect.bottom=(DropDown->highlightedPreset+1)*DropDown->displayHeight;
+				redrawRect.left=0;redrawRect.right=DropDown->displayWidth;
+				InvalidateRect(hwnd, &redrawRect, FALSE);
+
+				redrawRect.top=row*DropDown->displayHeight;
+				redrawRect.bottom=(row+1)*DropDown->displayHeight;
+				redrawRect.left=0;redrawRect.right=DropDown->displayWidth;
+				InvalidateRect(hwnd, &redrawRect, FALSE);
+
 				DropDown->highlightedPreset = row;
-				InvalidateRect(hwnd, NULL, FALSE);
 			}
 
 			break;
 
 		case WM_PAINT:
-			HDC hdc;
 			PAINTSTRUCT ps;
 			RECT rect;
-			SIZE textSize;
 			//int textHeight;
 			//int heightBox;
+
 
 
 			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
 			hdc = BeginPaint(hwnd, &ps);
+
+			//SelectObject(hdc, (HFONT)SendMessage(GetParent(hwnd), WM_GETFONT, 0,0));
+			SelectObject(hdc, hFontDialog);
+
 			GetWindowRect(hwnd, &rect);
-			//printf("\nStarting rect: %i, %i", rect.left, rect.right);
+			//printf("\nPaint rect: %i, %i %i %i", ps.rcPaint.left,ps.rcPaint.top, ps.rcPaint.right,ps.rcPaint.bottom);
 			rect.right-=rect.left;
 
 			rect.top=0;
 			rect.left= 0;
 
-			GetTextExtentPoint32(hdc, "AQZ2fgjhlM", 10 , &textSize);//we just use this to get the text height using these ten chars
-			DropDown->displayHeight = textSize.cy+2;
+			if (DropDown->displayedPresets>0)	{
+				SetWindowPos(hwnd, HWND_TOP, 0,0,rect.right,DropDown->displayHeight * DropDown->displayedPresets, SWP_NOMOVE);
+			}
+			else	{
+				SetWindowPos(hwnd, HWND_TOP, 0,0,rect.right,DropDown->displayHeight, SWP_NOMOVE);	//display one line, telling them to type something
+			}
 
-			SetWindowPos(hwnd, HWND_TOP, 0,0,rect.right,DropDown->displayHeight * DropDown->displayedPresets, SWP_NOMOVE);
+			int firstrow=ps.rcPaint.top/DropDown->displayHeight;
+			int lastrow=ps.rcPaint.bottom/DropDown->displayHeight;
 
-			for (int n=0;(n<DropDown->displayedPresets);n++)	{
-				rect.bottom=rect.top + DropDown->displayHeight;
+			if (firstrow<0)	{
+				firstrow=0;
+			}
+			if (lastrow>DropDown->displayedPresets)	{	//make sure funny resizing of the window doesn't crash anything.
+				lastrow = DropDown->displayedPresets;
+			}
+
+			if (DropDown->displayedPresets==0)	{
+				rect.top=0;
+				rect.bottom=DropDown->displayHeight;
+
+				SetBkColor(hdc, RGB(192,192,192));
+				ExtTextOut(hdc, rect.left,rect.top,ETO_OPAQUE, &rect, "Start typing", 12, NULL);
+				lastrow=-1;
+			}
+
+			for (int n=firstrow;(n<=lastrow);n++)	{
+				rect.top=n*DropDown->displayHeight;
+				rect.bottom=(n+1)*DropDown->displayHeight;
 
 				if (n == DropDown->highlightedPreset)	{
 					SetBkColor(hdc, RGB(160,255,n*32));
@@ -1244,12 +1283,21 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 				else 	{
 					SetBkColor(hdc, RGB(255,160+n*8,n*32));
 				}
-				printf("\nrect: %i %i %i, %i", rect.left, rect.right, rect.top, rect.bottom);
+				//printf("\nrect: %i %i %i, %i", rect.left, rect.right, rect.top, rect.bottom);
 				ExtTextOut(hdc, rect.left,rect.top,ETO_OPAQUE, &rect, DropDown->bestPresets[n].name, strlen(DropDown->bestPresets[n].name), NULL);
 				rect.top=rect.bottom;
 			}
 			EndPaint(hwnd, &ps);
 			break;
+/*
+		case WM_SETFONT:
+			printf("\nFont");
+			hdc = GetDC(hwnd);
+			SelectObject(hdc, (HFONT)wParam);
+			//GetTextExtentPoint32(hdc, "AQZ2fgjhlM", 10 , &textSize);//we just use this to get the text height using these ten chars
+			ReleaseDC(hwnd, hdc);
+			break;
+			*/
 
 		default:
 			return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -2048,6 +2096,12 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			HandlePreviewMousewheel(hwnd, wParam, lParam);
 			break;
 		case WM_CONTEXTMENU:
+			HMENU hMenu;
+			hMenu = CreatePopupMenu();
+			InsertMenu(hMenu, 0, MF_BYPOSITION|MF_STRING, IDM_ZOOMALL, "Zoom to whole world");
+			InsertMenu(hMenu, 1, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Zoom to fit all points");
+			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Create region from view");
+			TrackPopupMenu(hMenu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0, hwnd, NULL);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_REDRAW, 0, 0);

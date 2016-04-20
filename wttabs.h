@@ -4,9 +4,11 @@
 #define TAB_STATISTICS 3
 #define TAB_GRAPHS 4
 
-
+int InitTabWindowClasses(void);
 int CreateTabsAndTabWindows(HWND hwnd);
 LRESULT CALLBACK MainWndProc_OnTabNotify(HWND hwnd, int id, NMHDR * nmh);
+
+LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 LRESULT CALLBACK TabExportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK TabExportWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);

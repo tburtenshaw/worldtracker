@@ -11,15 +11,77 @@ extern HINSTANCE hInst;
 extern WORLDREGION * regionFirst;
 extern OPTIONS optionsPreview;
 
+HWND hwndTabImport;
 HWND hwndTabExport;
 HWND hwndTabStatistics;
+HWND hwndTabRegions;
 
+//Only ever local
 HWND hwndTabExportHeightEdit;
 HWND hwndTabExportWidthEdit;
+HWND hwndImportList;
+HWND hwndRegionList;
 
 
+int InitTabWindowClasses(void)
+{
+	WNDCLASS wc;
 
-HWND hwndTabRegions;
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabImportWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabImport";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabExportWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabExport";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabRegionsWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabRegions";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabStatisticsWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabStatistics";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
+
+	return 1;
+}
 
 int CreateTabsAndTabWindows(HWND hwnd)
 {
@@ -58,12 +120,37 @@ int CreateTabsAndTabWindows(HWND hwnd)
 //	printf("\nTabs: %i %i %i %i, wnd %i %i%i %i", rectTab.left, rectTab.top, rectTab.right, rectTab.bottom, rectWnd.left, rectWnd.top, rectWnd.right, rectWnd.bottom);
 
 
-
-	hwndTabExport = CreateWindow("TabExport", NULL, WS_CHILD|WS_VISIBLE, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
+	hwndTabImport = CreateWindow("TabImport", NULL, WS_CHILD|WS_VISIBLE, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
+	hwndTabExport = CreateWindow("TabExport", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	hwndTabRegions = CreateWindow("TabRegions", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	hwndTabStatistics = CreateWindow("TabStatistics", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	return 0;
 }
+
+LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (msg) {
+		case WM_CREATE:
+			int x,y;
+			const int margin=10;
+			const int height=20;
+			x=margin;y=margin;
+			CreateWindow("Static","Imported files:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height, hwnd, 0, hInst, NULL);
+			y+=margin+height;
+			hwndImportList = CreateWindow(WC_LISTBOX,"Imported", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height*6, hwnd, 0, hInst, NULL);
+			break;
+		case WT_WM_TAB_ADDIMPORTFILE:
+			SendMessage(hwndImportList, LB_ADDSTRING, 0, lParam);
+			break;
+
+
+		default:
+			return DefWindowProc(hwnd,msg,wParam,lParam);
+
+	}
+	return 0;
+}
+
 
 
 LRESULT CALLBACK TabExportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
@@ -189,7 +276,7 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		x=margin;y=margin;
 //		CreateWindow("Static","Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
 //		y+=height+margin;
-		HWND hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_LIST, x, y, 100, height*8, hwnd, 0, hInst, NULL);
+		hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_LIST, x, y, 100, height*8, hwnd, 0, hInst, NULL);
 
 		WORLDREGION * r;
 		char szRegionName[256];
@@ -258,6 +345,13 @@ LRESULT CALLBACK MainWndProc_OnTabNotify(HWND hwnd, int id, NMHDR * nmh)
                 {
                     int n = TabCtrl_GetCurSel(hwndTab);
 					printf("note %i", n);
+					if (n==TAB_IMPORT)	{
+						ShowWindow(hwndTabImport, SW_SHOW);
+					}	else	{
+						ShowWindow(hwndTabImport, SW_HIDE);
+					}
+
+
 					if (n==TAB_EXPORT)	{
 						ShowWindow(hwndTabExport, SW_SHOW);
 					}	else	{

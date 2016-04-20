@@ -4,10 +4,13 @@
 typedef struct sDropdownPresetInfo DROPDOWNINFO;
 
 struct sDropdownPresetInfo	{
-	PRESET bestPresets[6];
+	PRESET bestPresets[8];
 	int	numberPresets;		//the max of the above
 	int displayedPresets;	//the number that we'll display
 
+	char previousEditBox[128];
+
+	int displayWidth;
 	int displayHeight;
 	int highlightedPreset;
 };

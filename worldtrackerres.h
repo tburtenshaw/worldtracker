@@ -10,8 +10,17 @@
 #define	IDM_CLOSE	240
 #define	IDM_PRINT	250
 #define	IDM_PAGESETUP	260
+
+#define	IDM_ZOOMIN 270
+#define	IDM_ZOOMOUT 271
+#define	IDM_ZOOMFIT 272
+#define	IDM_ZOOMALL 273
+
+
 #define	IDM_EXIT	300
 #define	IDM_ABOUT	500
+
+
 #define	IDMAINMENU	600
 #define	IDAPPLICON	710
 #define	IDAPPLCURSOR	810
