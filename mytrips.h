@@ -60,14 +60,6 @@ struct sRGBAColour	{
 	unsigned char A;
 };
 
-struct sHeatmap	{
-	unsigned int * heatmappixels;
-	int width;
-	int height;
-	unsigned int maxtemp;
-	unsigned char *radius;
-};
-
 struct sNswe	{
 	//order shouldn't matter as we're not directly accessing from memory, or saving to file
 	double west;
@@ -229,7 +221,7 @@ int RationaliseOptions(OPTIONS *options);
 int MakeProperFilename(char *targetstring, char *source, char *def, char *ext);
 
 int WriteKMLFile(BM* bm);
-int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename);
+int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename, unsigned long tsfrom, unsigned long tsto);
 
 int bitmapInit(BM* bm, OPTIONS* options, LOCATIONHISTORY *lh);
 int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c);

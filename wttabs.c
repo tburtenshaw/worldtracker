@@ -137,17 +137,43 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			x=margin;y=margin;
 			CreateWindow("Static","Imported files:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height, hwnd, 0, hInst, NULL);
 			y+=margin+height;
-			hwndImportList = CreateWindow(WC_LISTBOX,"Imported", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height*6, hwnd, 0, hInst, NULL);
+			hwndImportList = CreateWindow(WC_LISTBOX,"Imported", WS_CHILD | WS_VISIBLE | WS_BORDER|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 250, height*6, hwnd, 0, hInst, NULL);
 			break;
 		case WT_WM_TAB_ADDIMPORTFILE:
 			SendMessage(hwndImportList, LB_ADDSTRING, 0, lParam);
 			break;
+		case WM_COMMAND:
+			HANDLE_WM_COMMAND(hwnd,wParam,lParam, TabImportWndProc_OnCommand);
+			break;
+		case WM_VKEYTOITEM:
+			//printf("\nChar: %i", LOWORD(wParam));
+			switch (LOWORD(wParam))	{
+				case VK_DELETE:
+					printf("\nDELETE %i", SendMessage((HWND)lParam, LB_GETCURSEL, 0,0));
 
+					return -1;
+					break;
+				default:
+					return DefWindowProc(hwnd,msg,wParam,lParam);
+			}
 
+			break;
 		default:
 			return DefWindowProc(hwnd,msg,wParam,lParam);
 
 	}
+	return 0;
+}
+
+LRESULT CALLBACK TabImportWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	printf("\nImport Command %i %i %i", id, hwndCtl, codeNotify);
+	switch (codeNotify)	{
+		case LBN_SELCHANGE:
+			printf("\nChange %i", SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
+			break;
+	}
+
 	return 0;
 }
 

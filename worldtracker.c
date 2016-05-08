@@ -1329,7 +1329,7 @@ int ExportGPXDialogAndComplete(HWND hwnd, LOCATIONHISTORY *lh)
 	if (GetSaveFileName(&ofn)==0)
 		return 0;
 
-	ExportGPXFile(lh, filename);
+	ExportGPXFile(lh, filename, optionsPreview.fromtimestamp, optionsPreview.totimestamp);
 
 	return 1;
 }
@@ -2258,9 +2258,10 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
 
-//	DrawListOfRegions(&previewBM, regionFirst);
+	DrawListOfRegions(&previewBM, regionFirst);
 
 //Display the presets
+
 /*
 	WORLDREGION displayRegion;
 	for (int i=0;i<numberOfPresets;i++	)	{
@@ -2268,7 +2269,7 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 		displayRegion.baseColour.R=255;
 		displayRegion.baseColour.G=15;
 		displayRegion.baseColour.B=115;
-		displayRegion.baseColour.A=115;
+		displayRegion.baseColour.A=30;
 		DrawRegion(&previewBM, &displayRegion);
 	}
 */
@@ -2286,22 +2287,28 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	GdiFlush();
 	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
 	//printf("create dib: %x", (unsigned long)bitmap);
-	int b=0;
+
+	int b;
+	b=0;
 	for (y=0;y<height;y++)	{
 		for (x=0;x<width;x++)	{
-			c= bitmapPixelGet(&previewBM, x, y);
-			d.R = d.G =d.B =0;
+			memcpy(&c, previewBM.bitmap+(x+y* width) *4, sizeof(COLOUR));
+
+			d.R = d.G =d.B =0;	//this is if i need to merge with something else
 			mixColours(&d, &c);
 			bits[b] =d.B;	b++;
 			bits[b] =d.G;	b++;
 			bits[b] =d.R;	b++;
+
+//			bits[b] =c.B;	b++;
+//			bits[b] =c.G;	b++;
+//			bits[b] =c.R;	b++;
+
+
 		}
 		b=(b+3) & ~3;	//round to next WORD alignment at end of line
 	}
 
-
-		//printf("delete dib: %x", (unsigned long)hbmPreview);
-	//
 	if (hbmPreview!=NULL)	{
 		DeleteObject(hbmPreview);
 	}

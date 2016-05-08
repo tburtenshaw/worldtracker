@@ -415,6 +415,24 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 	return 0;
 }
 
+int CalculateSpeed(LOCATIONHISTORY *locationHistory)
+{
+	LOCATION *current;
+	LOCATION *advance;
+	LOCATION *behind;
+	LOCATION *comparison;
+
+	current = locationHistory->first;
+	while (current)	{
+		advance = current->next;
+		behind = current->prev;
+
+//		while (DistanceBetween(adva
+
+	}
+	return 0;
+}
+
 
 int PrintLocations(LOCATIONHISTORY *locationHistory)	//for debugging
 {
@@ -744,11 +762,11 @@ int bitmapDestroy(BM *bm)
 COLOUR bitmapPixelGet(BM* bm, int x, int y)
 {
 	COLOUR c;
-
-	c.R = bm->bitmap[(x+y* bm->width) *4];
-	c.G = bm->bitmap[(x+y* bm->width) *4+1];
-	c.B = bm->bitmap[(x+y* bm->width) *4+2];
-	c.A = bm->bitmap[(x+y* bm->width) *4+3];
+	memcpy(&c,bm->bitmap+(x+y* bm->width) *4, 4);
+	//c.R = bm->bitmap[(x+y* bm->width) *4];
+	//c.G = bm->bitmap[(x+y* bm->width) *4+1];
+	//c.B = bm->bitmap[(x+y* bm->width) *4+2];
+	//c.A = bm->bitmap[(x+y* bm->width) *4+3];
 
 
 	return c;
@@ -764,22 +782,47 @@ int bitmapPixelSet(BM* bm, int x, int y, COLOUR *c)
 	if (x<0)	return 0;
 	if (y<0)	return 0;
 
+	memcpy(&currentC, bm->bitmap+(x+y* bm->width) *4, sizeof(COLOUR));
+
+
+	if (mixColours(&currentC, c))	{
+			memcpy(bm->bitmap + (x + y * bm->width) * 4, &currentC,sizeof(COLOUR));	//copy the chunk over
+	}
+
+	return 1;
+}
+
+int bitmapPixelSetOld(BM* bm, int x, int y, COLOUR *c)
+{
+	COLOUR currentC;
+
+	//should remove sanity testing from here as it's used often, needs to be checked by the calling function if required
+	if (x>bm->width-1)	return 0;
+	if (y>bm->height-1)	return 0;
+	if (x<0)	return 0;
+	if (y<0)	return 0;
+
 	currentC.R = bm->bitmap[(x+y* bm->width) *4];
 	currentC.G = bm->bitmap[(x+y* bm->width) *4+1];
 	currentC.B = bm->bitmap[(x+y* bm->width) *4+2];
 	currentC.A = bm->bitmap[(x+y* bm->width) *4+3];
+
+//	memcpy(&currentC, bm->bitmap+(x+y* bm->width) *4, 4);
+
 
 	if (mixColours(&currentC, c))	{
 			memset(bm->bitmap + (x + y * bm->width) * 4+0,currentC.R,1);	//the *4 is the channels
 			memset(bm->bitmap + (x + y * bm->width) * 4+1,currentC.G,1);	//the *4 is the channels
 			memset(bm->bitmap + (x + y * bm->width) * 4+2,currentC.B,1);	//the *4 is the channels
 			memset(bm->bitmap + (x + y * bm->width) * 4+3,currentC.A,1);	//the *4 is the channels
+
+//			memcpy(bm->bitmap + (x + y * bm->width) * 4, &currentC,4);	//copy the chunk over
 	}
-
-
 
 	return 1;
 }
+
+
 
 int mixColours(COLOUR *cCanvas, COLOUR *cBrush)	//this alters the canvas
 {
@@ -1306,22 +1349,15 @@ int plot(BM* bm, int x, int y, unsigned char cchar, COLOUR *c)	//plot will plot 
 
 
 	COLOUR fadedColour;
-//	unsigned int cint;
-//	cint = cchar;
-//	cint *=c->A;
-//	cint /=256;
-//	fadedColour.A=(char)cint;
 
 	fadedColour.R=c->R;
 	fadedColour.G=c->G;
 	fadedColour.B=c->B;
 	fadedColour.A=c->A*cchar/255;
 
-
  	bitmapPixelSet(bm, x, y, &fadedColour);
 
-
-return 1;
+	return 1;
 }
 
 int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
@@ -1335,123 +1371,6 @@ int LatLongToXY(BM *bm, double phi, double lambda, double *x, double *y)
 
 	return 0;
 }
-
-
-int CreateHeatmap(BM *bm)
-{
-	bm->heatmap = malloc(sizeof(HEATMAP));
-	bm->heatmap->heatmappixels = malloc(sizeof(unsigned int)*bm->width * bm->height);
-	memset(bm->heatmap->heatmappixels, 0,sizeof(unsigned int)*bm->width * bm->height);
-
-	bm->heatmap->maxtemp = 0;
-	bm->heatmap->width = bm->width;
-	bm->heatmap->height = bm->height;
-
-	return 1;
-}
-
-
-int HeatmapAddPoint(HEATMAP *hm, int x, int y)
-{
-	hm->heatmappixels[x+y*hm->width]+=16;
-
-	if (x>0) hm->heatmappixels[x-1+y*hm->width]+=8;
-	if (y>0) hm->heatmappixels[x+(y-1)*hm->width]+=8;
-	if (x<hm->height-1) hm->heatmappixels[x+1*hm->width]+=8;
-	if (y<hm->width-1) hm->heatmappixels[x+(y+1)*hm->width]+=8;
-
-
-
-	if (hm->heatmappixels[x+y*hm->width] > hm->maxtemp)	{
-		hm->maxtemp = hm->heatmappixels[x+y*hm->width];
-		}
-
-	return 1;
-
-}
-
-int HeatmapPlot(BM* bm, LOCATIONHISTORY*lh)
-{
-	LOCATION *coord;
-
-	double x,y;
-
-	CreateHeatmap(bm);
-
-	coord=lh->first;
-	while (coord)	{
-			LatLongToXY(bm,coord->latitude, coord->longitude, &x, &y);
-			//printf("%i %i\n", (int)x,(int)y);
-			if ((x>0) && (y>0) &&(x<bm->width) && (y<bm->height))	{
-				HeatmapAddPoint(bm->heatmap,(int)x,(int)y);
-			}
-		coord=coord->next;
-	}
-
-	HeatmapToBitmap(bm);
-	return 0;
-
-}
-
-unsigned char HeatmapIntToCharNormalisedLog(unsigned int Temp)
-{
-
-	if (Temp==0)	return 0;
-	unsigned char logs0to255[256] = {0, 15, 25, 31, 37, 41, 44, 47, 50, 52, 55, 57, 58, 60, 62, 63, 65, 66, 67, 68, 70, 71, 72, 73, 74, 74, 75, 76, 77, 78, 78, 79, 80, 81, 81, 82, 83, 83, 84, 84, 85, 85, 86, 87, 87, 88, 88, 89, 89, 89, 90, 90, 91, 91, 92, 92, 92, 93, 93, 94, 94, 94, 95, 95,
-95, 96, 96, 97, 97, 97, 98, 98, 98, 98, 99, 99, 99, 100, 100, 100, 101, 101, 101, 101, 102, 102, 102, 102, 103, 103, 103, 103, 104, 104, 104, 104, 105, 105, 105, 105, 106, 106, 106, 106, 107, 107, 107, 107, 107, 108, 108, 108, 108, 108, 109, 109, 109, 109, 109, 110, 110, 110, 110, 110, 111, 111, 111, 111, 111,
-121, 121, 121, 121, 121, 121, 121, 121, 121, 122, 122, 122, 122, 122, 122, 122, 122, 122, 123, 123, 123, 123, 123, 123, 123, 123, 123, 124, 124, 124, 124, 124, 124, 124, 124, 124, 124, 125, 125, 125, 125, 125, 125, 125, 125, 125, 125, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 126, 127, 127, 127, 127, 127, 127};
-	printf("t: %i ", Temp);
-
-	if (Temp<256)
-		return logs0to255[Temp];
-
-
-			return 0;
-}
-
-
-
-int HeatmapToBitmap(BM *bm)
-{
-	HEATMAP *hm;
-	hm=bm->heatmap;
-	//unsigned char hue;
-	//double huecalc;
-	//double logmaxtemp;
-
-	if (!hm->maxtemp)
-		return 0;
-
-	//logmaxtemp=		log((double)hm->maxtemp);
-
-	hm->maxtemp = 500;
-	printf(	"mt: %i", hm->maxtemp);
-
-	for (int y=0; y<bm->height; y++)	{
-		for (int x=0; x<bm->width; x++)	{
-			if (hm->heatmappixels[x+y* hm->width] > 0)	{
-				//huecalc = log((double)hm->heatmappixels[x+y* hm->width]) * 166.0 / logmaxtemp;
-				//hue=(unsigned char)huecalc;
-//				printf("%4.2f %4.2f %i\n", log((double)hm->heatmappixels[x+y* hm->width]), log((double)hm->maxtemp), hue);
-
-//				bitmapPixelSet(bm, x, y, HeatmapColour(
-//					HeatmapIntToCharNormalisedLog(hm->heatmappixels[x + y*hm->width] * (2^16-1)/hm->maxtemp)
-//					));
-			}
-		}
-	}
-
-	return 1;
-}
-
-
-COLOUR HeatmapColour(unsigned char normalisedtemp)	{
-	COLOUR rgb;
-	rgb	= HsvToRgb(normalisedtemp*166/255, 255 ,255, 255);
-
-	return rgb;
-}
-
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a)
 {
@@ -1729,7 +1648,7 @@ int WriteKMLFile(BM* bm)
 	return 1;
 }
 
-int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
+int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename, unsigned long tsfrom, unsigned long tsto)
 {
 	FILE *gpx;
 	LOCATION *loc;
@@ -1749,7 +1668,12 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
 	fprintf(gpx, "<metadata>\n");
 	fprintf(gpx, "<link>https://github.com/tburtenshaw/worldtracker</link>\n");
 	fprintf(gpx, "<name>WorldTracker GPX Export</name>\n");
-	fprintf(gpx, "<desc>Created by WorldTracker</desc>\n");
+
+	strftime(stringTime,255,"%Y-%m-%d", gmtime_s(&tsfrom, &time));
+	fprintf(gpx, "<desc>Created by WorldTracker, from %s to ", stringTime);
+	strftime(stringTime,255,"%Y-%m-%d", gmtime_s(&tsto, &time));
+	fprintf(gpx, "%s</desc>\n", stringTime);
+
 	fprintf(gpx, "<author><name>WorldTracker</name></author>\n");
 	fprintf(gpx, "</metadata>\n");
 
@@ -1759,12 +1683,13 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename)
 	fprintf(gpx, "<trkseg>\n");
 	loc=lh->first;
 	while (loc)	{
+		if ((loc->timestampS >= tsfrom) && (loc->timestampS <= tsto))	{
 		fprintf(gpx, "<trkpt lat=\"%f\" lon=\"%f\">\n",loc->latitude, loc->longitude);
-        //<ele>4.46</ele>
 		strftime(stringTime,255,"%Y-%m-%dT%H:%M:%SZ",gmtime_s(&loc->timestampS, &time));
-
 		fprintf(gpx, "<time>%s</time>\n",stringTime);
      	fprintf(gpx, "</trkpt>\n");
+		}
+
 		loc=loc->next;
 	}
 	fprintf(gpx, "</trkseg>\n");
@@ -2059,6 +1984,11 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="es_islascanarias";preset[i].nswe.north=29.5;preset[i].nswe.south=27.5;preset[i].nswe.west=-18.3;preset[i].nswe.east=-13.3;preset[i].name="Canary Islands";i++;
 	preset[i].abbrev="westafrica";preset[i].nswe.north=27;preset[i].nswe.south=4;preset[i].nswe.west=-18;preset[i].nswe.east=16;preset[i].name="West Africa";i++;
 	preset[i].abbrev="me";preset[i].nswe.north=43.6;preset[i].nswe.south=41.8;preset[i].nswe.west=18.4;preset[i].nswe.east=20.4;preset[i].name="Montenegro";i++;
+	preset[i].abbrev="americas";preset[i].nswe.north=75;preset[i].nswe.south=-57;preset[i].nswe.west=-170;preset[i].nswe.east=-52;preset[i].name="The Americas";i++;
+	preset[i].abbrev="sa";preset[i].nswe.north=-13.4;preset[i].nswe.south=-14.1;preset[i].nswe.west=-172.85;preset[i].nswe.east=-171.35;preset[i].name="Samoa";i++;
+	preset[i].abbrev="uy";preset[i].nswe.north=-30;preset[i].nswe.south=-35;preset[i].nswe.west=-59;preset[i].nswe.east=-53;preset[i].name="Uruguay";i++;
+	preset[i].abbrev="fk";preset[i].nswe.north=-51;preset[i].nswe.south=-52.5;preset[i].nswe.west=-61.5;preset[i].nswe.east=-57.6;preset[i].name="Falkland Islands";i++;
+	preset[i].abbrev="us_la_greaterneworleans";preset[i].nswe.north=30.4;preset[i].nswe.south=28.9;preset[i].nswe.west=-91;preset[i].nswe.east=-88.8;preset[i].name="Greater New Orleans";i++;
 	*pCount=i;
 	return;
 }
