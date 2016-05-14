@@ -692,7 +692,6 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal))==0)
 				return;
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
-			SendMessage(hwndTabImport, WT_WM_TAB_ADDIMPORTFILE, 0, (LPARAM)optionsPreview.jsonfilenamefinal);
 		break;
 
 		case IDM_SAVE:
@@ -846,6 +845,8 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 	optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
 	optionsPreview.totimestamp = locationHistory.latesttimestamp;
 
+
+	SendMessage(hwndTabImport, WT_WM_TAB_ADDLASTIMPORTEDFILE, 0, (LPARAM)&locationHistory);
 	UpdateDateControlsFromOptions(&optionsPreview);
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
@@ -1669,17 +1670,8 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	switch (msg) {
 		case WM_CREATE:
 			hbmOverview = NULL;		//set to null, as it deletes the object if not
-
-			//Should this be removed?
-			/*
-			hdc = GetDC(hwnd);
-			hbmOverview = MakeHBitmapOverview(hwnd, hdc, &locationHistory);
-			ReleaseDC(hwnd, hdc);
-			*/
-
 			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
 			CreateOverviewMovebarWindows(hwnd);
-
 			break;
 
 
@@ -2478,10 +2470,16 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		if ((GET_X_LPARAM(lParam)>=rect.left) && (GET_X_LPARAM(lParam)<=rect.right) && (GET_Y_LPARAM(lParam)>=rect.top) && (GET_Y_LPARAM(lParam)<=rect.bottom))	{
 			SendMessage(hwndOverview, WT_WM_SIGNALMOUSEWHEEL, wParam, lParam);
 		}
-
-
 		return 0;
 		break;
+
+	case WT_WM_RECALCBITMAP:
+		//if parent gets this, send it to appropriate children
+		printf("\nRECALC BOTH");
+		SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
+		SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+		break;
+
 	case WM_COMMAND:
 		HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);
 		break;
@@ -2557,6 +2555,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
 	MSG msg;
 	HANDLE hAccelTable;
+
+	AllocConsole();
+    //freopen("conin$","r",stdin);
+    freopen("conout$","w",stdout);
+    freopen("conout$","w",stderr);
 
 	hInst = hInstance;
 	if (!InitApplication())

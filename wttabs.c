@@ -10,6 +10,7 @@ extern HWND hwndTab;
 extern HINSTANCE hInst;
 extern WORLDREGION * regionFirst;
 extern OPTIONS optionsPreview;
+extern LOCATIONHISTORY locationHistory;
 
 HWND hwndTabImport;
 HWND hwndTabExport;
@@ -139,8 +140,20 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			y+=margin+height;
 			hwndImportList = CreateWindow(WC_LISTBOX,"Imported", WS_CHILD | WS_VISIBLE | WS_BORDER|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 250, height*6, hwnd, 0, hInst, NULL);
 			break;
-		case WT_WM_TAB_ADDIMPORTFILE:
-			SendMessage(hwndImportList, LB_ADDSTRING, 0, lParam);
+		case WT_WM_TAB_ADDLASTIMPORTEDFILE:
+			LOCATIONHISTORY *lh;
+			IMPORTEDFILE *importedFile;
+			lh=(void *)lParam;
+			importedFile=lh->firstImportedFile;
+			if (importedFile)	{
+				while (importedFile->next)	{
+					importedFile=importedFile->next;	//while there's still a next...
+				}
+				SendMessage(hwndImportList, LB_ADDSTRING, 0, (LPARAM)importedFile->fullFilename);
+			}
+
+			printf("\nFile:%s",importedFile->fullFilename);
+
 			break;
 		case WM_COMMAND:
 			HANDLE_WM_COMMAND(hwnd,wParam,lParam, TabImportWndProc_OnCommand);
@@ -149,8 +162,11 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			//printf("\nChar: %i", LOWORD(wParam));
 			switch (LOWORD(wParam))	{
 				case VK_DELETE:
-					printf("\nDELETE %i", SendMessage((HWND)lParam, LB_GETCURSEL, 0,0));
-
+					int id =SendMessage((HWND)lParam, LB_GETCURSEL, 0,0);
+					printf("\nDELETE %i", id);
+					DeleteInputFile(&locationHistory, id);
+					SendMessage(hwndImportList, LB_DELETESTRING, id, 0);
+					SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
 					return -1;
 					break;
 				default:

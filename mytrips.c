@@ -145,6 +145,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 
 		coord->group=locationHistory->numgroups;	//set the group number
+		coord->inputfileindex = locationHistory->numinputfiles;
 
 		coord->prev=prevCoord;
 		coord->next=calloc(sizeof(LOCATION),1);	//allocate memory for the next in the linked list
@@ -183,10 +184,16 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	}
 
 
+	//Adds it to a linked list of open files
+	IMPORTEDFILE tempImportedFile;	//temp which is copied to a new malloc'd one
+	tempImportedFile.id = locationHistory->numinputfiles;
+	tempImportedFile.group = locationHistory->numgroups;
+	tempImportedFile.filesize = locationHistory->filesize;
+	tempImportedFile.filetype = inputfiletype;
+	strcpy(tempImportedFile.fullFilename, jsonfilename);	//need to limit to MAX_PATH
 
+	printf("\naif%i", AddInputFile(locationHistory, &tempImportedFile));
 
-	locationHistory->numinputfiles++;
-	locationHistory->numgroups++;
 
 	//printf("\nSorting whole list");
 	//n=SortLocationsInsertSort(&locationHistory->first, &locationHistory->last);
@@ -198,6 +205,145 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 
 	return 0;
 }
+
+LOCATION * DeleteLocation(LOCATIONHISTORY *lh, LOCATION *locToDelete)	//returns the "next" location
+{
+	LOCATION * prev;
+	LOCATION * next;
+
+	next = locToDelete->next;
+	prev = locToDelete->prev;
+
+	if (next && prev)	{	//there's both a previous and next, so we're in the middle of the linked link
+		locToDelete->prev->next = next;
+		locToDelete->next->prev = prev;
+//		printf("deleting %i",locToDelete);
+		free(locToDelete);
+		return next;
+	}
+	else if	(next)	{	//there's a next, but no prev, so must be first
+		locToDelete->next->prev = NULL;	//prev will be NULL;
+		lh->first =next;
+		free(locToDelete);
+		return next;
+	}
+	else if (prev)	{	//there's a prev, no next, so we're at the end of the list (probably don't need this "else if" statement)
+		locToDelete->prev->next = NULL;
+		lh->last = prev;
+		free(locToDelete);
+		return NULL;
+	}
+	return next;
+}
+
+int	AddInputFile(LOCATIONHISTORY *lh, IMPORTEDFILE *importedFile)
+{
+	IMPORTEDFILE *current;
+	IMPORTEDFILE *newFile;
+
+
+	lh->numinputfiles++;
+	lh->numgroups++;
+
+
+	newFile = malloc(sizeof(IMPORTEDFILE));
+	memcpy(newFile, importedFile, sizeof(IMPORTEDFILE));
+	newFile->next = NULL;
+
+
+	if (lh->firstImportedFile == NULL)	{
+		lh->firstImportedFile = newFile;
+		return 1;
+	}
+
+	current= lh->firstImportedFile;
+
+	//traverse to the end of the list
+	while (current->next)	{
+		current=current->next;
+	}
+	current->next = newFile;
+
+	return 0;
+}
+
+int DeleteInputFile(LOCATIONHISTORY *lh, int id)
+{
+	IMPORTEDFILE *current;
+	IMPORTEDFILE *next;
+	IMPORTEDFILE *prev;
+
+	LOCATION *loc;
+
+	//print the list
+	/*
+	current = lh->firstImportedFile;
+	while (current)	{
+		printf("\n%i %s", current->id, current->fullFilename);
+		current=current->next;
+	}
+*/
+
+
+	//Remove the file from the importedfile linked list
+	current = lh->firstImportedFile;
+	while (current->id < id)	{
+		prev = current;
+		next = current->next;
+		current = current->next;
+	}
+	if (current->id == id)	{
+		next = current->next;
+		printf("\ndeleting %i %s", current->id, current->fullFilename);
+		free(current);
+
+		if (id >0)	{
+			prev->next =next;
+		}
+		else if (id ==0)	{
+			lh->firstImportedFile = next;
+		}
+	}
+
+	while (next)	{
+		next->id--;
+		next=next->next;
+	}
+
+	//then remove all the associated coordinates
+	loc = lh->first;
+
+	while (loc)	{
+		if (loc->inputfileindex == id)	{
+			//delete the point
+			loc = DeleteLocation(lh, loc);	//this moves to the next
+		}
+
+		else if (loc->inputfileindex>id)	{	//shift anything higher down 1, then move on
+			loc->inputfileindex--;
+			loc = loc->next;
+		}
+		else	{	//move on without doing anything
+			loc = loc->next;
+		}
+
+
+	}
+
+
+	//print the list
+/*
+	current = lh->firstImportedFile;
+	while (current)	{
+		printf("\n%i %s", current->id, current->fullFilename);
+		current=current->next;
+	}
+*/
+	lh->numinputfiles--;
+	OptimiseLocations(lh);	//must do this, otherwise the skipping part can miss things
+
+}
+
 
 //This merges two sorted groups into one (New into Base)
 int MergeLocationGroup(LOCATION **ppFirstBase, LOCATION **ppLastBase, LOCATION **ppFirstNew, LOCATION **ppLastNew)

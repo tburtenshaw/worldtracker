@@ -9,9 +9,10 @@
 typedef struct sRGBAColour COLOUR;
 typedef struct sBitmap BM;
 typedef struct sOptions OPTIONS;
-typedef struct sLocation LOCATION;
 typedef struct sLocationHistory LOCATIONHISTORY;
-typedef struct sHeatmap HEATMAP;
+typedef struct sLocation LOCATION;
+typedef struct sImportedFile IMPORTEDFILE;
+
 typedef struct sNswe NSWE;
 typedef struct sStay STAY;
 typedef struct sTrip TRIP;
@@ -122,7 +123,6 @@ struct sBitmap	{
 	int sizebitmap;
 
 	LOCATIONHISTORY *lh;	//pointer to the location history associated with this bitmap
-	HEATMAP *heatmap;
 	unsigned long countPoints;	//the number of points plotted (statistics)
 };
 
@@ -130,10 +130,10 @@ struct sBitmap	{
 struct sLocation	{
 	double latitude;
 	double longitude;
-	long timestampS; //we'll use a long instead of the high precision of google (seconds rather than ms)
+	unsigned long timestampS; //we'll use a long instead of the high precision of google (seconds rather than ms)
 	int accuracy;
 	int altitude;
-	int inputfile;
+	int inputfileindex;
 	int group;	//which input file it was loaded from
 
 	double distancefromprev;
@@ -154,6 +154,9 @@ struct sLocationHistory	{
 	unsigned long	filepos;
 	//char *jsonfilename;
 
+	IMPORTEDFILE * firstImportedFile;
+
+
 	int numinputfiles;	//number of files used for input
 	int numgroups;	//groups of input files, initially 1:1, but we can merge them
 
@@ -162,6 +165,17 @@ struct sLocationHistory	{
 	unsigned long	latesttimestamp;
 	LOCATION * first;
 	LOCATION * last;
+};
+
+struct sImportedFile	{
+	int id;
+	int group;
+	char fullFilename[MAX_PATH];
+	char displayFilename[MAX_PATH];
+	unsigned long	filesize;
+	Input_Filetype filetype;
+
+	IMPORTEDFILE * next;
 };
 
 struct sStay	{
@@ -198,6 +212,7 @@ struct sPreset	{
 //It can be Null, and it is ignored. It is NOT PRECISE.
 int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*progressfn)(int));
 int FreeLocations(LOCATIONHISTORY *locationHistory);
+LOCATION *  DeleteLocation(LOCATIONHISTORY *lh, LOCATION *locToDelete);	//returns the "next" location
 
 void RemoveLocationFromList(LOCATION **ppFirst, LOCATION **ppLast, LOCATION *loc);
 void InsertLocationBefore(LOCATION **ppFirst, LOCATION *loc, LOCATION *target);
@@ -211,6 +226,9 @@ int ReadLocationFromJson(LOCATIONHISTORY *lh, LOCATION *location);
 int ReadLocationFromNmea(LOCATIONHISTORY *lh, LOCATION *location);
 int ReadLocationFromBackitudeCSV(LOCATIONHISTORY *lh, LOCATION *location);
 int GuessInputFileType(LOCATIONHISTORY *lh);
+
+int	AddInputFile(LOCATIONHISTORY *lh, IMPORTEDFILE *importedFile);
+int DeleteInputFile(LOCATIONHISTORY *lh, int id);
 
 void LoadPresets(PRESET *preset, int * pCount, int maxCount);
 int NsweFromPreset(OPTIONS *options, char *lookuppreset, PRESET * presetarray, int numberofpresets);
@@ -246,12 +264,6 @@ int DrawGrid(BM* bm);
 int ColourWheel(BM* bm, int x, int y, int r, int steps);
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options);
 
-int CreateHeatmap(BM* bm);
-int HeatmapAddPoint(HEATMAP *hm, int x, int y);
-int HeatmapToBitmap(BM *bm);
-int HeatmapPlot(BM* bm, LOCATIONHISTORY*lh);
-unsigned char HeatmapIntToCharNormalisedLog(unsigned int Temp);
-COLOUR HeatmapColour(unsigned char normalisedtemp);
 
 COLOUR HsvToRgb(unsigned char h, unsigned char s,unsigned char v, unsigned char a);
 //COLOUR TimestampToRgb(long ts, long min, long max);
