@@ -163,6 +163,7 @@ struct sLocationHistory	{
 	unsigned long	numPoints;
 	unsigned long	earliesttimestamp;
 	unsigned long	latesttimestamp;
+	NSWE bounds;
 	LOCATION * first;
 	LOCATION * last;
 };

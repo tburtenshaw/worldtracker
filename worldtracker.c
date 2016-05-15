@@ -711,8 +711,27 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		break;
 
 		case IDM_EXIT:
-		PostMessage(hwnd,WM_CLOSE,0,0);
+			PostMessage(hwnd,WM_CLOSE,0,0);
 		break;
+
+		case IDM_ZOOMALL:
+			optionsPreview.nswe.north = 90;
+			optionsPreview.nswe.south = -90;
+			optionsPreview.nswe.west = -180;
+			optionsPreview.nswe.east = 180;
+
+			ConstrainNSWE(&optionsPreview.nswe);		//rather than constrain after the move, I need to stop while moving
+			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
+		break;
+		case IDM_ZOOMFIT:
+			CopyNSWE(&optionsPreview.nswe, &locationHistory.bounds);
+			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
+		break;
+
 
 		case ID_EDITNORTH:
 		case ID_EDITSOUTH:
@@ -2092,11 +2111,15 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			hMenu = CreatePopupMenu();
 			InsertMenu(hMenu, 0, MF_BYPOSITION|MF_STRING, IDM_ZOOMALL, "Zoom to whole world");
 			InsertMenu(hMenu, 1, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Zoom to fit all points");
-			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Create region from view");
+			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_CREATEREGION, "Create region from view");
+			InsertMenu(hMenu, 3, MF_BYPOSITION|MF_STRING, IDM_EXPORTPNG, "Export image to PNG file");
 			TrackPopupMenu(hMenu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0, hwnd, NULL);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
 			SendMessage(hwndMainGraph, WT_WM_GRAPH_REDRAW, 0, 0);
+			break;
+		case WM_COMMAND:
+			HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);	//note we use the same as the main window, to make things central
 			break;
 		case WM_SETFOCUS:
 	    	UpdateStatusBar("Click and drag to move viewpoint. Use the mouse scrollwheel to zoom in and out.", 0, 0);

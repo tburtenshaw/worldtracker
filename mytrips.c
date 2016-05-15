@@ -341,7 +341,7 @@ int DeleteInputFile(LOCATIONHISTORY *lh, int id)
 */
 	lh->numinputfiles--;
 	OptimiseLocations(lh);	//must do this, otherwise the skipping part can miss things
-
+	return 0;
 }
 
 
@@ -476,7 +476,7 @@ void InsertLocationBefore(LOCATION **ppFirst, LOCATION *loc, LOCATION *target)
 
 
 
-int OptimiseLocations(LOCATIONHISTORY *locationHistory)
+int OptimiseLocations(LOCATIONHISTORY *locationHistory)	//even though this is called optimise, it must be called after deleting points etc.
 {
 
 	LOCATION *loc;
@@ -488,6 +488,19 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 	LOCATION *waitingFor10000;
 
 	LOCATION *prevLoc;
+
+
+	NSWE closestbounds;
+	unsigned long earlyts;
+	unsigned long latets;
+
+	//set these as beatable
+	closestbounds.north=-90;
+	closestbounds.south=90;
+	closestbounds.west=180;
+	closestbounds.east=-180;
+	earlyts = -1;	//the largest unsigned number
+	latets=0;
 
 	//This function allows the plotter to skip to the next significant line at a given resolution (pixels per degree)
 	loc=locationHistory->first;
@@ -540,6 +553,34 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 		}
 
 
+		//bounds of earliest, latest, west, east
+		if (loc->timestampS > latets)	{
+			latets = loc->timestampS;
+		}
+
+		if (loc->timestampS < earlyts)	{
+			earlyts = loc->timestampS;
+			printf("\nEarly %i", earlyts);
+		}
+
+		if (loc->latitude > closestbounds.north)	{
+			closestbounds.north = loc->latitude;
+		}
+
+		if (loc->latitude < closestbounds.south)	{
+			closestbounds.south = loc->latitude;
+		}
+
+		if (loc->longitude < closestbounds.west)	{
+			closestbounds.west = loc->longitude;
+		}
+
+		if (loc->longitude > closestbounds.east)	{
+			closestbounds.east = loc->longitude;
+		}
+
+
+
 		//Distance, speed, deltaT calculations here (Might just have distance, and time change, then calculate speed when required).
 		if (prevLoc)	{
 			loc->distancefromprev = MetersApartFlatEarth(prevLoc->latitude, prevLoc->longitude, loc->latitude, loc->longitude);
@@ -552,11 +593,16 @@ int OptimiseLocations(LOCATIONHISTORY *locationHistory)
 		loc=loc->next;
 	}
 
-	locationHistory->earliesttimestamp=locationHistory->first->timestampS;
-	printf("\nets: %i",locationHistory->earliesttimestamp);
+	locationHistory->earliesttimestamp = earlyts;
+	locationHistory->latesttimestamp = latets;
 
-	locationHistory->latesttimestamp=locationHistory->last->timestampS;
-	printf("\nlts: %i",locationHistory->latesttimestamp);
+	CopyNSWE(&locationHistory->bounds, &closestbounds);
+
+//	locationHistory->earliesttimestamp=locationHistory->first->timestampS;
+//	printf("\nets: %i",locationHistory->earliesttimestamp);
+
+//	locationHistory->latesttimestamp=locationHistory->last->timestampS;
+//	printf("\nlts: %i",locationHistory->latesttimestamp);
 
 	return 0;
 }

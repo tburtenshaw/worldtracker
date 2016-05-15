@@ -15,6 +15,8 @@
 #define	IDM_ZOOMOUT 271
 #define	IDM_ZOOMFIT 272
 #define	IDM_ZOOMALL 273
+#define IDM_CREATEREGION 274
+#define IDM_EXPORTPNG 275
 
 
 #define	IDM_EXIT	300
