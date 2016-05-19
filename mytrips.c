@@ -2299,12 +2299,66 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 	return 0;
 }
 
-WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c)
+int DeleteRegion(WORLDREGION * regionToDelete, WORLDREGION ** pRegionHead)
+{
+	WORLDREGION * prev;
+	WORLDREGION * next;
+	if ((regionToDelete->next) && (regionToDelete->prev))	{	//if it's a middle node
+		prev = regionToDelete->prev;
+		next = regionToDelete->next;
+
+		prev->next = next;
+		next->prev = prev;
+		free(regionToDelete);
+		return 0;
+	}
+	return 0;
+}
+
+int DeleteRegionByIndex(WORLDREGION ** regionHead, int index) 	//returns 1 if the last in the list
+{
+	WORLDREGION * cur;
+	int i;
+
+	cur = *regionHead;
+	i=0;
+	while (cur)	{
+		if (i == index)	{	//we've found the one to delete
+			if ((cur->next) && (cur->prev))	{
+				cur->next->prev = cur->prev;
+				cur->prev->next = cur->next;
+				free(cur);
+				return 0;
+			}
+			else if	(cur->prev)	{	//it's the end one
+				cur->prev->next = cur->next;
+				free(cur);
+				return 1;
+			}
+			else if	(cur->next)	{	//if not the above, it must be the first
+				cur->next->prev = NULL;
+				*regionHead = cur->next;
+				free(cur);
+				return 0;
+			}
+			else {	//it's the first, the last and the only
+				*regionHead = NULL;
+				free(cur);
+			}
+		}
+		cur = cur->next;
+		i++;
+	}
+	return 0;
+}
+
+WORLDREGION * CreateRegionAfter(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c, WORLDREGION ** pRegionHead)
 {
 	WORLDREGION *outputRegion;
 
 	outputRegion = malloc(sizeof(WORLDREGION));
 	outputRegion->next=NULL;
+	outputRegion->prev=parentRegion;
 	CopyNSWE(&outputRegion->nswe, nswe);
 	outputRegion->baseColour.R=c->R;
 	outputRegion->baseColour.G=c->G;

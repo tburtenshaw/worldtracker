@@ -199,6 +199,7 @@ struct sWorldRegion	{
 	char * title;
 	int type;
 	WORLDREGION * next;	//next in the linked list
+	WORLDREGION * prev;	//next in the linked list
 };
 
 struct sPreset	{
@@ -291,7 +292,10 @@ double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2
 
 
 
-WORLDREGION * CreateRegion(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c);
+WORLDREGION * CreateRegionAfter(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c, WORLDREGION ** pRegionHead);
+int DeleteRegion(WORLDREGION * regionToDelete, WORLDREGION ** pRegionHead);
+int DeleteRegionByIndex(WORLDREGION ** pRegionHead, int index);
+
 TRIP * GetLinkedListOfTrips(WORLDREGION * regions, LOCATIONHISTORY *lh);
 int ExportTripData(TRIP * trip, char * filename);
 int FreeLinkedListOfTrips(TRIP * trip);

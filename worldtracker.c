@@ -573,7 +573,7 @@ NSWE nswe;
 	nswe.east=174.903095;
 
 
-	regionLast = CreateRegion(regionLast, &nswe, "Home", REGIONTYPE_HOME, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, "Home", REGIONTYPE_HOME, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -583,7 +583,7 @@ NSWE nswe;
 	nswe.south=-36.857656;
 	nswe.west=174.757584;
 	nswe.east=174.774074;
-	regionLast = CreateRegion(regionLast, &nswe, "Away", REGIONTYPE_AWAY, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, "Away", REGIONTYPE_AWAY, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -600,7 +600,7 @@ nswe.north = -36.865730;
 nswe.south =-37.087670;
 nswe.west =174.966750;
 nswe.east =175.095146;
-	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -611,7 +611,7 @@ nswe.south =-36.885830;
 nswe.west =174.822950;
 nswe.east =174.924479;
 
-	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -622,7 +622,7 @@ nswe.south =-36.968430;
 nswe.west =174.877340;
 nswe.east =174.979382;
 
-	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -632,7 +632,7 @@ nswe.south =-37.131420;
 nswe.west =174.531930;
 nswe.east =174.810390;
 
-	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -643,7 +643,7 @@ nswe.west =173.663100;
 nswe.east =174.649000;
 
 
-	regionLast = CreateRegion(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c);
+	regionLast = CreateRegionAfter(regionLast, &nswe, NULL, REGIONTYPE_EXCLUSION, &c, &regionFirst);
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
@@ -2580,7 +2580,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	HANDLE hAccelTable;
 
 	AllocConsole();
-    //freopen("conin$","r",stdin);
     freopen("conout$","w",stdout);
     freopen("conout$","w",stderr);
 
@@ -2923,8 +2922,12 @@ int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 					optionsPreview.nswe.west=TruncateByDegreesPerPixel(optionsPreview.nswe.west + dpp* mousePoint.x, dpp);
 				}
 				else if (hwnd==hwndPreviewCropbarEast)	{
+					//HWND parentHwnd;
 					ClientToScreen(hwnd, &mousePoint);	//converts from the position here
+					//parentHwnd = GetParent(hwnd);
+
 					ScreenToClient(GetParent(hwnd), &mousePoint);	//to the one on the preview
+					//constrain to within the window if we're widening
 					if (mousePoint.x>optionsPreview.width)
 						mousePoint.x = optionsPreview.width;
 					if (mousePoint.x < optionsPreview.height/MAX_ASPECT_RATIO)		//prevent too thin an aspect ratio

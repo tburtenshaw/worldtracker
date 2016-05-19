@@ -149,7 +149,7 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 				while (importedFile->next)	{
 					importedFile=importedFile->next;	//while there's still a next...
 				}
-				SendMessage(hwndImportList, LB_ADDSTRING, 0, (LPARAM)importedFile->fullFilename);
+				SendMessage(hwndImportList, LB_INSERTSTRING, -1, (LPARAM)importedFile->fullFilename);
 			}
 
 			printf("\nFile:%s",importedFile->fullFilename);
@@ -164,8 +164,12 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 				case VK_DELETE:
 					int id =SendMessage((HWND)lParam, LB_GETCURSEL, 0,0);
 					printf("\nDELETE %i", id);
+					if (id<0)	{	//if nothing is selected, don't do anything
+						return -1;
+					}
 					DeleteInputFile(&locationHistory, id);
-					SendMessage(hwndImportList, LB_DELETESTRING, id, 0);
+					SendMessage(hwndImportList, LB_DELETESTRING, min(id,locationHistory.numinputfiles-1), 0);
+					SendMessage(hwndImportList, LB_SETCURSEL, id, 0);
 					SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
 					return -1;
 					break;
@@ -318,7 +322,7 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		x=margin;y=margin;
 //		CreateWindow("Static","Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
 //		y+=height+margin;
-		hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_LIST, x, y, 100, height*8, hwnd, 0, hInst, NULL);
+		hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_LIST|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 100, height*8, hwnd, 0, hInst, NULL);
 
 		WORLDREGION * r;
 		char szRegionName[256];
@@ -331,12 +335,54 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 			else if (r->type == REGIONTYPE_EXCLUSION)	{
 				sprintf(szRegionName, "Exclusion");
 			}
-			SendMessage(hwndRegionList, LB_ADDSTRING, 0, (LPARAM)szRegionName);
+			printf("\n%s",szRegionName);
+			SendMessage(hwndRegionList, LB_INSERTSTRING, -1, (LPARAM)szRegionName);
+			r=r->next;
+		}
+		break;
+
+	case WM_VKEYTOITEM:
+		//printf("\nChar: %i", LOWORD(wParam));
+		switch (LOWORD(wParam))	{
+			case VK_DELETE:
+				int id = SendMessage((HWND)lParam, LB_GETCURSEL, 0,0);
+
+				printf("\nDELETE %i", id);
+				if (id<0)	{
+					return -1;
+				}
+				int result = DeleteRegionByIndex(&regionFirst, id);
+				SendMessage(hwndRegionList, LB_DELETESTRING, id, 0);
+				SendMessage(hwndRegionList, LB_SETCURSEL, id-result, 0);
+				SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
+				return -1;
+			case VK_INSERT:
+				r=regionFirst;
+				int i;
+			i=0;
+		while (r)	{
+			printf("\n%i",i);
+			i++;
+			if (r->title)	{
+				printf(r->title);
+			}
+			else if (r->type == REGIONTYPE_EXCLUSION)	{
+				printf("Exclusion");
+			}
+			printf("%f",r->nswe.north);
 			r=r->next;
 		}
 
+				break;
 
-		break;
+			break;
+				default:
+					return DefWindowProc(hwnd,msg,wParam,lParam);
+			}
+
+			break;
+
+
 
 	default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);

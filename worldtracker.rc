@@ -28,18 +28,25 @@ END
 IDMAINMENU MENU
 BEGIN
     POPUP "&File"
-        BEGIN
+    BEGIN
         MENUITEM "&New", IDM_NEW
         MENUITEM "&Open...\tCtrl+O", IDM_OPEN
         MENUITEM "&Export KML...", IDM_SAVE
         MENUITEM "&Export GPX...", IDM_EXPORTGPX
         MENUITEM "&Close", IDM_CLOSE
         MENUITEM "E&xit", IDM_EXIT
-        END
+    END
+	POPUP "&View"
+	BEGIN
+		MENUITEM "&Zoom in", IDM_ZOOMIN
+		MENUITEM "&Zoom out", IDM_ZOOMOUT
+		MENUITEM "&Zoom to fit", IDM_ZOOMFIT
+		MENUITEM "&Zoom to whole world", IDM_ZOOMALL
+	END
     POPUP "&Help"
-        BEGIN
+    BEGIN
         MENUITEM "&About", IDM_ABOUT
-        END
+    END
 END
 IDACCEL ACCELERATORS
 BEGIN
