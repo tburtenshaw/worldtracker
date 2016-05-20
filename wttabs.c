@@ -21,6 +21,7 @@ HWND hwndTabRegions;
 HWND hwndTabExportHeightEdit;
 HWND hwndTabExportWidthEdit;
 HWND hwndImportList;
+HWND hwndImportDetails;
 HWND hwndRegionList;
 
 
@@ -139,6 +140,14 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			CreateWindow("Static","Imported files:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height, hwnd, 0, hInst, NULL);
 			y+=margin+height;
 			hwndImportList = CreateWindow(WC_LISTBOX,"Imported", WS_CHILD | WS_VISIBLE | WS_BORDER|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 250, height*6, hwnd, 0, hInst, NULL);
+
+			//onto the right hand side
+			x=250+margin+margin;
+			y=margin;
+			CreateWindow("Static","Details:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height, hwnd, 0, hInst, NULL);
+			y+=margin+height;
+			hwndImportDetails = CreateWindow("Edit","Information", ES_READONLY|ES_MULTILINE|WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height *6, hwnd, 0, hInst, NULL);
+
 			break;
 		case WT_WM_TAB_ADDLASTIMPORTEDFILE:
 			LOCATIONHISTORY *lh;
@@ -149,7 +158,12 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 				while (importedFile->next)	{
 					importedFile=importedFile->next;	//while there's still a next...
 				}
-				SendMessage(hwndImportList, LB_INSERTSTRING, -1, (LPARAM)importedFile->fullFilename);
+
+				char ext[MAX_PATH];
+				char fname[MAX_PATH];
+				_splitpath(importedFile->fullFilename, NULL, NULL, fname, ext);
+				sprintf(importedFile->displayFilename, "%s%s", fname, ext);
+				SendMessage(hwndImportList, LB_INSERTSTRING, -1, (LPARAM)importedFile->displayFilename);
 			}
 
 			printf("\nFile:%s",importedFile->fullFilename);
@@ -190,7 +204,14 @@ LRESULT CALLBACK TabImportWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UIN
 	printf("\nImport Command %i %i %i", id, hwndCtl, codeNotify);
 	switch (codeNotify)	{
 		case LBN_SELCHANGE:
-			printf("\nChange %i", SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
+			char importDetails[1024];
+			//printf("\nChange %i", SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
+			IMPORTEDFILE * importedFile;
+			importedFile = GetInputFileByIndex(&locationHistory, SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
+
+
+			sprintf(importDetails, "Filename: %s\r\nSize: %i bytes", importedFile->fullFilename, importedFile->filesize);
+			Edit_SetText(hwndImportDetails, importDetails);
 			break;
 	}
 

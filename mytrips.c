@@ -267,6 +267,23 @@ int	AddInputFile(LOCATIONHISTORY *lh, IMPORTEDFILE *importedFile)
 	return 0;
 }
 
+IMPORTEDFILE * GetInputFileByIndex(LOCATIONHISTORY *lh, int id)
+{
+	IMPORTEDFILE *current;
+	int i;
+
+	current = lh->firstImportedFile;
+	i=0;
+
+	while (current)	{
+		if (i == id)	return current;
+		current = current->next;
+		i++;
+	}
+
+	return	NULL;
+}
+
 int DeleteInputFile(LOCATIONHISTORY *lh, int id)
 {
 	IMPORTEDFILE *current;

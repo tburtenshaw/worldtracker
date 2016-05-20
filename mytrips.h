@@ -230,6 +230,7 @@ int ReadLocationFromBackitudeCSV(LOCATIONHISTORY *lh, LOCATION *location);
 int GuessInputFileType(LOCATIONHISTORY *lh);
 
 int	AddInputFile(LOCATIONHISTORY *lh, IMPORTEDFILE *importedFile);
+IMPORTEDFILE * GetInputFileByIndex(LOCATIONHISTORY *lh, int id);
 int DeleteInputFile(LOCATIONHISTORY *lh, int id);
 
 void LoadPresets(PRESET *preset, int * pCount, int maxCount);
