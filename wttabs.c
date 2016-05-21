@@ -169,6 +169,16 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			printf("\nFile:%s",importedFile->fullFilename);
 
 			break;
+		case WT_WM_TAB_UPDATEINFO:
+			{
+			char importDetails[1024];
+			IMPORTEDFILE * importedFile;
+			importedFile = GetInputFileByIndex(&locationHistory, wParam);
+			sprintf(importDetails, "Filename: %s\r\nSize: %i bytes", importedFile->fullFilename, importedFile->filesize);
+			Edit_SetText(hwndImportDetails, importDetails);
+			}
+			break;
+
 		case WM_COMMAND:
 			HANDLE_WM_COMMAND(hwnd,wParam,lParam, TabImportWndProc_OnCommand);
 			break;
@@ -184,6 +194,7 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 					DeleteInputFile(&locationHistory, id);
 					SendMessage(hwndImportList, LB_DELETESTRING, min(id,locationHistory.numinputfiles-1), 0);
 					SendMessage(hwndImportList, LB_SETCURSEL, id, 0);
+					SendMessage(hwnd, WT_WM_TAB_UPDATEINFO, id, 0);
 					SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
 					return -1;
 					break;
@@ -204,14 +215,11 @@ LRESULT CALLBACK TabImportWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UIN
 	printf("\nImport Command %i %i %i", id, hwndCtl, codeNotify);
 	switch (codeNotify)	{
 		case LBN_SELCHANGE:
-			char importDetails[1024];
 			//printf("\nChange %i", SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
-			IMPORTEDFILE * importedFile;
-			importedFile = GetInputFileByIndex(&locationHistory, SendMessage(hwndCtl, LB_GETCURSEL, 0,0));
+			int index;
+			index=SendMessage(hwndCtl, LB_GETCURSEL, 0, 0);
+			SendMessage(hwnd, WT_WM_TAB_UPDATEINFO, index, 0);
 
-
-			sprintf(importDetails, "Filename: %s\r\nSize: %i bytes", importedFile->fullFilename, importedFile->filesize);
-			Edit_SetText(hwndImportDetails, importDetails);
 			break;
 	}
 
