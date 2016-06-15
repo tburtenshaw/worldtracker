@@ -16,6 +16,16 @@ struct sDropdownPresetInfo	{
 };
 
 
+//File loading (needs to be global, as we pass this to a thread)
+typedef struct sLoadingThreadParameter LOADINGTHREADPARAMETER;
+
+struct sLoadingThreadParameter {
+	int nFileOffset;
+	char loadfilebuffer[2048];
+};
+
+LOADINGTHREADPARAMETER LoadingThreadParameter;
+
 
 
 LOCATIONHISTORY locationHistory;
@@ -80,7 +90,7 @@ long hbmQueueSize;	//this is increased when a thread is created, so the thread c
 CRITICAL_SECTION critAccessLocations;
 CRITICAL_SECTION critAccessPreviewHBitmap;
 
-DWORD WINAPI LoadingThread(void *LoadingThreadData);
+DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *LoadingThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
 DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone from the back of the queue
 

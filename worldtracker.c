@@ -109,8 +109,7 @@ BM previewBM;
 extern HWND hwndTabImport;
 extern HWND hwndTabExport;
 
-//File loading
-char loadFilesQueue[MAX_PATH];
+
 
 //Mouse dragging
 POINT overviewOriginalPoint;
@@ -707,7 +706,11 @@ int OpenFiles(void)
 		return 0;
 	}
 
-	printf("\nBuffer:%s %i",buffer, ofn.nFileOffset);
+//	printf("\nBuffer:%s %i",buffer, ofn.nFileOffset);
+
+	//copy this info to the global variable, so it can be loaded by the loading thread
+	LoadingThreadParameter.nFileOffset = ofn.nFileOffset;
+	memcpy(LoadingThreadParameter.loadfilebuffer, buffer, 2048);
 
 	memcpy(dir, buffer, ofn.nFileOffset);
 	dir[ofn.nFileOffset] = 0;
@@ -740,12 +743,7 @@ if (procSHAddToRecentDocs)	{
 }
 
 		printf("\n%s", fullpath);
-		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, fullpath, 0, NULL);
-
-    	//EnterCriticalSection(&critAccessLocations);
-		//sprintf(fullpath, "%s%s", dir, filename);
-		//LeaveCriticalSection(&critAccessLocations);
-
+		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, &LoadingThreadParameter, 0, NULL);
 
 	}
 
@@ -925,14 +923,15 @@ void UpdateProgressBar(int progress)	//dummy for the progress bar
 }
 
 //This is the thread that loads the file
-DWORD WINAPI LoadingThread(void *filename)
+DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *ltParam)
 {
+
 	UpdateStatusBar("Loading file...", 0, 0);
-	printf("\nLoading thread %s",filename);
+	printf("\nLoading thread %s",ltParam->loadfilebuffer);
 
     EnterCriticalSection(&critAccessLocations);
 
-	LoadLocations(&locationHistory, filename, UpdateProgressBar);
+	LoadLocations(&locationHistory, ltParam->loadfilebuffer, UpdateProgressBar);
 
 
 	//Once loaded, tell the windows they can update
