@@ -685,9 +685,6 @@ int OpenFiles(void)
 {
 	OPENFILENAME ofn;
 	char buffer[2048];
-	char dir[MAX_PATH];
-	char filename[MAX_PATH];
-	char fullpath[MAX_PATH];
 //	int offset;
 
 	memset(&ofn, 0, sizeof(ofn));
@@ -706,46 +703,10 @@ int OpenFiles(void)
 		return 0;
 	}
 
-//	printf("\nBuffer:%s %i",buffer, ofn.nFileOffset);
-
 	//copy this info to the global variable, so it can be loaded by the loading thread
 	LoadingThreadParameter.nFileOffset = ofn.nFileOffset;
 	memcpy(LoadingThreadParameter.loadfilebuffer, buffer, 2048);
-
-	memcpy(dir, buffer, ofn.nFileOffset);
-	dir[ofn.nFileOffset] = 0;
-
-	while (buffer[ofn.nFileOffset])	{
-		strcpy(filename, buffer+ofn.nFileOffset);
-		ofn.nFileOffset+=strlen(filename)+1;
-
-//    	EnterCriticalSection(&critAccessLocations);
-		sprintf(fullpath, "%s%s", dir, filename);
-//		LeaveCriticalSection(&critAccessLocations);
-		printf("\nDir: %sFilename:%s %i %i\n%s",  dir,filename, ofn.nFileOffset, buffer[ofn.nFileOffset], fullpath);
-
-
-
-typedef int (__cdecl *MYPROC)(int, char *);
-HMODULE lib;
-MYPROC procSHAddToRecentDocs;
-
-lib = LoadLibrary("Shell32.dll");
-//printf("\nlib: %i",lib);
-if (lib)	{
-	procSHAddToRecentDocs = (MYPROC)GetProcAddress(lib, "SHAddToRecentDocs");
-}
-//printf("\nproc: %i",proc);
-#define SHARD_PATHA 2
-
-if (procSHAddToRecentDocs)	{
-	(procSHAddToRecentDocs)(SHARD_PATHA, fullpath);
-}
-
-		printf("\n%s", fullpath);
-		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, &LoadingThreadParameter, 0, NULL);
-
-	}
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, &LoadingThreadParameter, 0, NULL);
 
 	return 1;
 }
@@ -760,12 +721,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 		case IDM_OPEN:
 			OpenFiles();
-
-//			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal)))	{
-//				printf("\nFilename:%s", optionsPreview.jsonfilenamefinal);
-//				CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
-//			}
-				return;
+			return;
 
 		break;
 
@@ -925,13 +881,54 @@ void UpdateProgressBar(int progress)	//dummy for the progress bar
 //This is the thread that loads the file
 DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *ltParam)
 {
+	char dir[MAX_PATH];
+	char filename[MAX_PATH];
+	char fullpath[MAX_PATH];
 
 	UpdateStatusBar("Loading file...", 0, 0);
-	printf("\nLoading thread %s",ltParam->loadfilebuffer);
+
+	memcpy(dir, ltParam->loadfilebuffer, ltParam->nFileOffset);
+	dir[ltParam->nFileOffset] = 0;
+	if (dir[ltParam->nFileOffset-1]!='\\')	{
+//		printf("noslash %c %i",dir[ltParam->nFileOffset-1],ltParam->nFileOffset);
+		dir[ltParam->nFileOffset-1]='\\';
+		dir[ltParam->nFileOffset]=0;
+	}
+
+	while (ltParam->loadfilebuffer[ltParam->nFileOffset])	{
+		strcpy(filename, ltParam->loadfilebuffer+ltParam->nFileOffset);
+		ltParam->nFileOffset+=strlen(filename)+1;
+
+		sprintf(fullpath, "%s%s", dir, filename);
+//		printf("\nDir: %s\nFilename:%s %i",  dir,filename, ltParam->nFileOffset);
+
+
+
+		typedef int (__cdecl *MYPROC)(int, char *);
+		HMODULE lib;
+		MYPROC procSHAddToRecentDocs;
+
+		lib = LoadLibrary("Shell32.dll");
+		//printf("\nlib: %i",lib);
+		if (lib)	{
+			procSHAddToRecentDocs = (MYPROC)GetProcAddress(lib, "SHAddToRecentDocs");
+		}
+		//printf("\nproc: %i",proc);
+		#define SHARD_PATHA 2
+
+		if (procSHAddToRecentDocs)	{
+			(procSHAddToRecentDocs)(SHARD_PATHA, fullpath);
+		}
+
+		printf("\nFull path%s", fullpath);
 
     EnterCriticalSection(&critAccessLocations);
+	LoadLocations(&locationHistory, fullpath, UpdateProgressBar);
+	LeaveCriticalSection(&critAccessLocations);
 
-	LoadLocations(&locationHistory, ltParam->loadfilebuffer, UpdateProgressBar);
+	}
+
+
 
 
 	//Once loaded, tell the windows they can update
@@ -946,7 +943,7 @@ DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *ltParam)
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 	InvalidateRect(hwndDateSlider, NULL, 0);
-	LeaveCriticalSection(&critAccessLocations);
+
 	return 0;
 }
 

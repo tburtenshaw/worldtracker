@@ -149,6 +149,10 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 			hwndImportDetails = CreateWindow("Edit","Information", ES_READONLY|ES_MULTILINE|WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 250, height *6, hwnd, 0, hInst, NULL);
 
 			break;
+		case WT_WM_TAB_RESETCONTENT:
+			SendMessage(hwndImportList, LB_RESETCONTENT, 0, 0);
+			break;
+
 		case WT_WM_TAB_ADDLASTIMPORTEDFILE:
 			LOCATIONHISTORY *lh;
 			IMPORTEDFILE *importedFile;
@@ -172,9 +176,15 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 		case WT_WM_TAB_UPDATEINFO:
 			{
 			char importDetails[1024];
+			if (wParam<0)	{	//if there's not really a file
+				sprintf(importDetails, "Nothing selected");
+				Edit_SetText(hwndImportDetails, importDetails);
+				return 0;
+			}
 			IMPORTEDFILE * importedFile;
 			importedFile = GetInputFileByIndex(&locationHistory, wParam);
 			sprintf(importDetails, "Filename: %s\r\nSize: %i bytes", importedFile->fullFilename, importedFile->filesize);
+			printf("\nInfo: %i", wParam);
 			Edit_SetText(hwndImportDetails, importDetails);
 			}
 			break;
@@ -189,10 +199,11 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 					int id =SendMessage((HWND)lParam, LB_GETCURSEL, 0,0);
 					printf("\nDELETE %i", id);
 					if (id<0)	{	//if nothing is selected, don't do anything
+						SendMessage(hwnd, WT_WM_TAB_UPDATEINFO, id, 0);
 						return -1;
 					}
 					DeleteInputFile(&locationHistory, id);
-					SendMessage(hwndImportList, LB_DELETESTRING, min(id,locationHistory.numinputfiles-1), 0);
+					SendMessage(hwndImportList, LB_DELETESTRING, min(id,locationHistory.numinputfiles), 0);
 					SendMessage(hwndImportList, LB_SETCURSEL, id, 0);
 					SendMessage(hwnd, WT_WM_TAB_UPDATEINFO, id, 0);
 					SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
