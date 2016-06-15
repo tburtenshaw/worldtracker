@@ -109,6 +109,9 @@ BM previewBM;
 extern HWND hwndTabImport;
 extern HWND hwndTabExport;
 
+//File loading
+char loadFilesQueue[MAX_PATH];
+
 //Mouse dragging
 POINT overviewOriginalPoint;
 POINT previewOriginalPoint;
@@ -269,8 +272,9 @@ int GetFileName(char *buffer,int buflen)
 	strcpy(buffer, "*.json; *.log; *.csv");
 
 
-	ofn.Flags = OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;//OFN_ALLOWMULTISELECT;
+	ofn.Flags = OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY|OFN_ALLOWMULTISELECT|OFN_EXPLORER;
 	ofn.lpstrFilter = "All Files (*.*)\0*.*\0All Supported Files (*.json; *.log; *.csv)\0*.json;*.log;*.csv\0Google History JSON Files (*.json)\0*.json\0Canon Camera NMEA Files (*.log)\0*.log\0Backitude CSV Files (*.csv)\0*.csv\0\0";
+
 	return GetOpenFileName(&ofn);
 
 }
@@ -678,7 +682,75 @@ BOOL _stdcall AboutDlg(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+int OpenFiles(void)
+{
+	OPENFILENAME ofn;
+	char buffer[2048];
+	char dir[MAX_PATH];
+	char filename[MAX_PATH];
+	char fullpath[MAX_PATH];
+//	int offset;
 
+	memset(&ofn, 0, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hInstance = GetModuleHandle(NULL);
+	ofn.hwndOwner = GetActiveWindow();
+	ofn.lpstrFile = buffer;
+	ofn.nMaxFile = 2048;
+	ofn.lpstrTitle = "Import";
+	ofn.nFilterIndex = 2;
+	strcpy(buffer, "*.json; *.log; *.csv");
+	ofn.Flags = OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY|OFN_ALLOWMULTISELECT|OFN_EXPLORER;
+	ofn.lpstrFilter = "All Files (*.*)\0*.*\0All Supported Files (*.json; *.log; *.csv)\0*.json;*.log;*.csv\0Google History JSON Files (*.json)\0*.json\0Canon Camera NMEA Files (*.log)\0*.log\0Backitude CSV Files (*.csv)\0*.csv\0\0";
+
+	if (!GetOpenFileName(&ofn))	{
+		return 0;
+	}
+
+	printf("\nBuffer:%s %i",buffer, ofn.nFileOffset);
+
+	memcpy(dir, buffer, ofn.nFileOffset);
+	dir[ofn.nFileOffset] = 0;
+
+	while (buffer[ofn.nFileOffset])	{
+		strcpy(filename, buffer+ofn.nFileOffset);
+		ofn.nFileOffset+=strlen(filename)+1;
+
+//    	EnterCriticalSection(&critAccessLocations);
+		sprintf(fullpath, "%s%s", dir, filename);
+//		LeaveCriticalSection(&critAccessLocations);
+		printf("\nDir: %sFilename:%s %i %i\n%s",  dir,filename, ofn.nFileOffset, buffer[ofn.nFileOffset], fullpath);
+
+
+
+typedef int (__cdecl *MYPROC)(int, char *);
+HMODULE lib;
+MYPROC procSHAddToRecentDocs;
+
+lib = LoadLibrary("Shell32.dll");
+//printf("\nlib: %i",lib);
+if (lib)	{
+	procSHAddToRecentDocs = (MYPROC)GetProcAddress(lib, "SHAddToRecentDocs");
+}
+//printf("\nproc: %i",proc);
+#define SHARD_PATHA 2
+
+if (procSHAddToRecentDocs)	{
+	(procSHAddToRecentDocs)(SHARD_PATHA, fullpath);
+}
+
+		printf("\n%s", fullpath);
+		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, fullpath, 0, NULL);
+
+    	//EnterCriticalSection(&critAccessLocations);
+		//sprintf(fullpath, "%s%s", dir, filename);
+		//LeaveCriticalSection(&critAccessLocations);
+
+
+	}
+
+	return 1;
+}
 
 void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 {
@@ -689,9 +761,14 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			break;
 
 		case IDM_OPEN:
-			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal))==0)
+			OpenFiles();
+
+//			if (GetFileName(&optionsPreview.jsonfilenamefinal[0],sizeof(optionsPreview.jsonfilenamefinal)))	{
+//				printf("\nFilename:%s", optionsPreview.jsonfilenamefinal);
+//				CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadingThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
+//			}
 				return;
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)LoadKMLThread, &optionsPreview.jsonfilenamefinal ,0,NULL);
+
 		break;
 
 		case IDM_SAVE:
@@ -707,6 +784,7 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			memset(&locationHistory,0,sizeof(locationHistory));
 			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndTabImport, WT_WM_TAB_RESETCONTENT, 0, 0);
 			InvalidateRect(hwndDateSlider, NULL, 0);
 		break;
 
@@ -847,16 +925,15 @@ void UpdateProgressBar(int progress)	//dummy for the progress bar
 }
 
 //This is the thread that loads the file
-DWORD WINAPI LoadKMLThread(void *JSONfilename)
+DWORD WINAPI LoadingThread(void *filename)
 {
 	UpdateStatusBar("Loading file...", 0, 0);
+	printf("\nLoading thread %s",filename);
 
-//    EnterCriticalSection(&critAccessLocations);
+    EnterCriticalSection(&critAccessLocations);
 
-//	FreeLocations(&locationHistory);	//first free any locations
-	LoadLocations(&locationHistory, JSONfilename, UpdateProgressBar);
+	LoadLocations(&locationHistory, filename, UpdateProgressBar);
 
-//	LeaveCriticalSection(&critAccessLocations);
 
 	//Once loaded, tell the windows they can update
     UpdateStatusBar("Ready", 0, 0);
@@ -870,6 +947,7 @@ DWORD WINAPI LoadKMLThread(void *JSONfilename)
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
 	InvalidateRect(hwndDateSlider, NULL, 0);
+	LeaveCriticalSection(&critAccessLocations);
 	return 0;
 }
 

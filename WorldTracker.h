@@ -80,7 +80,7 @@ long hbmQueueSize;	//this is increased when a thread is created, so the thread c
 CRITICAL_SECTION critAccessLocations;
 CRITICAL_SECTION critAccessPreviewHBitmap;
 
-DWORD WINAPI LoadKMLThread(void *LoadKMLThreadData);
+DWORD WINAPI LoadingThread(void *LoadingThreadData);
 DWORD WINAPI ThreadSaveKML(OPTIONS *info);
 DWORD WINAPI ThreadSetHBitmap(long queuechit);	//we actually only take someone from the back of the queue
 
