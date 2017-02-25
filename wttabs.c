@@ -12,10 +12,12 @@ extern WORLDREGION * regionFirst;
 extern OPTIONS optionsPreview;
 extern LOCATIONHISTORY locationHistory;
 
+//likely to be shared extern-ally
 HWND hwndTabImport;
 HWND hwndTabExport;
 HWND hwndTabStatistics;
 HWND hwndTabRegions;
+HWND hwndTabGraphs;
 
 //Only ever local
 HWND hwndTabExportHeightEdit;
@@ -81,6 +83,19 @@ int InitTabWindowClasses(void)
 	if (!RegisterClass(&wc))
 		return 0;
 
+	memset(&wc,0,sizeof(WNDCLASS));
+	wc.style = CS_DBLCLKS ;
+	wc.lpfnWndProc = (WNDPROC)TabGraphsWndProc;
+	wc.hInstance = hInst;
+	wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
+	wc.cbWndExtra = 4;
+	wc.lpszClassName = "TabGraphs";
+	wc.lpszMenuName = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hIcon = NULL;
+	if (!RegisterClass(&wc))
+		return 0;
+
 
 	return 1;
 }
@@ -93,7 +108,7 @@ int CreateTabsAndTabWindows(HWND hwnd)
 	RECT rectTab;
 	RECT rectWnd;
 
-	int windowleft, windowbottom, windowwidth, windowheight;
+//	int windowleft, windowbottom, windowwidth, windowheight; //(not needed)
 
     tab1Data.mask=TCIF_TEXT;
     tab1Data.pszText="Import";
@@ -126,6 +141,7 @@ int CreateTabsAndTabWindows(HWND hwnd)
 	hwndTabExport = CreateWindow("TabExport", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	hwndTabRegions = CreateWindow("TabRegions", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	hwndTabStatistics = CreateWindow("TabStatistics", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
+	hwndTabGraphs = CreateWindow("TabGraphs", NULL, WS_CHILD, rectWnd.left, rectTab.bottom, rectWnd.right, rectWnd.bottom-rectTab.bottom, hwnd, NULL, hInst, NULL);
 	return 0;
 }
 
@@ -351,7 +367,7 @@ int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight)
 }
 
 
-
+//REGION TAB
 LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch (msg) {
@@ -362,7 +378,8 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		x=margin;y=margin;
 //		CreateWindow("Static","Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 100, height, hwnd, 0, hInst, NULL);
 //		y+=height+margin;
-		hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_LIST|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 100, height*8, hwnd, 0, hInst, NULL);
+		hwndRegionList = CreateWindow(WC_LISTBOX,"Regions:", WS_CHILD | WS_VISIBLE | WS_BORDER|LVS_REPORT|LBS_NOTIFY|LBS_WANTKEYBOARDINPUT, x, y, 100, height*8, hwnd, 0, hInst, NULL);
+		ShowScrollBar(hwndRegionList,SB_VERT,TRUE);
 
 		WORLDREGION * r;
 		char szRegionName[256];
@@ -381,6 +398,22 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 		}
 		break;
 
+
+	case WT_WM_TAB_REGIONADDTOLIST:
+		r=(void*)lParam;
+
+		if (r->title)	{
+			sprintf(szRegionName, r->title);
+		}
+		else if (r->type == REGIONTYPE_EXCLUSION)	{
+			sprintf(szRegionName, "Exclusion");
+ 		}
+		printf("\n%s",szRegionName);
+
+
+		SendMessage(hwndRegionList, LB_INSERTSTRING, -1, (LPARAM)szRegionName);
+		break;
+
 	case WM_VKEYTOITEM:
 		//printf("\nChar: %i", LOWORD(wParam));
 		switch (LOWORD(wParam))	{
@@ -396,33 +429,27 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 				SendMessage(hwndRegionList, LB_SETCURSEL, id-result, 0);
 				SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
 				return -1;
-			case VK_INSERT:
+			case VK_INSERT:	//temp to view regions
 				r=regionFirst;
 				int i;
-			i=0;
-		while (r)	{
-			printf("\n%i",i);
-			i++;
-			if (r->title)	{
-				printf(r->title);
-			}
-			else if (r->type == REGIONTYPE_EXCLUSION)	{
-				printf("Exclusion");
-			}
-			printf("%f",r->nswe.north);
-			r=r->next;
-		}
-
-				break;
-
+				i=0;
+				while (r)	{
+					printf("\n%i",i);
+					i++;
+					if (r->title)	{
+						printf(r->title);
+					}
+					else if (r->type == REGIONTYPE_EXCLUSION)	{
+						printf("Exclusion");
+					}
+					printf("%f",r->nswe.north);
+					r=r->next;
+				}
 			break;
 				default:
 					return DefWindowProc(hwnd,msg,wParam,lParam);
 			}
-
 			break;
-
-
 
 	default:
 		return DefWindowProc(hwnd,msg,wParam,lParam);
@@ -444,6 +471,32 @@ LRESULT CALLBACK TabStatisticsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lP
 		y+=height+margin;
 		CreateWindow("Static","Total distance:", WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 120, height, hwnd, 0, hInst, NULL);
 		y+=height+margin;
+
+		break;
+
+
+	default:
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+	}
+
+		return DefWindowProc(hwnd,msg,wParam,lParam);
+}
+
+//Graphs tab
+LRESULT CALLBACK TabGraphsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (msg) {
+	case WM_CREATE:
+		int x,y;
+		const int margin=10;
+		const int height=20;
+		x=margin;y=margin;
+		HWND hwndGraph = CreateWindow("MainGraph",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 400, 400, hwnd, 0, hInst, NULL);
+
+			//SendMessage(hwndGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
+			SendMessage(hwndGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
+			SendMessage(hwndGraph, WT_WM_GRAPH_REDRAW, 0, 0);
+
 
 		break;
 
@@ -496,6 +549,14 @@ LRESULT CALLBACK MainWndProc_OnTabNotify(HWND hwnd, int id, NMHDR * nmh)
 					}	else	{
 						ShowWindow(hwndTabStatistics, SW_HIDE);
 					}
+
+					if (n==TAB_GRAPHS)	{
+						ShowWindow(hwndTabGraphs, SW_SHOW);
+					}	else	{
+						ShowWindow(hwndTabGraphs, SW_HIDE);
+					}
+
+
 
 
                     break;

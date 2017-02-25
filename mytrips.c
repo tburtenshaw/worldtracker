@@ -125,7 +125,7 @@ int LoadLocations(LOCATIONHISTORY *locationHistory, char *jsonfilename, void(*pr
 	long twofiftysixth;
 
 	//get the file size, then reset the position
-	fseek(locationHistory->json,0, SEEK_END);
+	fseek(locationHistory->json, 0, SEEK_END);
 	locationHistory->filesize = ftell(locationHistory->json);
 	rewind(locationHistory->json);
 	locationHistory->filepos=0;

@@ -10,6 +10,8 @@
 #define WT_WM_TAB_ADDLASTIMPORTEDFILE (WM_APP+8)
 #define WT_WM_TAB_UPDATEINFO (WM_APP+9)
 #define WT_WM_TAB_RESETCONTENT (WM_APP+10)
+#define WT_WM_TAB_REGIONADDTOLIST (WM_APP+11)	//adds a specific region to the end of the list box
+
 
 #define WT_WM_GRAPH_REDRAW (WM_APP+100)
 #define WT_WM_GRAPH_RECALCDATA (WM_APP+101)

@@ -108,7 +108,7 @@ BM previewBM;
 
 extern HWND hwndTabImport;
 extern HWND hwndTabExport;
-
+extern HWND hwndTabRegions;
 
 
 //Mouse dragging
@@ -212,13 +212,9 @@ LRESULT MsgMenuSelect(HWND hwnd, UINT uMessage, WPARAM wparam, LPARAM lparam)
 
 void InitializeStatusBar(HWND hwndParent,int nrOfParts)
 {
-    //const int cSpaceInBetween = 8;
 	int   ptArray[3];   // Array defining the number of parts/sections
     RECT  rect;
 
-   /* * Fill in the ptArray...  */
-
-//    hDC = GetDC(hwndParent);
     GetClientRect(hwndParent, &rect);
 
     ptArray[0] = rect.right/2;
@@ -236,7 +232,6 @@ void InitializeStatusBar(HWND hwndParent,int nrOfParts)
 
 //	SendMessage(hWndStatusbar, SB_SETTEXT,1, (LPARAM)L"Ready");
 
-//    ReleaseDC(hwndParent, hDC);
 }
 
 
@@ -764,6 +759,20 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
 
+		case IDM_CREATEREGIONFROMVIEW:
+			printf("\nCreate region from view");
+			COLOUR c;
+
+			c.R = 25;
+			c.G = 250;
+			c.B = 70;
+			c.A=115;
+
+			regionLast = CreateRegionAfter(regionLast, &optionsPreview.nswe, "Home", REGIONTYPE_HOME, &c, &regionFirst);
+			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
+			SendMessage(hwndTabRegions,WT_WM_TAB_REGIONADDTOLIST,0,(LPARAM)regionLast);
+			break;
+
 
 		case ID_EDITNORTH:
 		case ID_EDITSOUTH:
@@ -926,6 +935,10 @@ DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *ltParam)
 	LoadLocations(&locationHistory, fullpath, UpdateProgressBar);
 	LeaveCriticalSection(&critAccessLocations);
 
+	//Add to listbox
+	SendMessage(hwndTabImport, WT_WM_TAB_ADDLASTIMPORTEDFILE, 0, (LPARAM)&locationHistory);
+	//Queue redraw
+
 	}
 
 
@@ -937,11 +950,12 @@ DWORD WINAPI LoadingThread(LOADINGTHREADPARAMETER *ltParam)
 	optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
 	optionsPreview.totimestamp = locationHistory.latesttimestamp;
 
-
-	SendMessage(hwndTabImport, WT_WM_TAB_ADDLASTIMPORTEDFILE, 0, (LPARAM)&locationHistory);
-	UpdateDateControlsFromOptions(&optionsPreview);
 	SendMessage(hwndOverview, WT_WM_RECALCBITMAP, 0,0);
 	SendMessage(hwndPreview, WT_WM_RECALCBITMAP, 0,0);
+
+
+	UpdateDateControlsFromOptions(&optionsPreview);
+
 	InvalidateRect(hwndDateSlider, NULL, 0);
 
 	return 0;
@@ -2185,12 +2199,9 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			hMenu = CreatePopupMenu();
 			InsertMenu(hMenu, 0, MF_BYPOSITION|MF_STRING, IDM_ZOOMALL, "Zoom to whole world");
 			InsertMenu(hMenu, 1, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Zoom to fit all points");
-			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_CREATEREGION, "Create region from view");
+			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_CREATEREGIONFROMVIEW, "Create region from view");
 			InsertMenu(hMenu, 3, MF_BYPOSITION|MF_STRING, IDM_EXPORTPNG, "Export image to PNG file");
 			TrackPopupMenu(hMenu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0, hwnd, NULL);
-			SendMessage(hwndMainGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
-			SendMessage(hwndMainGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
-			SendMessage(hwndMainGraph, WT_WM_GRAPH_REDRAW, 0, 0);
 			break;
 		case WM_COMMAND:
 			HANDLE_WM_COMMAND(hwnd,wParam,lParam,MainWndProc_OnCommand);	//note we use the same as the main window, to make things central

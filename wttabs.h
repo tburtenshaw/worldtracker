@@ -20,3 +20,4 @@ LRESULT CALLBACK TabRegionsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 
 LRESULT CALLBACK TabStatisticsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
+LRESULT CALLBACK TabGraphsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
