@@ -491,12 +491,11 @@ LRESULT CALLBACK TabGraphsWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 		const int margin=10;
 		const int height=20;
 		x=margin;y=margin;
-		HWND hwndGraph = CreateWindow("MainGraph",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 400, 400, hwnd, 0, hInst, NULL);
+		HWND hwndGraph = CreateWindow("MainGraph",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, 400, 120, hwnd, 0, hInst, NULL);
 
 			//SendMessage(hwndGraph, WT_WM_GRAPH_SETREGION, (WPARAM)&previewRegion, 0);
 			SendMessage(hwndGraph, WT_WM_GRAPH_RECALCDATA, 0, 0);
 			SendMessage(hwndGraph, WT_WM_GRAPH_REDRAW, 0, 0);
-
 
 		break;
 

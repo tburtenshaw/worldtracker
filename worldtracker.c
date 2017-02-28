@@ -280,6 +280,7 @@ void InitiateColours(void)
 	cBlack.A=0xFF;
 
 	cWhite.R=cWhite.G=cWhite.B=cWhite.A=0xFF;
+	cRed.R=0xFF;cRed.G=0;cRed.B=0; cRed.A=0xFF;
 
 	cDaySwatch[0].R=0x32;	cDaySwatch[0].G=0x51;	cDaySwatch[0].B=0xA7;	cDaySwatch[0].A=0xFF;
 	cDaySwatch[1].R=0xc0;	cDaySwatch[1].G=0x46;	cDaySwatch[1].B=0x54;	cDaySwatch[1].A=0xFF;

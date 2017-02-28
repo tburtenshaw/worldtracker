@@ -73,8 +73,10 @@ HWND hwndColourSwatchDay[7];
 HWND hwndColourSwatchMonth[12];
 COLOUR cDaySwatch[7];
 COLOUR cMonthSwatch[12];
+//Global colours
 COLOUR cBlack;
 COLOUR cWhite;
+COLOUR cRed;
 
 OPTIONS optionsExport;
 

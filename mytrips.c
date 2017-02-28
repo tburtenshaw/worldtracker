@@ -2289,10 +2289,10 @@ int MakeProperFilename(char *targetstring, char *source, char *def, char *ext)
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2)	//let's say 1=origin, 2=destination
 {
 	//convert to radians
-	lat1*=PI/180;
-	long1*=PI/180;
-	lat2*=PI/180;
-	long2*=PI/180;
+	lat1*=PI/180.0;
+	long1*=PI/180.0;
+	lat2*=PI/180.0;
+	long2*=PI/180.0;
 
 	double deltalat=lat2-lat1;
 	double deltalong = long2-long1;
@@ -2300,14 +2300,35 @@ double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2
 	//double a = PI/2 - lat1;
 	//double b = PI/2 - lat2;
 	//double u = a * a + b * b;
-//		printf("%f ",deltalong);
 
 	//double v = -2 * a * b * cos(long2 - long1);
 	//double c = sqrt(abs(u + v));
 
 	double c=sqrt( (deltalat*deltalat) + ((cos(meanlat)*deltalong)*(cos(meanlat)*deltalong)) );
+	//printf("%f ",deltalong);
+
 	return EARTH_MEAN_RADIUS_KM*1000 * c;
 }
+
+
+double MetersApartHaversine(double lat1, double long1, double lat2, double long2)
+{
+	//convert to radians
+	lat1*=PI/180.0;
+	long1*=PI/180.0;
+	lat2*=PI/180.0;
+	long2*=PI/180.0;
+
+    double deltalat = abs(lat1 - lat2);
+    double deltalong = abs(long1 - long2);
+
+    double a = pow(sin(deltalat / 2), 2) + cos(lat1) * cos(lat2) * pow(sin(deltalong / 2), 2);
+
+    double dsigma = 2 * asin(sqrt(a));
+
+    return EARTH_MEAN_RADIUS_KM*1000 * dsigma;
+}
+
 
 int CopyNSWE(NSWE *dest, NSWE *src)
 {
@@ -2652,6 +2673,82 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 
 
 	return 1;
+}
+
+void GraphLine(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, COLOUR *cDataColour, int numberofpoints, double *xarray, double *yarray)
+{
+	int x,y;	//used in loops
+	int i;
+
+	double rangex,rangey;
+	double xfactor,yfactor;
+	int xtranslate,ytranslate;
+
+	if (cBackground)	{
+		for (x=0;x<bm->width; x++)	{
+			for (y=0;y<bm->height; y++)	{
+				bitmapPixelSet(bm, x,y, cBackground);
+			}
+		}
+	}
+
+	//if there's no points, no point continuing
+	if (numberofpoints<1) {
+		return;
+	}
+
+
+//	printf("\nBefore: xmin %f,ymin %f, xmax %f, ymax %f, rangex %f",minx,miny,maxx,maxy,rangex);
+	//find the bounds of x
+	if (minx-maxx<1)	{	//if they're both zero, or otherwise the same, it'll be automatic
+		printf("\nFinding min and max x");
+		minx= 1000000000000;
+		maxx=-1000000000000;
+		for (i=0;i<numberofpoints; i++)	{
+			if (isfinite(xarray[i]))	{
+				if (minx>xarray[i]) minx=xarray[i];
+				if (maxx<xarray[i]) maxx=xarray[i];
+			}
+		}
+	}
+
+	if (miny-maxy<1)	{	//if they're both zero, or otherwise the same, it'll be automatic
+		printf("\nFinding min and max y");
+		miny= 1000000000000;
+		maxy=-1000000000000;
+		for (i=0;i<numberofpoints; i++)	{
+			if (isfinite(yarray[i]))	{
+				if (miny>yarray[i]) miny=yarray[i];
+				if (maxy<yarray[i]) maxy=yarray[i];
+			}
+		}
+	}
+
+	rangex=maxx-minx;
+	rangey=maxy-miny;
+
+	xfactor=bm->width/rangex;
+	yfactor=bm->height/rangey;
+
+	//translation occurs before scaling
+	xtranslate=-minx;
+	ytranslate=-miny;
+
+	printf("\nxmin %f,ymin %f, xmax %f, ymax %f, rangex %f",minx,miny,maxx,maxy,rangex);
+
+	//Plot the points
+	for (i=0;i<numberofpoints; i++)	{
+		x=(xarray[i]+xtranslate)*xfactor;
+		y=bm->height-1 - (yarray[i]+ytranslate)*yfactor;
+
+		bitmapPixelSet(bm, x, y, cDataColour);
+	//	printf("b%i %i %i, x,y:%f,%f",i,x,y,xarray[i],yarray[i]);
+	}
+
+
+
+
+	return;
 }
 
 //This will plot an axis (if required) then a list of x and y values

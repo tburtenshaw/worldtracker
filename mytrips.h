@@ -290,7 +290,7 @@ double fpart(double x);
 double rfpart(double x);
 
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
-
+double MetersApartHaversine(double lat1, double long1, double lat2, double long2);
 
 
 WORLDREGION * CreateRegionAfter(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c, WORLDREGION ** pRegionHead);
@@ -310,6 +310,9 @@ int FreeLinkedListOfStays(STAY * stay);
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
 	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *), void(*ylabelfn)(double, char *),\
 	 COLOUR *cDataColour, int markerwidth, int numberofpoints, double *xarray, double *yarray);
+
+void GraphLine(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, COLOUR *cDataColour, int numberofpoints, double *xarray, double *yarray);
+
 
 void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString);
 void labelfnTimeOfDayFromSeconds(double seconds, char * outputString);
