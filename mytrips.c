@@ -1501,7 +1501,7 @@ int DrawListOfRegions(BM *bm, WORLDREGION *first)
 }
 
 
-int bitmapWrite(BM *bm, char *filename)
+int bitmapWrite(BM *bm, char *filename)	//this writes as a raw file
 {
 	FILE* outputfile;
 	int i;

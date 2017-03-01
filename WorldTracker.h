@@ -111,6 +111,8 @@ LRESULT CALLBACK ColourByMonthWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lP
 
 int	mouseDragDateSlider;
 
+int DialogHBMtoPNG(HWND hwnd, BM * bm, char *recommendedname);
+
 int UpdateEditNSWEControls(NSWE * d);
 int UpdateBarsFromNSWE(NSWE * d);
 //int UpdateExportAspectRatioFromOptions(OPTIONS * o, int forceHeight);

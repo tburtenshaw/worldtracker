@@ -759,6 +759,9 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			UpdateBarsFromNSWE(&optionsPreview.nswe);
 			UpdateEditNSWEControls(&optionsPreview.nswe);
 		break;
+		case IDM_EXPORTPNG:
+			DialogHBMtoPNG(hwnd, &previewBM, "test.png");
+			break;
 
 		case IDM_CREATEREGIONFROMVIEW:
 			printf("\nCreate region from view");
@@ -1430,7 +1433,7 @@ int ExportGPXDialogAndComplete(HWND hwnd, LOCATIONHISTORY *lh)
 	ofn.nMaxFile = MAX_PATH;
 	ofn.lpstrTitle = "Export GPX to...";
 	ofn.nFilterIndex = 1;
-	ofn.lpstrDefExt = "kml";
+	ofn.lpstrDefExt = "gpx";
 	ofn.Flags =OFN_OVERWRITEPROMPT;
 	ofn.lpstrFilter = "GPX files (*.gpx)\0*.gpx\0\0";
 
@@ -1456,7 +1459,7 @@ int ExportKMLDialogAndComplete(HWND hwnd, OPTIONS * o)
 	filename[0]=0;
 	ofn.lpstrFile = filename;
 	ofn.nMaxFile = MAX_PATH;
-	ofn.lpstrTitle = "Export to...";
+	ofn.lpstrTitle = "Export KML to...";
 	ofn.nFilterIndex = 1;
 	ofn.lpstrDefExt = "kml";
 	ofn.Flags =OFN_OVERWRITEPROMPT;
@@ -3422,3 +3425,34 @@ int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * 
 }
 
 
+int DialogHBMtoPNG(HWND hwnd, BM * bm, char *recommendedname)
+{
+	char filename[MAX_PATH];
+	OPENFILENAME ofn;
+
+	sprintf(filename, recommendedname);
+
+	memset(&ofn,0,sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hwnd;
+	ofn.hInstance = hInst;
+	filename[0]=0;
+	ofn.lpstrFile = filename;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrTitle = "Export PNG to...";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrDefExt = "png";
+	ofn.Flags =OFN_OVERWRITEPROMPT;
+	ofn.lpstrFilter = "PNG files (*.png)\0*.png\0\0";
+
+
+	if (GetSaveFileName(&ofn)==0)
+		return 0;
+
+	printf(recommendedname);
+	int error = lodepng_encode32_file(filename, bm->bitmap, bm->width, bm->height);
+	if(error) fprintf(stderr, "LodePNG error %u: %s\n", error, lodepng_error_text(error));
+
+
+	return 0;
+}
