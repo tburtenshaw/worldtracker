@@ -1,6 +1,7 @@
 #include <time.h>
 #include <windows.h>
 #include <windowsx.h>
+#include "worldtrackerres.h"
 #include "mytrips.h"
 #include "worldtracker.h"
 #include "wtgraphs.h"
@@ -93,11 +94,18 @@ int DrawLineGraph(GRAPHINFO *gi)
 		}
 		if (xarray[i]==0)	{xarray[i]=loc->timestampS;}
 
-		//if (yarray[i]==0)	{yarray[i]=	MetersApartFlatEarth(-36.8485,174.7633, loc->latitude,loc->longitude);}
-		if (yarray[i]==0)	{yarray[i]=	MetersApartHaversine(-36.8485,174.7633, loc->latitude,loc->longitude);}
 
-		//if (yarray[i]==0)	{yarray[i]=loc->latitude;}
-		//if (yarray[i]==0)	{yarray[i]=loc->longitude;}
+		switch (gi->yAxisSeries)	{
+			case WT_SERIES_DISTANCE:
+				if (yarray[i]==0)	{yarray[i]=	MetersApartHaversine(-36.8485,174.7633, loc->latitude,loc->longitude);}
+				break;
+			case WT_SERIES_LATITUDE:
+				if (yarray[i]==0)	{yarray[i]=loc->latitude;}
+				break;
+			case WT_SERIES_LONGITUDE:
+				if (yarray[i]==0)	{yarray[i]=loc->longitude;}
+				break;
+		}
 		//if (yarray[i]==0)	{yarray[i]=loc->distancefromprev/loc->secondsfromprev;}
 
 		loc=loc->next;
@@ -443,6 +451,7 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		//info->xAxisSeries =WT_SERIES_WEEKDAY;
 		info->xAxisSeries = WT_SERIES_MONTH;//WT_SERIES_DAY;//WT_SERIES_TIMESTAMP;
 
+		info->yAxisSeries = WT_SERIES_LATITUDE;
 		info->graphType = WT_GRAPHTYPE_LINE;
 
 		break;
@@ -450,12 +459,21 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		printf("paint");
 		PaintMainGraph(hwnd, info);
 		break;
+	case WM_COMMAND:
+			HANDLE_WM_COMMAND(hwnd,wParam,lParam,GraphWndProc_OnCommand);	//note we use the same as the main window, to make things central
+
+
 	case WM_LBUTTONDOWN:
 		//if (info->colourSeries == WT_SERIES_DIRECTION)
 //			SendMessage(hwnd, WT_WM_GRAPH_SETSERIESCOLOR, WT_SERIES_WEEKDAY,0);
 //		else
 //			SendMessage(hwnd, WT_WM_GRAPH_SETSERIESCOLOR, WT_SERIES_DIRECTION,0);
 
+		if (info->yAxisSeries == WT_SERIES_LATITUDE)	{
+			SendMessage(hwnd, WT_WM_GRAPH_SETSERIESY, WT_SERIES_LONGITUDE,0);
+		}
+		else
+			SendMessage(hwnd, WT_WM_GRAPH_SETSERIESY, WT_SERIES_LATITUDE,0);
 
 		SendMessage(hwnd, WT_WM_GRAPH_RECALCDATA, 0,0);
 		SendMessage(hwnd, WT_WM_GRAPH_REDRAW, 0,0);
@@ -464,6 +482,14 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	case WT_WM_GRAPH_SETSERIESCOLOR:
 		info->colourSeries = wParam;
 		break;
+
+	case WT_WM_GRAPH_SETSERIESX:
+		info->xAxisSeries = wParam;
+		break;
+	case WT_WM_GRAPH_SETSERIESY:
+		info->yAxisSeries = wParam;
+		break;
+
 
 	case WT_WM_GRAPH_SETREGION:
 		info->region  =(WORLDREGION *)wParam;
@@ -489,6 +515,20 @@ LRESULT CALLBACK GraphWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 	}
 	return 0;
+}
+
+void GraphWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
+	switch(id) {
+		case IDM_EXPORTPNG:
+			GRAPHINFO * graphInfo;
+			graphInfo = (void*)GetWindowLong(hwnd, GWL_USERDATA);
+
+			DialogHBMtoPNG(hwnd, &graphInfo->bmGraph, "test.png");
+			break;
+	}
+
+	return;
 }
 
 
@@ -557,6 +597,9 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi)
 	tempOptions.height=height;
 	tempOptions.width=width;
 
+	if (gi->bmGraph.bitmap)	{	//destroy it, only before remaking
+		bitmapDestroy(&gi->bmGraph);
+	}
 	bitmapInit(&gi->bmGraph, &tempOptions, gi->locationHistory);
 
 	//Draw the graph depending on settings
@@ -592,7 +635,7 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi)
 
 	GdiFlush();
 
-	bitmapDestroy(&gi->bmGraph);
+	//bitmapDestroy(&gi->bmGraph);
 
 	gi->hbmGraph=bitmap;
 	return bitmap;
@@ -601,7 +644,16 @@ HBITMAP MakeHBitmapGraph(HWND hwnd, HDC hdc, GRAPHINFO * gi)
 void GraphContextMenu(HWND hwnd, HWND hwndContext, int xPos, int yPos)
 {
 	GRAPHINFO * graphInfo;
+	HMENU hMenu;
+
 	graphInfo = (void*)GetWindowLong(hwnd, GWL_USERDATA);
+
+	hMenu = CreatePopupMenu();
+	InsertMenu(hMenu, 0, MF_BYPOSITION|MF_STRING, 0, "Zoom to whole world");
+	InsertMenu(hMenu, 1, MF_BYPOSITION|MF_STRING, 0, "Zoom to fit all points");
+	InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_EXPORTPNG, "Export viewport to PNG file");
+	TrackPopupMenu(hMenu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON, xPos, yPos, 0, hwnd, NULL);
+
 
 //		TRIP * trip;
 //		trip = GetLinkedListOfTrips(&regionHome.nswe, &regionAway.nswe, pRegionFirstExcluded, &locationHistory);

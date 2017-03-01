@@ -30,8 +30,11 @@
 #define	WT_SERIES_MONTH 10
 #define WT_SERIES_TIMESTAMP 11
 #define WT_SERIES_DAY 12
-
 #define WT_SERIES_DIRECTION 13
+#define WT_SERIES_LATITUDE 14
+#define WT_SERIES_LONGITUDE 15
+#define WT_SERIES_DISTANCE 16
+#define WT_SERIES_SPEED 16
 
 typedef struct sGraphInfo GRAPHINFO;
 
@@ -74,4 +77,5 @@ int RecalculateData(GRAPHINFO * gi);
 int DrawScatterGraph(GRAPHINFO *gi);
 int DrawLineGraph(GRAPHINFO *gi);
 
+void GraphWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 void GraphContextMenu(HWND hwnd, HWND hwndContext, int xPos, int yPos);
