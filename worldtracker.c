@@ -135,7 +135,10 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
+//To intercept keys to the edit boxes
+WNDPROC DefEditProc;
 
+//The bitmaps to display the overview and preview
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
 HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit);
 
@@ -173,6 +176,39 @@ int numberOfPresets;
 void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 {
     SendMessage(hWndStatusbar, SB_SETTEXT, partNumber | displayFlags, (LPARAM)lpszStatusString);
+}
+
+//See here: https://cboard.cprogramming.com/windows-programming/67604-capture-enter-key-press-edit-box.html
+LRESULT EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
+			ShowWindow(hwndDropdownPreset, SW_SHOW);
+			switch (wParam)
+			{
+				case VK_DOWN:
+					SendMessage(hwndDropdownPreset, WT_WM_PRESETDOWN,0,0);
+					printf("down");
+				return FALSE;
+				case VK_UP:
+					SendMessage(hwndDropdownPreset, WT_WM_PRESETUP,0,0);
+					printf("up");
+				return FALSE;
+				case VK_RETURN:
+					SendMessage(hwndDropdownPreset, WT_WM_PRESETCHOSEN,0,0);
+					printf("enter");
+				return FALSE;
+				case VK_TAB:
+					printf("tab");
+			}
+
+		default:
+            return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+    }
+
+    return FALSE;
 }
 
 
@@ -1100,8 +1136,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	double value;	//to hold the textbox value
 	int needsRedraw;
 
-//	printf("\n%i", codeNotify);
+	//printf("\n%i", codeNotify);
 
+	//If the control in question gains focus
 	if (codeNotify == EN_SETFOCUS)	{
 		char szBuffer[256];
 		LoadString(hInst, id, szBuffer, sizeof(szBuffer));
@@ -1114,7 +1151,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		return 0;
 	}
 
-	if (codeNotify==EN_CHANGE)	{
+	else if (codeNotify==EN_CHANGE)	{
 	//If not in focus we shouldn't do anything with the change
 		if (hwndCtl!=GetFocus())
 			return 0;
@@ -1196,6 +1233,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 
 	}
+	else {
+		printf("\nNotification: %i", codeNotify);
+	}
 
 
 	return 0;
@@ -1207,7 +1247,9 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 	int x,y;
 	int row;
 	HDC hdc;
-	RECT redrawRect;
+	RECT redrawRect;	//the part to redraw, so we don't flicker
+
+	int keydirection;	//up =-1 or down = 1
 
 	switch (msg) {
 		case WM_CREATE:
@@ -1286,10 +1328,35 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 			break;
 
+
+		case WT_WM_PRESETCHOSEN:
+			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+
+
+			//stolen from mouse routine - need to merge
+			CopyNSWE(&optionsPreview.nswe, &DropDown->bestPresets[DropDown->highlightedPreset].nswe);
+
+			UpdateEditNSWEControls(&optionsPreview.nswe);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			//UpdateExportAspectRatioFromOptions(&optionsPreview,0);
+			InvalidateRect(hwndOverview, NULL, FALSE);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			SetWindowText(hwndEditPreset, DropDown->bestPresets[DropDown->highlightedPreset].name);
+//			SetFocus(NULL);	//by killing the focus, we can display the dropdown again later, but instead we'll bring up when typing
+
+
+			ShowWindow(hwnd, SW_HIDE);
+			ReleaseCapture();
+
+
+
+			break;
+
 		case WM_LBUTTONDOWN:
 			SetCapture(hwnd);
 			break;
-		case WM_LBUTTONUP:
+		case WM_LBUTTONUP:	//we've clicked on a place
 			y=GET_Y_LPARAM(lParam);
 			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
@@ -1303,7 +1370,7 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 				InvalidateRect(hwndOverview, NULL, FALSE);
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				SetWindowText(hwndEditPreset, DropDown->bestPresets[row].name);
-
+				//SetFocus(NULL);	//by killing the focus, we can display the dropdown again later
 
 			}
 			ShowWindow(hwnd, SW_HIDE);
@@ -1334,8 +1401,45 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 				DropDown->highlightedPreset = row;
 			}
-
 			break;
+
+		case WT_WM_PRESETDOWN:	//the keydown is pressed
+		case WT_WM_PRESETUP: //pressed up
+			if (msg == WT_WM_PRESETDOWN) {
+				keydirection=1;
+				}
+			else	{
+				keydirection=-1;
+			}
+			printf("key %i", keydirection);
+
+			DropDown = (DROPDOWNINFO *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+			//Redraw the old one
+			redrawRect.top=DropDown->highlightedPreset*DropDown->displayHeight;
+			redrawRect.bottom=(DropDown->highlightedPreset+1)*DropDown->displayHeight;
+			redrawRect.left=0;redrawRect.right=DropDown->displayWidth;
+			InvalidateRect(hwnd, &redrawRect, FALSE);
+
+
+
+			DropDown->highlightedPreset+=keydirection;
+			if (DropDown->highlightedPreset>=DropDown->numberPresets) {
+				DropDown->highlightedPreset=0;
+				}
+			else if (DropDown->highlightedPreset<0)	{
+				DropDown->highlightedPreset=DropDown->numberPresets-1;
+			}
+
+			//Then the new
+			redrawRect.top=DropDown->highlightedPreset*DropDown->displayHeight;
+			redrawRect.bottom=(DropDown->highlightedPreset+1)*DropDown->displayHeight;
+			redrawRect.left=0;redrawRect.right=DropDown->displayWidth;
+			InvalidateRect(hwnd, &redrawRect, FALSE);
+
+
+		break;
+
 
 		case WM_PAINT:
 			PAINTSTRUCT ps;
@@ -2482,8 +2586,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
 		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+
 		x+=TEXT_WIDTH_QUARTER+ MARGIN;
 		hwndEditPreset = CreateWindow("Edit", "Type a place",  WS_CHILD | WS_VISIBLE|WS_BORDER, x,y,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITPRESET, hInst, NULL);
+		//Change the WNDPROC of the edit window, so we can take control
+		DefEditProc = (WNDPROC)SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&EditProc); //We need to reverse this when the windows closes.
+
 		hwndDropdownPreset = CreateWindow("DropdownPreset", NULL,  WS_CHILD |WS_CLIPSIBLINGS| WS_BORDER, x,y+TEXT_HEIGHT,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT*5, hwnd, (HMENU)ID_DROPDOWNPRESET, hInst, NULL);
 
 		y+=MARGIN+TEXT_HEIGHT;
@@ -2599,6 +2707,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		return HANDLE_WM_NOTIFY(hwnd,wParam,lParam,MainWndProc_OnTabNotify);
 		break;
 	case WM_DESTROY:
+		SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&DefEditProc);
 		PostQuitMessage(0);
 		break;
 	default:
@@ -2668,6 +2777,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MSG msg;
 	HANDLE hAccelTable;
 
+	//This brings up a command console window
 	AllocConsole();
     freopen("conout$","w",stdout);
     freopen("conout$","w",stderr);
@@ -3294,8 +3404,8 @@ LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 			int y;
 			x=0;
 			y=0;
-			CreateWindow("Static", "Seconds", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, NULL, hInst, NULL);
-			x+=TEXT_WIDTH_QUARTER + MARGIN;
+			CreateWindow("Static", "Cycle time (seconds):", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_HALF, 20, hwnd, NULL, hInst, NULL);
+			x+=TEXT_WIDTH_HALF + MARGIN;
 			hwndEditColourCycle = CreateWindow("Edit","604800", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
 			y+=TEXT_HEIGHT+MARGIN;
 			x=0;

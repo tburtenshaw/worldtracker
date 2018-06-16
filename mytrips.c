@@ -2198,6 +2198,29 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="uy";preset[i].nswe.north=-30;preset[i].nswe.south=-35;preset[i].nswe.west=-59;preset[i].nswe.east=-53;preset[i].name="Uruguay";i++;
 	preset[i].abbrev="fk";preset[i].nswe.north=-51;preset[i].nswe.south=-52.5;preset[i].nswe.west=-61.5;preset[i].nswe.east=-57.6;preset[i].name="Falkland Islands";i++;
 	preset[i].abbrev="us_la_greaterneworleans";preset[i].nswe.north=30.4;preset[i].nswe.south=28.9;preset[i].nswe.west=-91;preset[i].nswe.east=-88.8;preset[i].name="Greater New Orleans";i++;
+	preset[i].abbrev="us_wa";preset[i].nswe.north=49;preset[i].nswe.south=46;preset[i].nswe.west=-125;preset[i].nswe.east=-117.05;preset[i].name="Washington";i++;
+	preset[i].abbrev="us_wa_greaterseattle";preset[i].nswe.north=47.8;preset[i].nswe.south= 47.25;preset[i].nswe.west=-122.55;preset[i].nswe.east=-121.8;preset[i].name="Greater Seattle";i++;
+	preset[i].abbrev="ca_bc";preset[i].nswe.north=60;preset[i].nswe.south=49;preset[i].nswe.west=-137.5;preset[i].nswe.east=-120;preset[i].name="British Columbia";i++;
+	preset[i].abbrev="ca_ab";preset[i].nswe.north=60;preset[i].nswe.south=49;preset[i].nswe.west=-120;preset[i].nswe.east=-110;preset[i].name="Alberta";i++;
+	preset[i].abbrev="ca_sk";preset[i].nswe.north=60;preset[i].nswe.south=49;preset[i].nswe.west=-110;preset[i].nswe.east=-101.8;preset[i].name="Saskatchewan";i++;
+	preset[i].abbrev="ca_mb";preset[i].nswe.north=60;preset[i].nswe.south=49;preset[i].nswe.west=-102;preset[i].nswe.east=-89;preset[i].name="Mannitoba";i++;
+
+	preset[i].abbrev="ca_ottawa";preset[i].nswe.north=45.52;preset[i].nswe.south=45.3;preset[i].nswe.west=-75.88;preset[i].nswe.east=-75.55;preset[i].name="Ottawa";i++;
+	preset[i].abbrev="ca_calgary";preset[i].nswe.north=51.25;preset[i].nswe.south= 50.85;preset[i].nswe.west=-114.3;preset[i].nswe.east=-113.8;preset[i].name="Calgary";i++;
+	preset[i].abbrev="ca_vancouver";preset[i].nswe.north=49.317;preset[i].nswe.south=49.263;preset[i].nswe.west=-123.17;preset[i].nswe.east=-123.07;preset[i].name="Vancouver";i++;
+	preset[i].abbrev="ca_whistler";preset[i].nswe.north=50.2;preset[i].nswe.south=50.07;preset[i].nswe.west=-123;preset[i].nswe.east=-122.8;preset[i].name="Whistler";i++;
+	preset[i].abbrev="ca_newfoundland";preset[i].nswe.north=52;preset[i].nswe.south=46.4;preset[i].nswe.west=-59.5;preset[i].nswe.east=-52.4;preset[i].name="Newfoundland";i++;
+
+	preset[i].abbrev="br_rio";preset[i].nswe.north=-22.75;preset[i].nswe.south=-23.05;preset[i].nswe.west=-43.4;preset[i].nswe.east=-43.1;preset[i].name="Rio de Janeiro";i++;
+	preset[i].abbrev="br_iguazu";preset[i].nswe.north=-25.37;preset[i].nswe.south=-25.75;preset[i].nswe.west=-54.72;preset[i].nswe.east=-54.22;preset[i].name="Iguazu Falls";i++;
+
+	preset[i].abbrev="py";preset[i].nswe.north=-19.3;preset[i].nswe.south=-27.6;preset[i].nswe.west=-62.7;preset[i].nswe.east=-54.25;preset[i].name="Paraguay";i++;
+	preset[i].abbrev="cl";preset[i].nswe.north=-17.5;preset[i].nswe.south=-56;preset[i].nswe.west=-76;preset[i].nswe.east=-67.3;preset[i].name="Chile";i++;
+	preset[i].abbrev="ar";preset[i].nswe.north=-22.2;preset[i].nswe.south=-51.9;preset[i].nswe.west=-71.6;preset[i].nswe.east=-57;preset[i].name="Argentina";i++;
+	preset[i].abbrev="ar_buenosaires";preset[i].nswe.north=-34.53;preset[i].nswe.south=-34.7;preset[i].nswe.west=-58.53;preset[i].nswe.east=-58.3;preset[i].name="Buenos Aires";i++;
+
+	preset[i].abbrev="bz";preset[i].nswe.north=18.5;preset[i].nswe.south=15.9;preset[i].nswe.west=-89.2;preset[i].nswe.east=-87.4;preset[i].name="Belize";i++;
+
 	*pCount=i;
 	return;
 }

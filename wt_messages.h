@@ -6,11 +6,17 @@
 #define WT_WM_TAB_GETEXPORTHEIGHT (WM_APP+4)
 #define WT_WM_TAB_SETEXPORTWIDTH (WM_APP+5)
 #define WT_WM_TAB_SETEXPORTHEIGHT (WM_APP+6)
-#define WT_WM_PRESETRECALC (WM_APP+7)
+
 #define WT_WM_TAB_ADDLASTIMPORTEDFILE (WM_APP+8)
 #define WT_WM_TAB_UPDATEINFO (WM_APP+9)
 #define WT_WM_TAB_RESETCONTENT (WM_APP+10)
 #define WT_WM_TAB_REGIONADDTOLIST (WM_APP+11)	//adds a specific region to the end of the list box
+
+#define WT_WM_PRESETRECALC (WM_APP+30)	//we want the preset list of countries to be recalculated
+#define WT_WM_PRESETDOWN (WM_APP+31)	//we want to select one further down the list
+#define WT_WM_PRESETUP (WM_APP+32)	//this moves up the list
+#define WT_WM_PRESETCHOSEN (WM_APP+33)	//the preset is chosen with either return pressed, or mouse up (or maybe other). At this stage row should be set.
+
 
 
 #define WT_WM_GRAPH_REDRAW (WM_APP+100)
