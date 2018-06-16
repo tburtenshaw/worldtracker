@@ -12,6 +12,8 @@
 #include "wt_messages.h"
 #include "wttabs.h"
 
+#define SHIFTED 0x8000	//for windows VKs
+
 #define MAX_ASPECT_RATIO 20
 #define MIN_ASPECT_RATIO 1/MAX_ASPECT_RATIO
 
@@ -136,7 +138,10 @@ LRESULT CALLBACK OverviewMovebarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM 
 LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam);
 
 //To intercept keys to the edit boxes
-WNDPROC DefEditProc;
+WNDPROC DefEditProc; //remembers the default
+LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing the presets
+LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing N, S, W, E boxes
+LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing dates
 
 //The bitmaps to display the overview and preview
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
@@ -148,6 +153,7 @@ int PaintPreview(HWND hwnd, LOCATIONHISTORY * lh);
 
 int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam);
 int HandlePreviewMousewheel(HWND hwnd, WPARAM wParam, LPARAM lParam);
 int HandlePreviewLbutton(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 int HandleCropbarMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -179,28 +185,38 @@ void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 }
 
 //See here: https://cboard.cprogramming.com/windows-programming/67604-capture-enter-key-press-edit-box.html
-LRESULT EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
 		case WM_KEYDOWN: //claim the up and down arrow
-			ShowWindow(hwndDropdownPreset, SW_SHOW);
+
 			switch (wParam)
 			{
 				case VK_DOWN:
 					SendMessage(hwndDropdownPreset, WT_WM_PRESETDOWN,0,0);
-					printf("down");
+					ShowWindow(hwndDropdownPreset, SW_SHOW);
+					//printf("down");
 				return FALSE;
 				case VK_UP:
 					SendMessage(hwndDropdownPreset, WT_WM_PRESETUP,0,0);
-					printf("up");
+					ShowWindow(hwndDropdownPreset, SW_SHOW);
+					//printf("up");
 				return FALSE;
 				case VK_RETURN:
-					SendMessage(hwndDropdownPreset, WT_WM_PRESETCHOSEN,0,0);
-					printf("enter");
+					if (IsWindowVisible(hwndDropdownPreset))	{
+					SendMessage(hwndDropdownPreset, WT_WM_PRESETCHOSEN, 0,0);
+					}
+					//printf("enter");
 				return FALSE;
 				case VK_TAB:
-					printf("tab");
+					//printf("tab");
+					if (GetKeyState(VK_SHIFT) & SHIFTED) {SetFocus(hwndEditEast);}
+					else	{SetFocus(hwndEditDateFrom);}
+					return FALSE;
+				case VK_ESCAPE:
+					ShowWindow(hwndDropdownPreset, SW_HIDE);
+					return FALSE;
 			}
 
 		default:
@@ -209,6 +225,90 @@ LRESULT EditProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 
     return FALSE;
+}
+
+LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    char szText[128];
+
+	double value;
+	double oldvalue;
+	double step;
+
+	switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
+
+			switch (wParam)
+			{
+				case VK_UP:
+				case VK_DOWN:
+					SendMessage(hwnd, WM_GETTEXT, 128,(long)&szText[0]);
+					value=atof(szText);
+					oldvalue=value;	//so we can check whether it changed
+
+
+					if (wParam==VK_DOWN)	{step=-1;}
+					else if (wParam==VK_UP)	{step=1;}
+					if (GetKeyState(VK_CONTROL) & SHIFTED)	{
+						step*=0.1;
+					}
+					if (GetKeyState(VK_SHIFT) & SHIFTED)	{
+						step*=5;
+					}
+
+					value+=step;
+
+					if (value<-180)	{value=-180;}
+					if (value>180)	{value=180;}
+
+					if ((hwnd==hwndEditNorth)||(hwnd==hwndEditSouth))	{
+						if (value<-90)	{value=-90;}
+						if (value>90)	{value=90;}
+					}
+
+					sprintf(szText,"%f", value);
+
+					if (value!=oldvalue)	{	//only redraw if changed
+						SetWindowText(hwnd, szText);
+
+						SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+						UpdateBarsFromNSWE(&optionsPreview.nswe);
+					}
+
+				return FALSE;
+
+				case VK_TAB:	//rather complicated way of managing tabs!
+					printf("tab");
+					SHORT shifttab;
+					shifttab=GetKeyState(VK_SHIFT) & SHIFTED;
+					if (hwnd==hwndEditNorth)	{
+						if (!shifttab)	{SetFocus(hwndEditSouth);}
+						else {SetFocus(hwndEditSouth);}
+					}
+					else if	(hwnd==hwndEditSouth)	{
+						if (!shifttab)	{SetFocus(hwndEditWest);}
+						else {SetFocus(hwndEditNorth);}
+					}
+					else if	(hwnd==hwndEditWest)	{
+						if (!shifttab)	{SetFocus(hwndEditEast);}
+						else {SetFocus(hwndEditSouth);}
+					}
+					else if	(hwnd==hwndEditEast)	{
+						if (!shifttab)	{SetFocus(hwndEditPreset);}
+						else {SetFocus(hwndEditWest);}
+					}
+
+					return FALSE;
+			}
+
+		default:
+            return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+    }
+
+    return FALSE;
+
 }
 
 
@@ -1145,6 +1245,7 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	    UpdateStatusBar(szBuffer, 0, 0);
 
 		if (id==ID_EDITPRESET)	{
+			SendMessage(hwndEditPreset, EM_SETSEL,0,-1);	//select the whole line when focus gained
 			SendMessage(hwndDropdownPreset, WT_WM_PRESETRECALC, 0,0);
 		}
 
@@ -1343,14 +1444,11 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 			InvalidateRect(hwndOverview, NULL, FALSE);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			SetWindowText(hwndEditPreset, DropDown->bestPresets[DropDown->highlightedPreset].name);
+			SendMessage(hwndEditPreset, EM_SETSEL, strlen(DropDown->bestPresets[DropDown->highlightedPreset].name), strlen(DropDown->bestPresets[DropDown->highlightedPreset].name));
 //			SetFocus(NULL);	//by killing the focus, we can display the dropdown again later, but instead we'll bring up when typing
 
 
 			ShowWindow(hwnd, SW_HIDE);
-			ReleaseCapture();
-
-
-
 			break;
 
 		case WM_LBUTTONDOWN:
@@ -1362,6 +1460,9 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 			row = y/DropDown->displayHeight;
 			if ((row>=0) && (row<DropDown->numberPresets))	{
+
+				SendMessage(hwnd, WT_WM_PRESETCHOSEN,0,0);
+/*
 				CopyNSWE(&optionsPreview.nswe, &DropDown->bestPresets[row].nswe);
 
 				UpdateEditNSWEControls(&optionsPreview.nswe);
@@ -1371,9 +1472,9 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 				SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 				SetWindowText(hwndEditPreset, DropDown->bestPresets[row].name);
 				//SetFocus(NULL);	//by killing the focus, we can display the dropdown again later
-
+*/
 			}
-			ShowWindow(hwnd, SW_HIDE);
+			//ShowWindow(hwnd, SW_HIDE);
 			ReleaseCapture();
 			break;
 
@@ -2251,6 +2352,9 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 	RECT clientRect;
 
 	switch (msg) {
+		case WM_KEYDOWN:
+			HandlePreviewKeydown(hwnd, wParam, lParam);
+			break;
 		case WM_CREATE:
 			hbmPreview = NULL;
 			CreatePreviewCropbarWindows(hwnd);	//creates the child windows we'll use to help crop the frame
@@ -2283,11 +2387,11 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WM_SIZE:	//might have to ensure it doesn't waste time if size doesn't change.
 			//printf("***size***\n");
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-	ResetCropbarWindowPos(hwndPreviewCropbarWest);
-	ResetCropbarWindowPos(hwndPreviewCropbarEast);
-	ResetCropbarWindowPos(hwndPreviewCropbarNorth);
-	ResetCropbarWindowPos(hwndPreviewCropbarSouth);
-	UpdateExportAspectRatioFromOptions(&optionsPreview, optionsPreview.forceheight);
+			ResetCropbarWindowPos(hwndPreviewCropbarWest);
+			ResetCropbarWindowPos(hwndPreviewCropbarEast);
+			ResetCropbarWindowPos(hwndPreviewCropbarNorth);
+			ResetCropbarWindowPos(hwndPreviewCropbarSouth);
+			UpdateExportAspectRatioFromOptions(&optionsPreview, optionsPreview.forceheight);
 
 			InvalidateRect(hwnd, NULL, 0);
 			break;
@@ -2584,13 +2688,20 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
 		hwndEditEast = CreateWindow("Edit",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, x, y, TEXT_WIDTH_QLONG, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITEAST, hInst, NULL);
 		y+=MARGIN+TEXT_HEIGHT;
-		x=MARGIN;
-		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 
+		//now change the proc for NSWE
+		SetWindowLongPtr(hwndEditNorth, GWLP_WNDPROC, (long)&EditDirectionProc);
+		SetWindowLongPtr(hwndEditSouth, GWLP_WNDPROC, (long)&EditDirectionProc);
+		SetWindowLongPtr(hwndEditEast, GWLP_WNDPROC, (long)&EditDirectionProc);
+		SetWindowLongPtr(hwndEditWest, GWLP_WNDPROC, (long)&EditDirectionProc);
+
+
+		x=MARGIN;
+		hwndStaticPreset = CreateWindow("Static", "Preset:",  WS_CHILD | WS_VISIBLE| WS_BORDER, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=TEXT_WIDTH_QUARTER+ MARGIN;
 		hwndEditPreset = CreateWindow("Edit", "Type a place",  WS_CHILD | WS_VISIBLE|WS_BORDER, x,y,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT, hwnd, (HMENU)ID_EDITPRESET, hInst, NULL);
 		//Change the WNDPROC of the edit window, so we can take control
-		DefEditProc = (WNDPROC)SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&EditProc); //We need to reverse this when the windows closes.
+		DefEditProc = (WNDPROC)SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&EditPresetProc); //We need to reverse this when the windows closes.
 
 		hwndDropdownPreset = CreateWindow("DropdownPreset", NULL,  WS_CHILD |WS_CLIPSIBLINGS| WS_BORDER, x,y+TEXT_HEIGHT,TEXT_WIDTH_THREEQUARTERS, TEXT_HEIGHT*5, hwnd, (HMENU)ID_DROPDOWNPRESET, hInst, NULL);
 
@@ -2615,13 +2726,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
-		CreateWindow("Static","Thickness:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		CreateWindow("Static","Thickness:",	  WS_CHILD | WS_VISIBLE| WS_BORDER, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QUARTER;
 		hwndEditThickness = CreateWindow("Edit","1", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITTHICKNESS, hInst, NULL);
 
 		x+=MARGIN+TEXT_WIDTH_QUARTER;
 
-		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE, x,y,TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
+		CreateWindow("Static","Colour by:",	  WS_CHILD | WS_VISIBLE| WS_BORDER, x,y,TEXT_WIDTH_QSHORT, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QSHORT;
 		hwndComboboxColourBy = CreateWindow("ComboBox","Date",	  CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE, x,y,TEXT_WIDTH_QLONG, TEXT_HEIGHT*10, hwnd, (HMENU)ID_COMBOCOLOURBY, hInst, NULL);
 
@@ -2707,7 +2818,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		return HANDLE_WM_NOTIFY(hwnd,wParam,lParam,MainWndProc_OnTabNotify);
 		break;
 	case WM_DESTROY:
-		SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditPreset, GWLP_WNDPROC, (long)&DefEditProc);	//TODO Need to fix the others too!
+		SetWindowLongPtr(hwndEditNorth, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditSouth, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditWest, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditEast, GWLP_WNDPROC, (long)&DefEditProc);
 		PostQuitMessage(0);
 		break;
 	default:
@@ -2716,7 +2831,42 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 	return 0;
 }
 
+int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+	double longspan;
+	double latspan;
 
+	longspan = optionsPreview.nswe.east - optionsPreview.nswe.west;
+	latspan = optionsPreview.nswe.north - optionsPreview.nswe.south;
+
+	switch (wParam)	{
+
+		case VK_LEFT:
+			printf("l");
+			optionsPreview.nswe.east-=longspan*0.02;
+			optionsPreview.nswe.west-=longspan*0.02;
+
+			ConstrainNSWE(&optionsPreview.nswe);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
+
+			break;
+		case VK_RIGHT:
+			printf("r");
+			optionsPreview.nswe.east+=longspan*0.02;
+			optionsPreview.nswe.west+=longspan*0.02;
+
+			ConstrainNSWE(&optionsPreview.nswe);
+			UpdateEditNSWEControls(&optionsPreview.nswe);
+			UpdateBarsFromNSWE(&optionsPreview.nswe);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
+
+			break;
+	}
+
+	return 0;
+}
 
 
 int PreviewWindowFitToAspectRatio(HWND hwnd, int mainheight, int mainwidth, double aspectratio)
