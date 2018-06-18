@@ -142,6 +142,8 @@ WNDPROC DefEditProc; //remembers the default
 LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing the presets
 LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing N, S, W, E boxes
 LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing dates
+LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing integers (thickness, export size, etc)
+
 
 //The bitmaps to display the overview and preview
 HBITMAP MakeHBitmapOverview(HWND hwnd, HDC hdc, LOCATIONHISTORY * lh);
@@ -185,6 +187,73 @@ void UpdateStatusBar(LPSTR lpszStatusString, WORD partNumber, WORD displayFlags)
 }
 
 //See here: https://cboard.cprogramming.com/windows-programming/67604-capture-enter-key-press-edit-box.html
+LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	long value;
+    char szText[128];
+	long min,max;
+	long step;
+
+    switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
+
+			switch (wParam)
+			{
+				case VK_UP:
+				case VK_DOWN:
+					if (hwnd==hwndEditThickness)	{
+						min=1;
+						max=100;
+						step=1;
+						}
+					else	{
+						min=0;
+						max=1000000;
+						step=1;
+					}
+
+					GetWindowText(hwnd, szText, 128);
+					value = strtol(szText,NULL,0);
+
+					if (wParam==VK_UP)	{
+						value+=step;
+					}
+					else if (wParam==VK_DOWN)	{
+						value-=step;
+					}
+
+					if (value<min)	{value=min;}
+					if (value>max)	{value=max;}
+
+					sprintf(szText,"%i",value);
+					SetWindowText(hwnd, szText);
+					return FALSE;
+
+				case VK_TAB:
+					printf("tab");
+					if (GetKeyState(VK_SHIFT) & SHIFTED) {	//shift-tab
+						if (hwnd==hwndEditThickness) {SetFocus(hwndEditDateTo);}
+						if (hwnd==hwndEditColourCycle) {SetFocus(hwndComboboxColourBy);}
+						}
+					else	{
+						if (hwnd==hwndEditThickness) {SetFocus(hwndComboboxColourBy);}
+					}
+					return FALSE;
+			}
+
+		default:
+            return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+    }
+
+}
+
+
+
+
+
+
 LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -217,14 +286,14 @@ LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				case VK_ESCAPE:
 					ShowWindow(hwndDropdownPreset, SW_HIDE);
 					return FALSE;
+				default:
+					ShowWindow(hwndDropdownPreset, SW_SHOW);
 			}
 
 		default:
             return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
 
     }
-
-    return FALSE;
 }
 
 LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -307,9 +376,51 @@ LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     }
 
-    return FALSE;
+}
+
+
+LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
+
+			switch (wParam)
+			{
+				case VK_DOWN:
+//					SendMessage(hwndDropdownPreset, WT_WM_PRESETDOWN,0,0);
+//					ShowWindow(hwndDropdownPreset, SW_SHOW);
+					printf("down");
+				return FALSE;
+				case VK_UP:
+//					SendMessage(hwndDropdownPreset, WT_WM_PRESETUP,0,0);
+//					ShowWindow(hwndDropdownPreset, SW_SHOW);
+					printf("up");
+				return FALSE;
+				case VK_RETURN:
+					printf("enter");
+				return FALSE;
+				case VK_TAB:
+					printf("tab");
+					if (GetKeyState(VK_SHIFT) & SHIFTED) {	//shift-tab
+						if (hwnd==hwndEditDateFrom) {SetFocus(hwndEditPreset);}
+						else if (hwnd==hwndEditDateTo) {SetFocus(hwndEditDateFrom);}
+						}
+					else	{
+						if (hwnd==hwndEditDateFrom) {SetFocus(hwndEditDateTo);}
+						else if (hwnd==hwndEditDateTo) {SetFocus(hwndEditThickness);}
+					}
+					return FALSE;
+			}
+
+		default:
+            return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+    }
 
 }
+
+
 
 
 LRESULT MsgMenuSelect(HWND hwnd, UINT uMessage, WPARAM wparam, LPARAM lparam)
@@ -1334,9 +1445,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 		}
 
 	}
-	else {
-		printf("\nNotification: %i", codeNotify);
-	}
+	//else {
+		//printf("\nNotification: %i", codeNotify);
+	//}
 
 
 	return 0;
@@ -2720,6 +2831,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
 
+		SetWindowLongPtr(hwndEditDateFrom, GWLP_WNDPROC, (long)&EditDateProc);
+		SetWindowLongPtr(hwndEditDateTo, GWLP_WNDPROC, (long)&EditDateProc);
+
+
 
 		hwndDateSlider = CreateWindow("DateSlider",NULL, WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, OVERVIEW_WIDTH, TEXT_HEIGHT, hwnd, NULL, hInst, NULL);
 
@@ -2729,6 +2844,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		CreateWindow("Static","Thickness:",	  WS_CHILD | WS_VISIBLE| WS_BORDER, x,y,TEXT_WIDTH_QUARTER, TEXT_HEIGHT, hwnd, 0, hInst, NULL);
 		x+=MARGIN+TEXT_WIDTH_QUARTER;
 		hwndEditThickness = CreateWindow("Edit","1", WS_CHILD | WS_VISIBLE |ES_NUMBER| WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITTHICKNESS, hInst, NULL);
+		SetWindowLongPtr(hwndEditThickness, GWLP_WNDPROC, (long)&EditIntegerProc);
+
 
 		x+=MARGIN+TEXT_WIDTH_QUARTER;
 
@@ -2823,6 +2940,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		SetWindowLongPtr(hwndEditSouth, GWLP_WNDPROC, (long)&DefEditProc);
 		SetWindowLongPtr(hwndEditWest, GWLP_WNDPROC, (long)&DefEditProc);
 		SetWindowLongPtr(hwndEditEast, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditDateFrom, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditDateTo, GWLP_WNDPROC, (long)&DefEditProc);
+		SetWindowLongPtr(hwndEditColourCycle, GWLP_WNDPROC, (long)&DefEditProc);
+
 		PostQuitMessage(0);
 		break;
 	default:
@@ -2835,35 +2956,70 @@ int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
 	double longspan;
 	double latspan;
+	double step;
 
-	longspan = optionsPreview.nswe.east - optionsPreview.nswe.west;
-	latspan = optionsPreview.nswe.north - optionsPreview.nswe.south;
 
 	switch (wParam)	{
-
 		case VK_LEFT:
-			printf("l");
-			optionsPreview.nswe.east-=longspan*0.02;
-			optionsPreview.nswe.west-=longspan*0.02;
-
-			ConstrainNSWE(&optionsPreview.nswe);
-			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
-
-			break;
 		case VK_RIGHT:
-			printf("r");
-			optionsPreview.nswe.east+=longspan*0.02;
-			optionsPreview.nswe.west+=longspan*0.02;
+		case VK_DOWN:
+		case VK_UP:
+		case VK_ADD:
+		case VK_SUBTRACT:
+		case VK_PRIOR: //page up
+		case VK_NEXT:
 
-			ConstrainNSWE(&optionsPreview.nswe);
-			UpdateEditNSWEControls(&optionsPreview.nswe);
-			UpdateBarsFromNSWE(&optionsPreview.nswe);
-			SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
+		longspan = optionsPreview.nswe.east - optionsPreview.nswe.west;
+		latspan = optionsPreview.nswe.north - optionsPreview.nswe.south;
 
-			break;
+		step = 0.02;
+		if (GetKeyState(VK_SHIFT) & SHIFTED) {step*=5;}
+		if (GetKeyState(VK_CONTROL) & SHIFTED) {step*=0.1;}
+
+			switch (wParam)	{	//nested switch! Be careful!
+				case VK_LEFT:
+					optionsPreview.nswe.east-=longspan*step;
+					optionsPreview.nswe.west-=longspan*step;
+					break;
+				case VK_RIGHT:
+					optionsPreview.nswe.east+=longspan*step;
+					optionsPreview.nswe.west+=longspan*step;
+					break;
+				case VK_DOWN:
+					optionsPreview.nswe.north-=latspan*step;
+					optionsPreview.nswe.south-=latspan*step;
+					break;
+				case VK_UP:
+					optionsPreview.nswe.north+=latspan*step;
+					optionsPreview.nswe.south+=latspan*step;
+					break;
+				case VK_PRIOR:
+					optionsPreview.nswe.north+=latspan; //need to constrain these inside as well (to stop south moving up without north etc)
+					optionsPreview.nswe.south+=latspan;
+					break;
+				case VK_NEXT:
+					optionsPreview.nswe.north-=latspan;
+					optionsPreview.nswe.south-=latspan;
+					break;
+				case VK_ADD:
+					step*=-1;	//invert (so zooms in)
+				case VK_SUBTRACT:
+					optionsPreview.nswe.north+=latspan*step;
+					optionsPreview.nswe.south-=latspan*step;
+					optionsPreview.nswe.west-=longspan*step;
+					optionsPreview.nswe.east+=longspan*step;
+					break;
+			}
+		ConstrainNSWE(&optionsPreview.nswe);
+		UpdateEditNSWEControls(&optionsPreview.nswe);
+		UpdateBarsFromNSWE(&optionsPreview.nswe);
+		SendMessage(hwndPreview, WT_WM_QUEUERECALC , 0,0);
+
+		break;
 	}
+
+	//need to only do this if there's a change
+
 
 	return 0;
 }
@@ -2928,9 +3084,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	HANDLE hAccelTable;
 
 	//This brings up a command console window
+/*
 	AllocConsole();
     freopen("conout$","w",stdout);
     freopen("conout$","w",stderr);
+*/
+
 
 	hInst = hInstance;
 	if (!InitApplication())
@@ -3557,6 +3716,8 @@ LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 			CreateWindow("Static", "Cycle time (seconds):", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_HALF, 20, hwnd, NULL, hInst, NULL);
 			x+=TEXT_WIDTH_HALF + MARGIN;
 			hwndEditColourCycle = CreateWindow("Edit","604800", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITCOLOURCYCLE, hInst, NULL);
+			SetWindowLongPtr(hwndEditColourCycle, GWLP_WNDPROC, (long)&EditIntegerProc);
+
 			y+=TEXT_HEIGHT+MARGIN;
 			x=0;
 			CreateWindow("BUTTON","1 hour", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEHOUR, hInst, NULL);

@@ -1265,6 +1265,27 @@ int bitmapSquare(BM* bm, int x0, int y0, int x1, int y1, COLOUR *cBorder, COLOUR
 	return 1;
 }
 
+
+
+void speedy_plot_line (BM * bm, int x0, int y0, int x1, int y1, COLOUR *c)	//not much more speedy in effect than the my Wu lines!
+{
+  int dx =  abs (x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs (y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy, e2; //error value
+
+  for (;;){  //loop until x and y reach their end points
+	bitmapPixelSet(bm, x0, y0, c);
+    if (x0 == x1 && y0 == y1) break;
+    e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; } /* e_xy+e_x > 0 */
+    if (e2 <= dx) { err += dx; y0 += sy; } /* e_xy+e_y < 0 */
+  }
+}
+
+
+
+
+
 int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thickness, COLOUR *c)
 {
 	int steep;
@@ -1277,6 +1298,13 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	double hypotenusethickness;
 	int x;
+
+
+	//Go to speedy instead if thickness set at -1
+	if (thickness==-1)	{
+		speedy_plot_line(bm,(int)x0,(int)y0,(int)x1,(int)y1,c);
+		return 0;
+	}
 
 	steep=(fabs(y1 - y0) > fabs(x1 - x0));	//if it's a steep line, swap the xs with the ys
 

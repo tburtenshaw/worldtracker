@@ -16,7 +16,7 @@ BEGIN
     CONTROL         IDB_LOGO,IDC_STATIC,"Static",SS_BITMAP|SS_CENTERIMAGE|SS_SUNKEN,7,7,240,56
 
    LTEXT "WorldTracker", IDC_STATIC, 7, 67, 60, 10
-   LTEXT "Copyright © 2016 Tristan Burtenshaw",IDC_STATIC, 7, 77, 141, 10
+   LTEXT "Copyright © 2018 Tristan Burtenshaw",IDC_STATIC, 7, 77, 141, 10
    LTEXT "Download and view your Google Location History JSON. Export to Google Maps .KML files to view them on the globe.", IDC_STATIC, 7, 97, 244, 42
    LTEXT "https://github.com/tburtenshaw/worldtracker", IDC_STATIC, 7, 125, 239, 18
    LTEXT __DATE__ , IDC_STATIC, 7, 163, 60, 10
