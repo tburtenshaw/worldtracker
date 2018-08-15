@@ -127,6 +127,7 @@ int ExportGPXDialogAndComplete(HWND hwnd, LOCATIONHISTORY *lh);
 
 int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
+BOOL SetDateFromControl(HWND hwndCtl);	//returns whether to redraw
 int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 int HandleColourCycleRadiobuttons(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify);
 

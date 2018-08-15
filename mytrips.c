@@ -2182,6 +2182,8 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="northamerica";preset[i].nswe.north=77;preset[i].nswe.south=14;preset[i].nswe.west=-167;preset[i].nswe.east=-52;preset[i].name="North America";i++;
 	preset[i].abbrev="bh";preset[i].nswe.north=26.5;preset[i].nswe.south=25.7;preset[i].nswe.west=50.2;preset[i].nswe.east=51;preset[i].name="Bahrain";i++;
 	preset[i].abbrev="de";preset[i].nswe.north=55;preset[i].nswe.south=47;preset[i].nswe.west=5.5;preset[i].nswe.east=15;preset[i].name="Germany";i++;
+	preset[i].abbrev="en";preset[i].nswe.north= 55.82057;preset[i].nswe.south= 49.95;preset[i].nswe.west= -5.736427;preset[i].nswe.east=1.800151;preset[i].name="England";i++;
+	preset[i].abbrev="sct";preset[i].nswe.north= 53.448723;preset[i].nswe.south= 51.383266;preset[i].nswe.west=  -5.352178;preset[i].nswe.east= -2.648942;preset[i].name="Scotland";i++;
 	preset[i].abbrev="ru";preset[i].nswe.north=78;preset[i].nswe.south=43;preset[i].nswe.west=27;preset[i].nswe.east=190;preset[i].name="Russia";i++;
 	preset[i].abbrev="europeeast";preset[i].nswe.north=78;preset[i].nswe.south=38;preset[i].nswe.west=12;preset[i].nswe.east=90;preset[i].name="Eastern Europe";i++;
 	preset[i].abbrev="london";preset[i].nswe.north=51.7;preset[i].nswe.south=51.25;preset[i].nswe.west=-0.6;preset[i].nswe.east= 0.35;preset[i].name="London";i++;
@@ -2197,11 +2199,17 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="pt";preset[i].nswe.north=42.2;preset[i].nswe.south=36.9;preset[i].nswe.west=-9.6;preset[i].nswe.east=-6;preset[i].name="Portugal";i++;
 	preset[i].abbrev="amsterdam";preset[i].nswe.north=52.46;preset[i].nswe.south=52.25;preset[i].nswe.west=4.58;preset[i].nswe.east=5.085;preset[i].name="Amsterdam";i++;
 	preset[i].abbrev="northafrica";preset[i].nswe.north=37.4;preset[i].nswe.south=11;preset[i].nswe.west=-18;preset[i].nswe.east=39;preset[i].name="North Africa";i++;
+	preset[i].abbrev="eg";preset[i].nswe.north=31.65;preset[i].nswe.south=22;preset[i].nswe.west=25;preset[i].nswe.east=34.9;preset[i].name="Egypt";i++;
+	preset[i].abbrev="is";preset[i].nswe.north=33.1;preset[i].nswe.south=29.485;preset[i].nswe.west=34.22;preset[i].nswe.east=35.54;preset[i].name="Israel";i++;
+
+	preset[i].abbrev="td";preset[i].nswe.north=23.452;preset[i].nswe.south=7.443;preset[i].nswe.west=13.4594;preset[i].nswe.east=24;preset[i].name="Chad";i++;
+
 	preset[i].abbrev="in_goa";preset[i].nswe.north=15.8;preset[i].nswe.south=14.85;preset[i].nswe.west=73.65;preset[i].nswe.east=74.35;preset[i].name="Goa";i++;
 	preset[i].abbrev="in_agra";preset[i].nswe.north=27.298;preset[i].nswe.south=27.097;preset[i].nswe.west=77.87;preset[i].nswe.east=78.12;preset[i].name="Agra";i++;
 	preset[i].abbrev="kr";preset[i].nswe.north=38.8;preset[i].nswe.south=33;preset[i].nswe.west=124.5;preset[i].nswe.east=129.8;preset[i].name="South Korea";i++;
 	preset[i].abbrev="ie";preset[i].nswe.north=55.5;preset[i].nswe.south=51.3;preset[i].nswe.west=-10.8;preset[i].nswe.east=-5.3;preset[i].name="Ireland";i++;
 	preset[i].abbrev="cy";preset[i].nswe.north=35.8;preset[i].nswe.south=34.5;preset[i].nswe.west=32;preset[i].nswe.east=34.7;preset[i].name="Cyprus";i++;
+	preset[i].abbrev="mt";preset[i].nswe.north=36.1;preset[i].nswe.south=35.75;preset[i].nswe.west=14.16;preset[i].nswe.east=14.6;preset[i].name="Malta";i++;
 	preset[i].abbrev="es_ibiza";preset[i].nswe.north=39.15;preset[i].nswe.south=38.6;preset[i].nswe.west=1.1;preset[i].nswe.east=1.7;preset[i].name="Ibiza";i++;
 	preset[i].abbrev="us_nm";preset[i].nswe.north=37;preset[i].nswe.south=31;preset[i].nswe.west=-115.05;preset[i].nswe.east=-109.044;preset[i].name="New Mexico";i++;
 	preset[i].abbrev="us_az";preset[i].nswe.north=37;preset[i].nswe.south=31.33;preset[i].nswe.west=-109.05;preset[i].nswe.east=-103;preset[i].name="Arizona";i++;
@@ -2247,6 +2255,7 @@ void LoadPresets(PRESET *preset, int * pCount, int maxCount)
 	preset[i].abbrev="ar";preset[i].nswe.north=-22.2;preset[i].nswe.south=-51.9;preset[i].nswe.west=-71.6;preset[i].nswe.east=-57;preset[i].name="Argentina";i++;
 	preset[i].abbrev="ar_buenosaires";preset[i].nswe.north=-34.53;preset[i].nswe.south=-34.7;preset[i].nswe.west=-58.53;preset[i].nswe.east=-58.3;preset[i].name="Buenos Aires";i++;
 
+	preset[i].abbrev="mx";preset[i].nswe.north=32.6;preset[i].nswe.south=14.6;preset[i].nswe.west=-117;preset[i].nswe.east=-86.6;preset[i].name="Mexico";i++;
 	preset[i].abbrev="bz";preset[i].nswe.north=18.5;preset[i].nswe.south=15.9;preset[i].nswe.west=-89.2;preset[i].nswe.east=-87.4;preset[i].name="Belize";i++;
 
 	*pCount=i;

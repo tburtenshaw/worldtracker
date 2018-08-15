@@ -99,6 +99,8 @@ HWND hwndPreviewCropbarSouth;
 
 HWND hwndMainGraph;
 
+//some of the dialog boxes
+HWND hwndButtonRadioOneHour;
 
 HBITMAP hbmOverview;	//this bitmap is generated when the overview is updated.
 HBITMAP hbmPreview;
@@ -139,10 +141,15 @@ LRESULT CALLBACK PreviewCropbarWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 
 //To intercept keys to the edit boxes
 WNDPROC DefEditProc; //remembers the default
+WNDPROC DefComboboxProc; //remembers the default combobox proc, apparently things can crash if you don't reset on program close.
+WNDPROC DefTabcontrolProc;	//the old tabcontrol proc
+
 LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing the presets
 LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing N, S, W, E boxes
 LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing dates
-LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing integers (thickness, export size, etc)
+LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);//for editing integers (thickness, export size, etc, manages up/down,tabs)
+LRESULT ComboboxColourByProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);	//the combobox, handles tabs not much else
+LRESULT TabsProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);	//handles tab key presses from the tabcontrol window
 
 
 //The bitmaps to display the overview and preview
@@ -238,6 +245,7 @@ LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						}
 					else	{
 						if (hwnd==hwndEditThickness) {SetFocus(hwndComboboxColourBy);}
+						if (hwnd==hwndEditColourCycle) {SetFocus(hwndButtonRadioOneHour);}
 					}
 					return FALSE;
 			}
@@ -249,10 +257,54 @@ LRESULT EditIntegerProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 }
 
+LRESULT ComboboxColourByProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
+
+			switch (wParam)
+			{
+				case VK_TAB:
+					if (GetKeyState(VK_SHIFT) & SHIFTED) {SetFocus(hwndEditThickness);}
+					else {	//we chose the first
+						//int index = SendMessage((HWND) hwnd, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
+						switch	(optionsPreview.colourby)	{
+							case COLOUR_BY_TIME:
+								SetFocus(hwndEditColourCycle);
+								break;
+							default:
+								SetFocus(hwndTab);
+								break;
+						}
+						}
+				break;
+			}
+	}
+
+	return CallWindowProc(DefComboboxProc, hwnd, uMsg, wParam, lParam);
+}
 
 
+LRESULT TabsProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+		case WM_KEYDOWN: //claim the up and down arrow
 
+			switch (wParam)
+			{
+				case VK_TAB:
+					printf("Tab");
+					if (GetKeyState(VK_SHIFT) & SHIFTED) {SetFocus(hwndComboboxColourBy);}
+					else {SetFocus(hwndPreview);}
+				break;
 
+			}
+	}
+
+	return CallWindowProc(DefTabcontrolProc, hwnd, uMsg, wParam, lParam);
+}
 
 LRESULT EditPresetProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -353,7 +405,7 @@ LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					shifttab=GetKeyState(VK_SHIFT) & SHIFTED;
 					if (hwnd==hwndEditNorth)	{
 						if (!shifttab)	{SetFocus(hwndEditSouth);}
-						else {SetFocus(hwndEditSouth);}
+						else {SetFocus(hwndPreview);}
 					}
 					else if	(hwnd==hwndEditSouth)	{
 						if (!shifttab)	{SetFocus(hwndEditWest);}
@@ -388,14 +440,29 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			switch (wParam)
 			{
 				case VK_DOWN:
-//					SendMessage(hwndDropdownPreset, WT_WM_PRESETDOWN,0,0);
-//					ShowWindow(hwndDropdownPreset, SW_SHOW);
-					printf("down");
+					SetDateFromControl(hwnd);
+					if (hwnd==hwndEditDateFrom)	{
+						optionsPreview.fromtimestamp-=24*60*60;
+						printf("dn");
+					}
+					if (hwnd==hwndEditDateTo)	{
+						optionsPreview.totimestamp-=24*60*60;
+					}
+
+
+					UpdateDateControlsFromOptions(&optionsPreview);
+					InvalidateRect(hwndDateSlider, NULL, 0);
 				return FALSE;
 				case VK_UP:
-//					SendMessage(hwndDropdownPreset, WT_WM_PRESETUP,0,0);
-//					ShowWindow(hwndDropdownPreset, SW_SHOW);
-					printf("up");
+					if (hwnd==hwndEditDateFrom)	{
+						optionsPreview.fromtimestamp+=24*60*60;	//can't just do this, we need to do an exact day (might be 23 or 25 hours)
+					}
+					if (hwnd==hwndEditDateTo)	{
+						optionsPreview.totimestamp+=24*60*60;	//can't just do this, we need to do an exact day (might be 23 or 25 hours)
+					}
+
+					UpdateDateControlsFromOptions(&optionsPreview);
+					InvalidateRect(hwndDateSlider, NULL, 0);
 				return FALSE;
 				case VK_RETURN:
 					printf("enter");
@@ -1240,7 +1307,7 @@ int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 
 	if (codeNotify == CBN_SELCHANGE)	{
 		index = SendMessage((HWND) hwndCtl, (UINT) CB_GETCURSEL, (WPARAM) 0, (LPARAM) 0);
-		printf("combo %i, ", index);
+		//printf("combo %i, ", index);
 		if (optionsPreview.colourby != index)	{
 			optionsPreview.colourby = index;
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
@@ -1279,7 +1346,7 @@ int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	return 0;
 }
 
-int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+BOOL SetDateFromControl(HWND hwndCtl)	//returns whether to redraw
 {
 	char szText[128];
 	char *pEnd;
@@ -1288,53 +1355,79 @@ int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	struct tm time;
 	time_t	t;
 
-	int redraw;
+	SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
+	printf("Before: %s\t",szText);
 
+	year = strtoul(szText,&pEnd,10);
+	month = strtoul(pEnd,&pEnd,10);
+	day = strtoul(pEnd,&pEnd,10);
+
+	if (month<0) month*=-1;
+	if (day<0) day*=-1;
+
+	time.tm_year = year-1900;
+	time.tm_mon = month-1;
+	time.tm_mday = day;
+	if (hwndCtl == hwndEditDateFrom)	{
+ 		time.tm_sec = time.tm_min = time.tm_hour = 0;
+		//time.tm_sec =1;
+	}
+	else if (hwndCtl == hwndEditDateTo)	{	//we want to go all the way to the end of the day
+		time.tm_hour = 23;
+		time.tm_min = 59;
+ 		time.tm_sec=59;
+	}
+
+
+
+	t=mktime(&time);
+	printf("Time: %i\t", t);
+
+
+
+	struct tm timeprint;
+	localtime_s(&t, &timeprint);
+	strftime (szText, 256, "%Y-%m-%d", &timeprint);	//ISO8601YYYY-MM-DD
+	printf("After: %s\n",szText);
+
+
+
+	if (t<locationHistory.earliesttimestamp)	{
+		t=locationHistory.earliesttimestamp;
+	}
+
+	if (t>locationHistory.latesttimestamp)	{
+		t=locationHistory.latesttimestamp;
+	}
+
+	if (hwndCtl == hwndEditDateFrom)	{
+		if (optionsPreview.fromtimestamp!=t)	{
+			optionsPreview.fromtimestamp=t;
+			return TRUE;	//we need to redraw as the control has changed value
+		}
+	}
+	if (hwndCtl == hwndEditDateTo)	{
+		if (optionsPreview.totimestamp!=t)	{	//if there's a change
+			optionsPreview.totimestamp=t;
+			return TRUE;	//we need to redraw
+		}
+	}
+
+
+
+	return FALSE;
+}
+
+
+int HandleEditDateControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
+{
 	if (codeNotify == EN_KILLFOCUS)	{
-		SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-
-		//pch = strtok (szText,".-/");
-
-		year = strtoul(szText,&pEnd,10);
-		month = strtoul(pEnd,&pEnd,10);
-		day = strtoul(pEnd,&pEnd,10);
-
-		if (month<0) month*=-1;
-		if (day<0) day*=-1;
-
-		time.tm_year = year-1900;
-		time.tm_mon = month-1;
-		time.tm_mday = day;
-		if (id == ID_EDITDATEFROM)	{
-	 		time.tm_sec = time.tm_min = time.tm_hour = 0;
-		}
-		else if (id == ID_EDITDATETO)	{	//we want to go all the way to the end of the day
-			time.tm_hour = 23;
-			time.tm_min = 59;
-	 		time.tm_sec=59;
-		}
-
-		t=mktime(&time);
-
-		redraw=0;
-		if (id == ID_EDITDATEFROM)	{
-			if (optionsPreview.fromtimestamp!=t)	{
-				optionsPreview.fromtimestamp=t;
-				redraw=1;
-			}
-		}
-		if (id == ID_EDITDATETO)	{
-			if (optionsPreview.totimestamp!=t)	{	//if there's a change
-				optionsPreview.totimestamp=t;
-				redraw =1;
-			}
-		}
-
 		//Redraw appropriate areas
-		if (redraw==1)	{
+		if (SetDateFromControl(hwndCtl))	{
 			InvalidateRect(hwndDateSlider, NULL, 0);
 			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
 			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+			UpdateDateControlsFromOptions(&optionsPreview);
 		}
 	}
 
@@ -1356,7 +1449,9 @@ int HandleEditControls(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	    UpdateStatusBar(szBuffer, 0, 0);
 
 		if (id==ID_EDITPRESET)	{
-			SendMessage(hwndEditPreset, EM_SETSEL,0,-1);	//select the whole line when focus gained
+			//SendMessage(hwndEditPreset, EM_SETSEL,0,-1);	//select the whole line when focus gained //I don't like how this acts
+			//printf("select line");
+
 			SendMessage(hwndDropdownPreset, WT_WM_PRESETRECALC, 0,0);
 		}
 
@@ -1497,6 +1592,11 @@ LRESULT CALLBACK DropdownPresetWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM l
 			SendMessage(hwndEditPreset, WM_GETTEXT, 128,(long)&szEditBox[0]);
 			int displaycount;
 
+			if (!strcmp(szEditBox, "Type a place"))	{
+				printf("No place");
+				SendMessage(hwndEditPreset, EM_SETSEL,0,-1);	//select the whole line when focus gained
+				szEditBox[0]=0;
+			}
 
 			if (strcmp(DropDown->previousEditBox, szEditBox))	{	//only bother updating if the text has changed.
 				displaycount = GetBestPresets(szEditBox, presetArray, numberOfPresets, DropDown->bestPresets, DropDown->numberPresets);
@@ -2857,6 +2957,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			SendMessage(hwndComboboxColourBy,(UINT) CB_ADDSTRING,(WPARAM) 0,(LPARAM)szColourByOption[i]);
 		}
 		SendMessage(hwndComboboxColourBy, CB_SETCURSEL, (WPARAM)0, (LPARAM)0);
+		DefComboboxProc = (WNDPROC)SetWindowLongPtr(hwndComboboxColourBy, GWLP_WNDPROC, (long)&ComboboxColourByProc);
 
 		y+=MARGIN+TEXT_HEIGHT;
 		x=MARGIN;
@@ -2879,10 +2980,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 		//tabs
 		hwndTab = CreateWindow(WC_TABCONTROL, NULL, WS_CHILD|WS_VISIBLE, x,y,640,200,hwnd,NULL, hInst, NULL);
 		SendMessage(hwndTab, WM_SETFONT, (WPARAM)hFontDialog, TRUE);
+		DefTabcontrolProc = (WNDPROC)SetWindowLongPtr(hwndTab, GWLP_WNDPROC, (long)&TabsProc);
 		y+=200+MARGIN;
 		CreateTabsAndTabWindows(hwndTab);
 
-
+		//This is the big window down the bottom right
 		hwndPreview = CreateWindow("PreviewClass", NULL, WS_CHILD|WS_VISIBLE|WS_BORDER, x, y ,OVERVIEW_WIDTH, OVERVIEW_WIDTH, hwnd,NULL,hInst,NULL);
 
 
@@ -2960,6 +3062,11 @@ int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 
 	switch (wParam)	{
+		case VK_TAB:
+			if (GetKeyState(VK_SHIFT) & SHIFTED)	{SetFocus(hwndTab);}	//back to the tabs above it
+			else {SetFocus(hwndEditNorth);}		//roll on back to the north edit box
+			break;
+
 		case VK_LEFT:
 		case VK_RIGHT:
 		case VK_DOWN:
@@ -3084,11 +3191,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	HANDLE hAccelTable;
 
 	//This brings up a command console window
-/*
+
 	AllocConsole();
     freopen("conout$","w",stdout);
     freopen("conout$","w",stderr);
-*/
+
 
 
 	hInst = hInstance;
@@ -3720,7 +3827,7 @@ LRESULT CALLBACK ColourByDateWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPa
 
 			y+=TEXT_HEIGHT+MARGIN;
 			x=0;
-			CreateWindow("BUTTON","1 hour", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEHOUR, hInst, NULL);
+			hwndButtonRadioOneHour = CreateWindow("BUTTON","1 hour", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEHOUR, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
 			CreateWindow("BUTTON","1 day", WS_CHILD | WS_VISIBLE | WS_BORDER|WS_TABSTOP|BS_RADIOBUTTON, x, y, TEXT_WIDTH_QUARTER, 20, hwnd, (HMENU)ID_EDITONEDAY, hInst, NULL);
 			x+=TEXT_WIDTH_QUARTER + MARGIN;
