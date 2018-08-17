@@ -1711,7 +1711,7 @@ COLOUR AccuracyToRgb(int accuracy)
 COLOUR MonthToRgb(long ts, COLOUR *colourPerMonthArrayOfTwelve)
 {
 	struct tm time;
-	localtime_s(&ts, &time);
+	gmtime_s(&ts, &time);
 
 	if (colourPerMonthArrayOfTwelve==NULL)	{
 		cpm[0x0].R=0xF1;	cpm[0x0].G=0xD5;	cpm[0x0].B=0x45;	cpm[0x0].A=0xFF;
@@ -1739,7 +1739,7 @@ COLOUR MonthToRgb(long ts, COLOUR *colourPerMonthArrayOfTwelve)
 COLOUR DayOfWeekToRgb(long ts, COLOUR *colourPerDayArrayOfSeven)
 {
 	struct tm time;
-	localtime_s(&ts, &time);
+	gmtime_s(&ts, &time);
 
 	if (colourPerDayArrayOfSeven==NULL)	{
 
@@ -1764,7 +1764,7 @@ COLOUR HourToRgb(long ts, COLOUR *cMidnight, COLOUR *cNoon)
 	COLOUR mixedColour;
 
 	struct tm time;
-	localtime_s(&ts, &time);
+	gmtime_s(&ts, &time);
 
 	int hour;
 
@@ -2692,8 +2692,8 @@ int ExportTripData(TRIP * firsttrip, char * filename)
 	trip=firsttrip;
 	while (trip)	{
 		if (trip->direction!=0)	{
-			localtime_s(&trip->leavetime, &leavetime);
-			localtime_s(&trip->arrivetime, &arrivetime);
+			gmtime_s(&trip->leavetime, &leavetime);
+			gmtime_s(&trip->arrivetime, &arrivetime);
 
 			fprintf(f, "%i,%i,%i,%i, %i,%i,%i,%i,%i,%i, %i,%i,%i,%i,%i,%i,%i\n", trip->leavetime, trip->arrivetime, trip->leavetime - trip->arrivetime, trip->direction,
 				leavetime.tm_year+1900,leavetime.tm_mon+1,leavetime.tm_mday,leavetime.tm_wday,leavetime.tm_hour,leavetime.tm_min,
@@ -2960,7 +2960,7 @@ void labelfnShortDayOfWeekFromSeconds(double seconds, char * outputString)	//act
 	//add to seconds since sunday.
 	s+=sundaymidnight;
 
-	localtime_s(&s, &time);
+	gmtime_s(&s, &time);
 
 	strftime (outputString,80,"%A",&time);
 	return;

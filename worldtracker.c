@@ -180,8 +180,10 @@ HBITMAP hbmBackground;
 int BltNsweFromBackground(HDC hdc, NSWE * d, int height, int width, OPTIONS * oBkgrnd);
 int CreateBackground(HBITMAP * hbm, OPTIONS *oP, OPTIONS *oB, LOCATIONHISTORY * lh);
 
+//time_t ReduceTimeByOneDay(time_t s);
 time_t RoundTimeUp(time_t s);
 time_t RoundTimeDown(time_t s);
+
 
 
 #define MAX_PRESETS 250
@@ -433,36 +435,64 @@ LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	int daystomoveby;
     switch (uMsg)
     {
 		case WM_KEYDOWN: //claim the up and down arrow
+
 
 			switch (wParam)
 			{
 				case VK_DOWN:
 					SetDateFromControl(hwnd);
+					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
 					if (hwnd==hwndEditDateFrom)	{
-						optionsPreview.fromtimestamp-=24*60*60;
-						printf("dn");
+						optionsPreview.fromtimestamp-=daystomoveby*24*60*60;
+
+
+						if (optionsPreview.fromtimestamp<locationHistory.earliesttimestamp)	{	//avoid going lower than the first date
+							optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
+						}
 					}
 					if (hwnd==hwndEditDateTo)	{
-						optionsPreview.totimestamp-=24*60*60;
-					}
+						optionsPreview.totimestamp-=daystomoveby*24*60*60;
+						if (optionsPreview.totimestamp<locationHistory.earliesttimestamp)	{	//it should not be smaller than the earliest time of our data
+							optionsPreview.totimestamp = locationHistory.earliesttimestamp;
+						}
 
+					}
 
 					UpdateDateControlsFromOptions(&optionsPreview);
 					InvalidateRect(hwndDateSlider, NULL, 0);
+					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+
 				return FALSE;
 				case VK_UP:
+					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
 					if (hwnd==hwndEditDateFrom)	{
-						optionsPreview.fromtimestamp+=24*60*60;	//can't just do this, we need to do an exact day (might be 23 or 25 hours)
+						optionsPreview.fromtimestamp+=daystomoveby*24*60*60;
+
+						if (optionsPreview.fromtimestamp>locationHistory.latesttimestamp)	{	//shouldn't be later than our data
+							optionsPreview.fromtimestamp = locationHistory.latesttimestamp;
+						}
+
+
 					}
 					if (hwnd==hwndEditDateTo)	{
-						optionsPreview.totimestamp+=24*60*60;	//can't just do this, we need to do an exact day (might be 23 or 25 hours)
+						optionsPreview.totimestamp+=daystomoveby*24*60*60;
+						if (optionsPreview.totimestamp>locationHistory.latesttimestamp)	{	//shouldn't be later than our data
+							optionsPreview.totimestamp = locationHistory.latesttimestamp;
+						}
+
+
 					}
 
 					UpdateDateControlsFromOptions(&optionsPreview);
 					InvalidateRect(hwndDateSlider, NULL, 0);
+					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+
 				return FALSE;
 				case VK_RETURN:
 					printf("enter");
@@ -1346,6 +1376,43 @@ int HandleComboColourBy(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 	return 0;
 }
 
+
+
+//Thanks Kit Fisto from Stack Overflow for the next two functions!
+//https://stackoverflow.com/questions/12353011/how-to-convert-a-utc-date-time-to-a-time-t-in-c
+
+const int SecondsPerMinute = 60;
+const int SecondsPerHour = 3600;
+const int SecondsPerDay = 86400;
+const int DaysOfMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+BOOL IsLeapYear(short year)
+{
+    if (year % 4 != 0) return FALSE;
+    if (year % 100 != 0) return TRUE;
+    return (year % 400) == 0;
+}
+
+static time_t mkgmtime(const struct tm *ptm) {
+    time_t secs = 0;
+    // tm_year is years since 1900
+    int year = ptm->tm_year + 1900;
+    for (int y = 1970; y < year; ++y) {
+        secs += (IsLeapYear(y)? 366: 365) * SecondsPerDay;
+    }
+    // tm_mon is month from 0..11
+    for (int m = 0; m < ptm->tm_mon; ++m) {
+        secs += DaysOfMonth[m] * SecondsPerDay;
+        if (m == 1 && IsLeapYear(year)) secs += SecondsPerDay;
+    }
+    secs += (ptm->tm_mday - 1) * SecondsPerDay;
+    secs += ptm->tm_hour       * SecondsPerHour;
+    secs += ptm->tm_min        * SecondsPerMinute;
+    secs += ptm->tm_sec;
+    return secs;
+}
+
+
 BOOL SetDateFromControl(HWND hwndCtl)	//returns whether to redraw
 {
 	char szText[128];
@@ -1356,20 +1423,90 @@ BOOL SetDateFromControl(HWND hwndCtl)	//returns whether to redraw
 	time_t	t;
 
 	SendMessage(hwndCtl, WM_GETTEXT, 128,(long)&szText[0]);
-	printf("Before: %s\t",szText);
+	szText[16]=0;	//we've got up to 128 characters, but we'll make sure to truncate well before then.
+	printf("\nBefore: %s\t",szText);
 
-	year = strtoul(szText,&pEnd,10);
-	month = strtoul(pEnd,&pEnd,10);
-	day = strtoul(pEnd,&pEnd,10);
 
-	if (month<0) month*=-1;
-	if (day<0) day*=-1;
+
+	//Need to check there's a proper date inserted
+	char firstnumber[12];
+	char secondnumber[12];
+	char thirdnumber[12];
+
+	int readingnumber=0;
+	int waslastreadnumeral=0;	//was the last thing we read a numeral
+
+	int p;	//where we are in the number string
+
+	memset(firstnumber,0,12);
+	memset(secondnumber,0,12);
+	memset(thirdnumber,0,12);
+
+	int c;
+	c=0;
+	while (szText[c])	{	//read through until zero-termination
+		if ((szText[c]>=0x30)&&(szText[c]<=0x39))	{	//we have a numeral
+//			printf("\n%i,'%c',%i,%i %i",c,szText[c], waslastreadnumeral, readingnumber,p);
+			if (waslastreadnumeral==0)	{
+				waslastreadnumeral=1;
+				readingnumber++;
+				p=0;
+			}
+		}	else	{
+			waslastreadnumeral=0;
+			p=0;
+		}
+
+		if (waslastreadnumeral==1)	{
+			if (readingnumber==1)	{
+				firstnumber[p]=szText[c];
+			}
+			if (readingnumber==2)	{
+				secondnumber[p]=szText[c];
+			}
+			if (readingnumber==3)	{
+				thirdnumber[p]=szText[c];
+			}
+			p++;
+			if (p>11)	{p=11;}	//don't allow the string to overrun
+
+		}
+
+		c++;
+
+	}
+
+	printf("%s %s %s,",firstnumber,secondnumber,thirdnumber);
+
+	if (strlen(firstnumber)==0)	{	//if the whole thing is blank
+		year=2010; month=1;day=1;
+	}
+
+
+	if (strlen(secondnumber)==0)	{	//if there's only one number
+		//check whether its 31122001 or a unix timestamp, or 20011231 or 011231 or 311201 etc
+	}
+	else	{	//assume YMD for now
+		year=strtoul(firstnumber, NULL, 10);
+		month=strtoul(secondnumber, NULL, 10);
+		day=strtoul(thirdnumber, NULL, 10);
+	}
+
+	//This gets a Y-M-D
+	//year = strtoul(szText,&pEnd,10);
+	//month = strtoul(pEnd,&pEnd,10);
+	//day = strtoul(pEnd,&pEnd,10);
+//	if (month<0) month*=-1;
+//	if (day<0) day*=-1;
+
+	time.tm_isdst = -1;
 
 	time.tm_year = year-1900;
 	time.tm_mon = month-1;
 	time.tm_mday = day;
 	if (hwndCtl == hwndEditDateFrom)	{
  		time.tm_sec = time.tm_min = time.tm_hour = 0;
+		printf("current time: %i %i-%i-%i\t", optionsPreview.fromtimestamp,time.tm_year, time.tm_mon, time.tm_mday);
 		//time.tm_sec =1;
 	}
 	else if (hwndCtl == hwndEditDateTo)	{	//we want to go all the way to the end of the day
@@ -1380,14 +1517,15 @@ BOOL SetDateFromControl(HWND hwndCtl)	//returns whether to redraw
 
 
 
-	t=mktime(&time);
+//	t=mktime(&time);
+	t=mkgmtime(&time);
 	printf("Time: %i\t", t);
 
 
 
 	struct tm timeprint;
-	localtime_s(&t, &timeprint);
-	strftime (szText, 256, "%Y-%m-%d", &timeprint);	//ISO8601YYYY-MM-DD
+	gmtime_s(&t, &timeprint);
+	strftime (szText, 256, "%Y-%m-%d %z", &timeprint);	//ISO8601YYYY-MM-DD
 	printf("After: %s\n",szText);
 
 
@@ -3238,30 +3376,32 @@ LRESULT CALLBACK DateSliderWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lPara
 
 }
 
+
 time_t RoundTimeUp(time_t s)
 {
 	struct tm time;
 
-	localtime_s(&s, &time);
+	gmtime_s(&s, &time);
 
 	time.tm_hour = 23;
 	time.tm_min = 59;
 	time.tm_sec=59;
 
-	return mktime(&time);
+	return mkgmtime(&time);
 }
 
 time_t RoundTimeDown(time_t s)
 {
 	struct tm time;
 
-	localtime_s(&s, &time);
+	gmtime_s(&s, &time);
 
-	time.tm_hour = 23;
-	time.tm_min = 59;
-	time.tm_sec=59;
+	time.tm_hour =0;
+	time.tm_min = 0;
+	time.tm_sec=0;
 
-	return mktime(&time);
+
+	return mkgmtime(&time);
 }
 
 
@@ -3291,7 +3431,7 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 
 
 	s=lh->earliesttimestamp;
-	localtime_s(&s, &time);
+	gmtime_s(&s, &time);
 	oldyear=time.tm_year;
 	oldmonth=time.tm_mon;
 
@@ -3302,7 +3442,7 @@ int PaintDateSlider(HWND hwnd, LOCATIONHISTORY * lh, OPTIONS *o)
 	for (x=0;x<clientRect.right;x++)	{
 		s=lh->earliesttimestamp+x*spp;
 
-		localtime_s(&s, &time);
+		gmtime_s(&s, &time);
 		y=0;
 		MoveToEx(hdc, x, y, (LPPOINT) NULL);
 		if (time.tm_year!=oldyear)	{
@@ -3440,11 +3580,11 @@ int UpdateDateControlsFromOptions(OPTIONS * o)
 	char buffer[256];
 	struct tm time;
 
-	localtime_s(&o->fromtimestamp, &time);
+	gmtime_s(&o->fromtimestamp, &time);
 	strftime (buffer, 256, "%Y-%m-%d", &time);	//ISO8601YYYY-MM-DD
 	SetWindowText(hwndEditDateFrom, buffer);
 
-	localtime_s(&o->totimestamp, &time);
+	gmtime_s(&o->totimestamp, &time);
 	strftime (buffer, 256, "%Y-%m-%d", &time);	//ISO8601YYYY-MM-DD
 	SetWindowText(hwndEditDateTo, buffer);
 	return 0;

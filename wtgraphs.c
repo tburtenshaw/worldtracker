@@ -181,7 +181,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 			switch (gi->xAxisSeries)	{
 				case WT_SERIES_TIMEOFDAY:
 					int secondssincemidnight;
-					localtime_s(&trip->leavetime, &time);
+					gmtime_s(&trip->leavetime, &time);
 					secondssincemidnight = time.tm_hour*3600 + time.tm_min*60 + time.tm_sec - time.tm_isdst*3600;
 					xmin=0;
 					xmax = 60*60*24;
@@ -191,7 +191,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 					break;
 				case WT_SERIES_WEEKDAY:
 					long secondspastsunday;
-					localtime_s(&trip->leavetime, &time);
+					gmtime_s(&trip->leavetime, &time);
 					secondspastsunday = time.tm_wday*3600*24 + time.tm_hour*3600 + time.tm_min*60 + time.tm_sec;
 					xmin=0;
 					xmax = 60*60*24*7-60*60;
@@ -228,7 +228,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 					}
 				break;
 				case WT_SERIES_WEEKDAY:
-					localtime_s(&trip->leavetime, &time);
+					gmtime_s(&trip->leavetime, &time);
 					//printf("%i %i",time.tm_wday);
 					pointColour.R = cDaySwatch[time.tm_wday].R;
 					pointColour.G = cDaySwatch[time.tm_wday].G;
@@ -236,7 +236,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 					pointColour.A = 120;
 				break;
 				case WT_SERIES_MONTH:
-					localtime_s(&trip->leavetime, &time);
+					gmtime_s(&trip->leavetime, &time);
 					//printf("%i %i",time.tm_wday);
 					pointColour.R = cMonthSwatch[time.tm_mon].R;
 					pointColour.G = cMonthSwatch[time.tm_mon].G;
@@ -284,7 +284,7 @@ int DrawScatterGraph(GRAPHINFO *gi)
 		memset(bucket,0,sizeof(int)*24);
 
 		for (timestamp = tsstart; timestamp<tsfinish;)	{
-			localtime_s(&timestamp, &time);
+			gmtime_s(&timestamp, &time);
 
 			//SET STARTING PERIOD
 			if (gi->xAxisSeries == WT_SERIES_DAY) 	{	//set to the start of a day
