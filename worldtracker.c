@@ -459,6 +459,11 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						if (optionsPreview.totimestamp<locationHistory.earliesttimestamp)	{	//it should not be smaller than the earliest time of our data
 							optionsPreview.totimestamp = locationHistory.earliesttimestamp;
 						}
+						//and it shouldn't be less than the fromtime
+						if (optionsPreview.totimestamp<optionsPreview.fromtimestamp)	{
+							optionsPreview.totimestamp = RoundTimeUp(optionsPreview.fromtimestamp);
+						}
+
 
 					}
 
@@ -469,6 +474,7 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 				return FALSE;
 				case VK_UP:
+					SetDateFromControl(hwnd);
 					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
 					if (hwnd==hwndEditDateFrom)	{
 						optionsPreview.fromtimestamp+=daystomoveby*24*60*60;
@@ -476,6 +482,11 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						if (optionsPreview.fromtimestamp>locationHistory.latesttimestamp)	{	//shouldn't be later than our data
 							optionsPreview.fromtimestamp = locationHistory.latesttimestamp;
 						}
+						//shouldn't be larger than the to timestamp
+						if (optionsPreview.fromtimestamp>optionsPreview.totimestamp)	{
+							optionsPreview.fromtimestamp = RoundTimeDown(optionsPreview.totimestamp);	//we round down, as we're the from date should be midnight
+						}
+
 
 
 					}
@@ -485,7 +496,6 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 							optionsPreview.totimestamp = locationHistory.latesttimestamp;
 						}
 
-
 					}
 
 					UpdateDateControlsFromOptions(&optionsPreview);
@@ -494,11 +504,92 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
 
 				return FALSE;
+				case VK_END:
+					if (GetKeyState(VK_CONTROL) & SHIFTED)	{	//control end goes to very last date
+						if (hwnd==hwndEditDateTo)	{
+							optionsPreview.totimestamp = locationHistory.latesttimestamp;
+							UpdateDateControlsFromOptions(&optionsPreview);
+							InvalidateRect(hwndDateSlider, NULL, 0);
+							SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+							SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+							return FALSE;
+						}
+						if (hwnd==hwndEditDateFrom)	{	//Ctrl-End on the from date, brings it to the to date, just at midnight
+							optionsPreview.fromtimestamp = RoundTimeDown(optionsPreview.totimestamp);
+							UpdateDateControlsFromOptions(&optionsPreview);
+							InvalidateRect(hwndDateSlider, NULL, 0);
+							SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+							SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+							return FALSE;
+						}
+					}
+					return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+				case VK_HOME:
+					if (GetKeyState(VK_CONTROL) & SHIFTED)	{	//control home goes to very first date
+						if (hwnd==hwndEditDateFrom)	{
+							optionsPreview.fromtimestamp = locationHistory.earliesttimestamp;
+							UpdateDateControlsFromOptions(&optionsPreview);
+							InvalidateRect(hwndDateSlider, NULL, 0);
+							SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+							SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+							return FALSE;
+						}
+						if (hwnd==hwndEditDateTo)	{	//Ctrl-Home on the To date, brings it to the "From" date, just at 1 minute to the next midnight
+							optionsPreview.totimestamp = RoundTimeUp(optionsPreview.fromtimestamp);
+							UpdateDateControlsFromOptions(&optionsPreview);
+							InvalidateRect(hwndDateSlider, NULL, 0);
+							SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+							SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+							return FALSE;
+						}
+					}
+					return CallWindowProc(DefEditProc, hwnd, uMsg, wParam, lParam);
+
+
+				case VK_NEXT:	//Page Down (and Up) moves both the From and To dates, maintaining the gap between them
+				case VK_PRIOR:
+					if ((hwnd==hwndEditDateTo) || (hwnd==hwndEditDateFrom))	{
+						if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
+						SetDateFromControl(hwnd);
+						long secondstomoveby;
+						secondstomoveby = daystomoveby*24*60*60;
+
+						//if we're already close to the end, and pushing page down, we'll move by a smaller amount
+						if (wParam==VK_NEXT)	{
+							if ((optionsPreview.totimestamp + secondstomoveby)>locationHistory.latesttimestamp)	{
+								secondstomoveby = locationHistory.latesttimestamp-optionsPreview.totimestamp;
+							}
+							optionsPreview.totimestamp+=secondstomoveby;
+							optionsPreview.fromtimestamp+=secondstomoveby;
+						}
+
+						if (wParam==VK_PRIOR)	{	//if we're going back in time, don't move more than allowed
+							if ((optionsPreview.fromtimestamp - secondstomoveby)<locationHistory.earliesttimestamp)	{
+								secondstomoveby = optionsPreview.fromtimestamp-locationHistory.earliesttimestamp;
+							}
+							optionsPreview.totimestamp-=secondstomoveby;
+							optionsPreview.fromtimestamp-=secondstomoveby;
+						}
+
+
+
+						UpdateDateControlsFromOptions(&optionsPreview);
+						InvalidateRect(hwndDateSlider, NULL, 0);
+						SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+						SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+
+					}
+					return FALSE;
+
 				case VK_RETURN:
-					printf("enter");
-				return FALSE;
+					//not sure why I'm doing this, but pressing enter in the field will force a recalc
+					SetDateFromControl(hwnd);
+					InvalidateRect(hwndDateSlider, NULL, 0);
+					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+					return FALSE;
 				case VK_TAB:
-					printf("tab");
 					if (GetKeyState(VK_SHIFT) & SHIFTED) {	//shift-tab
 						if (hwnd==hwndEditDateFrom) {SetFocus(hwndEditPreset);}
 						else if (hwnd==hwndEditDateTo) {SetFocus(hwndEditDateFrom);}
@@ -3496,14 +3587,37 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	GetClientRect(hwnd, &clientRect);
 	secondsspan = locationHistory.latesttimestamp - locationHistory.earliesttimestamp;
+	if (secondsspan<24*60*60)	return 0;
 	spp=secondsspan/clientRect.right;
 	timeclicked = locationHistory.earliesttimestamp + mousePoint.x*spp;
 
+	//contraints
 	if (timeclicked<locationHistory.earliesttimestamp)	//constrain min
 		timeclicked = locationHistory.earliesttimestamp;
 
 	if (timeclicked>locationHistory.latesttimestamp)	//constrain max
 		timeclicked = locationHistory.latesttimestamp;
+
+	if (optionsPreview.fromtimestamp<locationHistory.earliesttimestamp)	{	//contrain the options timestamp too, as things are calculated from this
+		optionsPreview.fromtimestamp=locationHistory.earliesttimestamp;
+	}
+	if (optionsPreview.totimestamp>locationHistory.latesttimestamp)	{	//contrain the options timestamp too, as things are calculated from this
+		optionsPreview.totimestamp=locationHistory.latesttimestamp;
+	}
+
+	//don't let the from be greater than the to, or vice versa
+	if (mouseDragDateSlider == MS_DRAGFROM)	{
+		if (timeclicked > optionsPreview.totimestamp)	{
+			timeclicked = RoundTimeDown(optionsPreview.totimestamp);
+		}
+	}
+	if (mouseDragDateSlider == MS_DRAGTO)	{
+		if (timeclicked < optionsPreview.fromtimestamp)	{
+			timeclicked = RoundTimeUp(optionsPreview.fromtimestamp);
+		}
+	}
+
+
 
 	xfrom = (optionsPreview.fromtimestamp-locationHistory.earliesttimestamp)/spp;
 	xto = (optionsPreview.totimestamp-locationHistory.earliesttimestamp)/spp;
@@ -3511,7 +3625,7 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg) {
 		case WM_LBUTTONDOWN:
 			SetFocus(hwnd);
-			if ((optionsPreview.totimestamp - optionsPreview.fromtimestamp)<24*60*60)	{	//if there's only one day, don't bother
+			if ((locationHistory.latesttimestamp - locationHistory.earliesttimestamp)<24*60*60)	{	//if there's only one day, don't bother
 				return 0;
 			}
 			if ((mousePoint.x+10 > xfrom) &&(mousePoint.x-10 < xfrom) && (mousePoint.x+10 > xto) &&(mousePoint.x-10 < xto))	{	//if it's in the grabbing ranges of both
@@ -3534,7 +3648,7 @@ int HandleSliderMouse(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				SetCursor(LoadCursor(NULL,IDC_SIZEWE));
 				redraw=0;
 				if (mouseDragDateSlider == MS_DRAGFROM)	{
-					if (optionsPreview.fromtimestamp != timeclicked)	{
+					if (optionsPreview.fromtimestamp != timeclicked)	{ //I presumed this is so we don't redraw if no change
 						optionsPreview.fromtimestamp = RoundTimeDown(timeclicked);	//the start of a day
 						redraw=1;
 					}
