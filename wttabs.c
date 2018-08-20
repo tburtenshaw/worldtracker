@@ -11,6 +11,7 @@ extern HINSTANCE hInst;
 extern WORLDREGION * regionFirst;
 extern OPTIONS optionsPreview;
 extern LOCATIONHISTORY locationHistory;
+extern HWND hwndDateSlider;
 
 //likely to be shared extern-ally
 HWND hwndTabImport;
@@ -223,6 +224,7 @@ LRESULT CALLBACK TabImportWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam
 					SendMessage(hwndImportList, LB_SETCURSEL, id, 0);
 					SendMessage(hwnd, WT_WM_TAB_UPDATEINFO, id, 0);
 					SendMessage(GetParent(hwndTab), WT_WM_RECALCBITMAP, 0,0);
+					InvalidateRect(hwndDateSlider, NULL, 0);
 					return -1;
 					break;
 				default:

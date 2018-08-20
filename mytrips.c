@@ -61,6 +61,10 @@ for (int g=0; g<locationHistory->numgroups; g++)	{
 			if (g==4)	{c.R=200; c.G=255; c.B =200; c.A=120;}
 			if (g==5)	{c.R=200; c.G=200; c.B =255; c.A=120;}
 		}
+		else if (options->colourby == COLOUR_BY_FADEOVERTIME)	{
+			c.R=255; c.G=255; c.B =200;
+			c.A = 255 * (coord->timestampS - options->fromtimestamp)/(options->totimestamp - options->fromtimestamp);
+		}
 
 
 
@@ -1939,7 +1943,7 @@ int ExportGPXFile(LOCATIONHISTORY *lh, char * GPXFilename, unsigned long tsfrom,
 	return 1;
 }
 
-int GetPresetScoreArray(char *searchtext, PRESET *presetlist, int countlist, int *scorearray);
+
 
 int GetPresetScoreArray(char *searchtext, PRESET *presetlist, int countlist, int *score)
 {
@@ -2396,6 +2400,43 @@ int CopyNSWE(NSWE *dest, NSWE *src)
 	memcpy(dest, src, sizeof(*dest));
 	return 0;
 }
+
+int DateRangeInNSWE(LOCATIONHISTORY *locationHistory, NSWE *viewport, unsigned long * from, unsigned long * to)
+{
+	unsigned long tempFrom;
+	unsigned long tempTo;
+
+	LOCATION *loc;
+
+	tempFrom=-1;	//max
+	tempTo=0;		//min
+
+	loc=locationHistory->first;
+	while (loc)	{
+		//test if the point is within the viewport
+		if ((loc->latitude<viewport->north) && (loc->latitude>viewport->south) && (loc->longitude<viewport->east)&& (loc->longitude>viewport->west))	{
+			if (loc->timestampS<tempFrom)	{
+				tempFrom = loc->timestampS;
+			}
+			if (loc->timestampS>tempTo)	{
+				tempTo = loc->timestampS;
+			}
+		}
+
+		loc=loc->next;
+	}
+	if (tempTo>0)	{	//if there's one, there'll be the other
+		*from=tempFrom;
+		*to = tempTo;
+		return 1;
+	}
+
+	return 0;
+}
+
+
+
+
 
 int DeleteRegion(WORLDREGION * regionToDelete, WORLDREGION ** pRegionHead)
 {

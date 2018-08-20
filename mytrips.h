@@ -47,8 +47,9 @@ typedef enum Input_Filetype
 #define COLOUR_BY_HOUR 4
 #define COLOUR_BY_MONTH 5
 #define COLOUR_BY_GROUP 6
+#define COLOUR_BY_FADEOVERTIME 7
 
-#define MAX_COLOURBY_OPTION COLOUR_BY_GROUP
+#define MAX_COLOURBY_OPTION COLOUR_BY_FADEOVERTIME
 
 #define REGIONTYPE_HOME 1
 #define REGIONTYPE_AWAY 2
@@ -292,6 +293,10 @@ double rfpart(double x);
 double MetersApartFlatEarth(double lat1, double long1, double lat2, double long2);	//takes degrees, this uses "Polar Coordinate Flat-Earth Formula"
 double MetersApartHaversine(double lat1, double long1, double lat2, double long2);
 
+
+int GetPresetScoreArray(char *searchtext, PRESET *presetlist, int countlist, int *scorearray);
+
+int DateRangeInNSWE(LOCATIONHISTORY *locationHistory, NSWE *viewport, unsigned long * from, unsigned long * to);
 
 WORLDREGION * CreateRegionAfter(WORLDREGION * parentRegion, NSWE *nswe, char * title, int type, COLOUR *c, WORLDREGION ** pRegionHead);
 int DeleteRegion(WORLDREGION * regionToDelete, WORLDREGION ** pRegionHead);

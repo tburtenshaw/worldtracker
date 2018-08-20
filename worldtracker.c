@@ -435,17 +435,20 @@ LRESULT EditDirectionProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	int daystomoveby;
+	int daystomoveby;	//default will be 7 (a week), control will move one, Shift will move 120, Ctrl-Shift will move 30.
     switch (uMsg)
     {
 		case WM_KEYDOWN: //claim the up and down arrow
-
+			if ((GetKeyState(VK_SHIFT) & SHIFTED) && (GetKeyState(VK_CONTROL) & SHIFTED))	{daystomoveby = 30;}
+			else if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=120;}
+			else if (GetKeyState(VK_CONTROL) & SHIFTED) {daystomoveby=1;}
+			else {daystomoveby=7;};
 
 			switch (wParam)
 			{
 				case VK_DOWN:
 					SetDateFromControl(hwnd);
-					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
+
 					if (hwnd==hwndEditDateFrom)	{
 						optionsPreview.fromtimestamp-=daystomoveby*24*60*60;
 
@@ -470,12 +473,12 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					UpdateDateControlsFromOptions(&optionsPreview);
 					InvalidateRect(hwndDateSlider, NULL, 0);
 					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 5,0);	//5ms delay (rather than higher default)
 
 				return FALSE;
 				case VK_UP:
 					SetDateFromControl(hwnd);
-					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
+//					if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
 					if (hwnd==hwndEditDateFrom)	{
 						optionsPreview.fromtimestamp+=daystomoveby*24*60*60;
 
@@ -501,7 +504,7 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					UpdateDateControlsFromOptions(&optionsPreview);
 					InvalidateRect(hwndDateSlider, NULL, 0);
 					SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+					SendMessage(hwndOverview, WT_WM_QUEUERECALC, 5,0);
 
 				return FALSE;
 				case VK_END:
@@ -550,7 +553,7 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				case VK_NEXT:	//Page Down (and Up) moves both the From and To dates, maintaining the gap between them
 				case VK_PRIOR:
 					if ((hwnd==hwndEditDateTo) || (hwnd==hwndEditDateFrom))	{
-						if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
+						//if (GetKeyState(VK_SHIFT) & SHIFTED)	{daystomoveby=7;} else {daystomoveby=1;}
 						SetDateFromControl(hwnd);
 						long secondstomoveby;
 						secondstomoveby = daystomoveby*24*60*60;
@@ -576,8 +579,8 @@ LRESULT EditDateProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 						UpdateDateControlsFromOptions(&optionsPreview);
 						InvalidateRect(hwndDateSlider, NULL, 0);
-						SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
-						SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+						SendMessage(hwndPreview, WT_WM_QUEUERECALC, 20,0);
+						SendMessage(hwndOverview, WT_WM_QUEUERECALC, 5,0);
 
 					}
 					return FALSE;
@@ -775,6 +778,7 @@ void InitStrings(void)
 	szColourByOption[COLOUR_BY_HOUR]="Hour";
 	szColourByOption[COLOUR_BY_MONTH]="Month";
 	szColourByOption[COLOUR_BY_GROUP]="Group";
+	szColourByOption[COLOUR_BY_FADEOVERTIME] = "Fade";
 
 	return;
 }
@@ -967,6 +971,7 @@ static BOOL InitApplication(void)
 	memset(&optionsPreview,0,sizeof(optionsPreview));
 	memset(&optionsOverview,0,sizeof(optionsPreview));
 
+	//default view
 	optionsPreview.nswe.north=90;
 	optionsPreview.nswe.south=-90;
 	optionsPreview.nswe.west=-180;
@@ -978,6 +983,7 @@ static BOOL InitApplication(void)
 
 	InitiateColours();
 
+	//set dialog font
 	int height;
 	HDC hdc;
 	hdc=GetDC(0);
@@ -989,6 +995,7 @@ static BOOL InitApplication(void)
     "Tahoma");
 
 
+	/*
 COLOUR c;
 NSWE nswe;
 
@@ -1081,6 +1088,8 @@ nswe.east =174.649000;
 	if (!regionFirst)	{
 		regionFirst = regionLast;
 	}
+
+*/
 
 	//Sets strings
 	InitStrings();
@@ -1211,6 +1220,16 @@ void MainWndProc_OnCommand(HWND hwnd, int id, HWND hwndCtl, UINT codeNotify)
 			SendMessage(hwnd, WT_WM_RECALCBITMAP, 0,0);
 			SendMessage(hwndTabRegions,WT_WM_TAB_REGIONADDTOLIST,0,(LPARAM)regionLast);
 			break;
+		case IDM_CONSTRAINTIMETOVIEW:
+			DateRangeInNSWE(&locationHistory, &optionsPreview.nswe,  &optionsPreview.fromtimestamp, &optionsPreview.totimestamp);
+			optionsPreview.fromtimestamp = RoundTimeDown(optionsPreview.fromtimestamp);
+			optionsPreview.totimestamp = RoundTimeUp(optionsPreview.totimestamp);
+			SendMessage(hwndPreview, WT_WM_QUEUERECALC, 0,0);
+			SendMessage(hwndOverview, WT_WM_QUEUERECALC, 0,0);
+			UpdateDateControlsFromOptions(&optionsPreview);
+			InvalidateRect(hwndDateSlider, NULL, 0);
+			break;
+
 
 
 		case ID_EDITNORTH:
@@ -2432,8 +2451,13 @@ LRESULT CALLBACK OverviewWndProc(HWND hwnd,UINT msg,WPARAM wParam,LPARAM lParam)
 
 
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
+			int timerlength;
+			timerlength= 20;	//default timer length of 20 ms (shorter than the preview window, as I want it more responsive and it's less intensive)
+			if ((wParam>0) && (wParam<10000))	{	//if it's zero, or too high, then use default
+				timerlength = wParam;
+			}
 			KillTimer(hwnd, IDT_OVERVIEWTIMER);
-			SetTimer(hwnd, IDT_OVERVIEWTIMER, 50, NULL);	//shorter time for the overview, as I want it more responsive and it's less intensive
+			SetTimer(hwnd, IDT_OVERVIEWTIMER, timerlength, NULL);
 			return 1;
 			break;
 		case WM_TIMER:
@@ -2802,10 +2826,17 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 		case WT_WM_QUEUERECALC:		//start a timer, and send the recalc bitmap when appropriate
 
     		UpdateStatusBar(SuggestAreaFromNSWE(&optionsPreview.nswe, presetArray, numberOfPresets), 1, SBT_POPOUT);
-    		//UpdateStatusBar("test", 0, 0);
 
+
+			int timerlength;
+			timerlength= 100;	//default timer length of 100 ms (longer in the preview window)
+			if ((wParam>0) && (wParam<10000))	{	//if it's zero, or too high, then use default
+				timerlength = wParam;
+			}
 			KillTimer(hwnd, IDT_PREVIEWTIMER);
-			SetTimer(hwnd, IDT_PREVIEWTIMER, 100, NULL);	//200 is good without threads
+			SetTimer(hwnd, IDT_PREVIEWTIMER, timerlength, NULL);
+
+
 			//int w,h;
 			GetClientRect(hWndMain, &clientRect);
 			PreviewWindowFitToAspectRatio(hWndMain, clientRect.bottom, clientRect.right, (optionsPreview.nswe.east-optionsPreview.nswe.west)/(optionsPreview.nswe.north-optionsPreview.nswe.south));
@@ -2853,6 +2884,7 @@ LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wParam,LPARAM lParam
 			InsertMenu(hMenu, 1, MF_BYPOSITION|MF_STRING, IDM_ZOOMFIT, "Zoom to fit all points");
 			InsertMenu(hMenu, 2, MF_BYPOSITION|MF_STRING, IDM_CREATEREGIONFROMVIEW, "Create region from view");
 			InsertMenu(hMenu, 3, MF_BYPOSITION|MF_STRING, IDM_EXPORTPNG, "Export image to PNG file");
+			InsertMenu(hMenu, 4, MF_BYPOSITION|MF_STRING, IDM_CONSTRAINTIMETOVIEW, "Constrain time to this view");
 			TrackPopupMenu(hMenu, TPM_LEFTALIGN|TPM_TOPALIGN|TPM_RIGHTBUTTON, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0, hwnd, NULL);
 			break;
 		case WM_COMMAND:
@@ -3421,10 +3453,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//This brings up a command console window
 
+	/*
 	AllocConsole();
     freopen("conout$","w",stdout);
     freopen("conout$","w",stderr);
-
+*/
 
 
 	hInst = hInstance;
