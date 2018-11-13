@@ -311,6 +311,8 @@ long SecondsInStay(STAY *stay, long starttime, long endtime);
 int ExportTimeInNSWE(NSWE *nswe, long starttime, long endtime, long interval, LOCATIONHISTORY *lh);
 int FreeLinkedListOfStays(STAY * stay);
 
+void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int blocksY);
+
 //Graphs
 void GraphScatter(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, double xmajorunit, double ymajorunit,\
 	 COLOUR *cAxisAndLabels, char * xaxislabel, char * yaxislabel, void(*xlabelfn)(double, char *), void(*ylabelfn)(double, char *),\

@@ -8,16 +8,24 @@
 #include "lodepng.h"
 #include "mytrips.h"
 #include "rasterfont.h"
+#include "colormaps.h"
 
 COLOUR cpm[12];
 COLOUR cpd[7];
 
+COLOUR colormap_extkindlmann[1024];
+COLOUR colormap_inferno[1024];
 
 int PlotPaths(BM* bm, LOCATIONHISTORY *locationHistory, OPTIONS *options)
 {
 	COLOUR c;
 	double oldlat, oldlon;
 	LOCATION *coord;
+
+
+	unsigned long time =clock();
+
+
 
 
 	if (locationHistory==NULL)
@@ -88,8 +96,16 @@ for (int g=0; g<locationHistory->numgroups; g++)	{
 
 
 	RASTERFONT rf;
+	char debugTextTime[100];
 	LoadRasterFont(&rf);
-//	bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
+
+
+	c.R=200;
+	c.G=215;
+	c.B=255;
+	sprintf(debugTextTime, "Time: %i",clock()-time);
+	bitmapText(bm, &rf,10,10, debugTextTime, &c);
+	//bitmapText(bm, &rf,10,10,"5:45pm 1.2.3.4.5.6.7.8.9.0 $4.50 for 6! 1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ", &c);
 //	plotChar(bm, &rf,0,0,65, &c);
 
 	DestroyRasterFont(&rf);
@@ -1302,7 +1318,6 @@ int bitmapLineDrawWu(BM* bm, double x0, double y0, double x1, double y1, int thi
 
 	double hypotenusethickness;
 	int x;
-
 
 	//Go to speedy instead if thickness set at -1
 	if (thickness==-1)	{
@@ -2525,7 +2540,8 @@ WORLDREGION * CreateRegionAfter(WORLDREGION * parentRegion, NSWE *nswe, char * t
 
 }
 
-STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)
+
+STAY * CreateStayListFromNSWE(NSWE * nswe, LOCATIONHISTORY *lh)	//this creates a list that can be later checked more quickly.
 {
 	STAY * stay;
 	STAY * oldstay;
@@ -2775,6 +2791,167 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 
 	return 1;
 }
+
+void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int blocksY)
+{
+	int x,y;	//the blocks
+
+	int blocknumber;	//the number of the block, its x+y*blocksX, it's negative if not in a block. We go from south to north and west to east.
+	int oldblocknumber;
+	NSWE blockNSWE;	//the square of space we're counting the stay duration
+	long *secondsInSpace;	//the array to store the stay durations
+
+	unsigned long earliesttimeinblock;
+
+	LOCATION * loc;
+	WORLDCOORD coord;	//temp coord, to test easier
+	double xStep,yStep;	//the size, in degrees, of each block
+
+
+	loc=lh->first;
+
+	//return if problems
+	if (!loc) return;
+	if (!bm) return;
+
+
+
+	//maximum block resolution is the same as the BM
+	if ((blocksX>bm->width)||(blocksX<2))	{blocksX=bm->width;}
+	if ((blocksY>bm->height)||(blocksY<2))	{blocksY=bm->height;}
+
+
+
+	//Allocate memory for the array
+	secondsInSpace=malloc(sizeof(long)*blocksX*blocksY);
+	memset(secondsInSpace,0,sizeof(long)*blocksX*blocksY);
+
+	xStep=(viewpoint->east-viewpoint->west)/blocksX;
+	yStep=(viewpoint->north-viewpoint->south)/blocksY;
+
+	oldblocknumber=-1;	//start outside of the blocks
+
+	fprintf(stdout, "Starting to go through locations");
+
+	while (loc)	{
+
+		coord.latitude = loc->latitude;
+		coord.longitude = loc->longitude;
+
+		if (CoordInNSWE(&coord, viewpoint))	{	//we're in the overall viewpoint
+			x=(coord.longitude - viewpoint->west)/xStep;
+			y=(coord.latitude - viewpoint->south)/yStep;
+
+			blocknumber=x+y*blocksX;
+
+		}	else
+		{
+			blocknumber=-1;	//we're not in a block
+		}
+
+		if ((blocknumber!=oldblocknumber)||(!loc->next))	{	//if the block number has changed, or there we're at the end of the list of location
+
+			if (oldblocknumber>=0)	{
+				secondsInSpace[oldblocknumber] += (loc->timestampS-earliesttimeinblock);
+			}
+
+			oldblocknumber=blocknumber;
+			earliesttimeinblock=loc->timestampS;
+		}
+
+		loc=loc->next;
+	}
+
+
+	long longeststay;
+	double loglongeststay;
+	longeststay=0;
+	//print for debug
+	for (y=0;y<blocksY;y++)	{
+		//printf("\n");
+		for (x=0;x<blocksX;x++)	{
+			if (secondsInSpace[x+y*blocksX] > longeststay)	{
+				longeststay = secondsInSpace[x+y*blocksX];
+			}
+
+			//printf("%i ",secondsInSpace[x+y*blocksX]);
+		}
+	}
+
+	loglongeststay = log10((double)longeststay);
+
+	//optional gaussian blur here, (before logs are done).
+	//blur horizontal
+	long * secondsHoriz;
+	secondsHoriz=malloc(sizeof(long)*blocksX);
+	for (y=0;y<blocksY;y++)	{
+		//first copy the original line from the seconds array to a temp line
+		memcpy(secondsHoriz,&secondsInSpace[y*blocksX],blocksX*sizeof(long));
+		for (x=0+5;x<blocksX-5;x++)	{
+			secondsInSpace[x+y*blocksX]=(secondsHoriz[x-1]+secondsHoriz[x]*2+secondsHoriz[x+1])/4;
+		}
+	}
+	free(secondsHoriz);
+
+
+	long * secondsVert;
+	secondsVert=malloc(sizeof(long)*blocksY);
+	for (x=0;x<blocksX;x++)	{
+		//copying the line is more difficult vertically.
+		for (y=0;y<blocksY;y++)	{
+			memcpy(&secondsVert[y],&secondsInSpace[x+y*blocksX],sizeof(long));
+		}
+
+		//now add everything waited per Pascal
+		for (y=0+5;y<blocksY-5;y++)	{
+			secondsInSpace[x+y*blocksX]=(secondsVert[y-1]+secondsVert[y]*2+secondsVert[y+1])/4;
+		}
+	}
+
+
+
+	fprintf(stdout, "Gaussian blur finished.\n");
+	fprintf(stdout, "Starting display: blocks %i,%i. BM width %i, height %i.\n",blocksX,blocksY,bm->width, bm->height);
+	fprintf(stderr, "Err test\n");
+
+
+	//display
+	COLOUR cFill;
+	unsigned int heatmapvalue1024;	//value between 0 and 1023
+
+	Colormapsetup_extkindlmann();
+	Colormapsetup_inferno();
+
+	fprintf(stdout, "Display heatmap\n");
+	if (longeststay>0)	{
+		for (y=0;y<bm->height;y++)	{
+			for (x=0;x<bm->width;x++)	{
+				blocknumber = (x*blocksX/bm->width) + (blocksY-1-(y*blocksY/bm->height))*blocksX;
+
+				if (secondsInSpace[blocknumber]>0)	{
+					//cFill.R=255*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
+					//cFill.G=125*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
+					//cFill.B=0;
+					//cFill.A=255*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
+
+					heatmapvalue1024 = 1023*log10((double)secondsInSpace[blocknumber])/loglongeststay;
+					if (heatmapvalue1024>1023)	{
+						fprintf(stderr,"Over 1024");
+					}
+					cFill = colormap_extkindlmann[heatmapvalue1024];
+					//cFill = colormap_inferno[heatmapvalue1024];
+					bitmapPixelSet(bm,x,y,&cFill);
+				}
+
+			}
+		}
+	}
+
+	free(secondsInSpace);
+
+	return;
+}
+
 
 void GraphLine(BM *bm, COLOUR *cBackground, double minx, double miny, double maxx, double maxy, COLOUR *cDataColour, int numberofpoints, double *xarray, double *yarray)
 {

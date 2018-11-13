@@ -3044,6 +3044,8 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 
 	DrawListOfRegions(&previewBM, regionFirst);
 
+	HeatMap(&previewBM, &locationHistory, &optionsPreview.nswe, 0, 0);
+
 //Display the presets
 
 /*
@@ -3072,14 +3074,15 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 	bitmap = CreateDIBSection(hdc, &bmi,DIB_RGB_COLORS, &bits, NULL, 0);
 	//printf("create dib: %x", (unsigned long)bitmap);
 
-	int b;
+	int b;	//the bit we're up to in the DIB
 	b=0;
 	for (y=0;y<height;y++)	{
 		for (x=0;x<width;x++)	{
-			memcpy(&c, previewBM.bitmap+(x+y* width) *4, sizeof(COLOUR));
+			memcpy(&c, previewBM.bitmap+(x+y* width) *4, sizeof(COLOUR));	//set c to the colour in the previewBM.bitmap
 
-			d.R = d.G =d.B =0;	//this is if i need to merge with something else
-			mixColours(&d, &c);
+			d.R = d.G =d.B =0;	//d, for destination. This is if i need to merge with something else, for now it's just black
+
+			mixColours(&d, &c);	//mix the colour on the bitmap to the destination
 			bits[b] =d.B;	b++;
 			bits[b] =d.G;	b++;
 			bits[b] =d.R;	b++;
@@ -3323,6 +3326,12 @@ int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 
 	switch (wParam)	{
+
+		case VK_RETURN:
+			//HeatMap(&previewBM, &locationHistory, &optionsPreview.nswe, 5, 5);
+			//InvalidateRect(hwndPreview,NULL,0);
+			break;
+
 		case VK_TAB:
 			if (GetKeyState(VK_SHIFT) & SHIFTED)	{SetFocus(hwndTab);}	//back to the tabs above it
 			else {SetFocus(hwndEditNorth);}		//roll on back to the north edit box
@@ -3453,11 +3462,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//This brings up a command console window
 
-	/*
+
 	AllocConsole();
-    freopen("conout$","w",stdout);
-    freopen("conout$","w",stderr);
-*/
+    //freopen("conout$","w",stdout);
+    //freopen("conout$","w",stderr);
+	freopen("stdout.txt","w",stdout);
+	freopen("stderr.txt","w",stderr);
+//*/
 
 
 	hInst = hInstance;
