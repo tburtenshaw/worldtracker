@@ -2873,27 +2873,85 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 			if (secondsInSpace[x+y*blocksX] > longeststay)	{
 				longeststay = secondsInSpace[x+y*blocksX];
 			}
-
-			//printf("%i ",secondsInSpace[x+y*blocksX]);
 		}
 	}
-
 	loglongeststay = log10((double)longeststay);
 
+
 	//optional gaussian blur here, (before logs are done).
+
+
+int PascalRad[16][16] = {
+{1,0},//0 (first two rows we don't use)
+{1,0},//1
+
+{2, 1, 0}, //row 2
+{6, 4, 1, 0}, //row 3
+{20, 15, 6, 1, 0}, //row 4
+{70, 56, 28, 8, 1, 0}, //row 5
+{252, 210, 120, 45, 10, 1, 0}, //row 6
+{924, 792, 495, 220, 66, 12, 1, 0}, //row 7
+{2048, 1792, 1194, 597, 217, 54, 8, 0}, //row 8 , have round this and further down to get rid of insignificant figures
+{2048, 1820, 1274, 695, 289, 89, 19, 2, 0}, //row 9
+{2048, 1843, 1340, 781, 360, 128, 34, 6, 0}, //row 10
+{2048, 1861, 1396, 859, 429, 171, 53, 12, 2, 0}, //row 11
+{2048, 1877, 1444, 928, 495, 216, 76, 21, 4, 0}, //row 12
+{2048, 1890, 1485, 990, 557, 262, 101, 32, 8, 1, 0}, //row 13
+{2048, 1901, 1521, 1045, 615, 307, 129, 45, 12, 2, 0}, //row 14
+{2048, 1911, 1553, 1096, 669, 352, 158, 60, 19, 5, 1, 0}, //row 15
+//{2048, 1920, 1581, 1141, 721, 396, 188, 77, 26, 7, 1, 0}, //row 16
+
+
+};
+
+	int radius;
+	radius = 1;
+	int factor;
+	int totalfactors;
+	int coeffposition;
+
 	//blur horizontal
 	long * secondsHoriz;
 	secondsHoriz=malloc(sizeof(long)*blocksX);
 	for (y=0;y<blocksY;y++)	{
 		//first copy the original line from the seconds array to a temp line
 		memcpy(secondsHoriz,&secondsInSpace[y*blocksX],blocksX*sizeof(long));
-		for (x=0+5;x<blocksX-5;x++)	{
-			secondsInSpace[x+y*blocksX]=(secondsHoriz[x-1]+secondsHoriz[x]*2+secondsHoriz[x+1])/4;
+
+		//then go through each pixel in the line
+		for (x=0;x<blocksX;x++)	{
+			//treat the actual position separately
+			coeffposition = 0;
+			factor=PascalRad[radius][coeffposition];
+
+			//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
+
+			secondsInSpace[x+y*blocksX]=factor*secondsHoriz[x];
+			totalfactors=factor;
+
+			while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
+				coeffposition++;
+				factor=PascalRad[radius][coeffposition];
+
+				if (x>=coeffposition)	{	//don't do it if the pixel offset is lower than zero (this is the same as x-coeffpos>0);
+					secondsInSpace[x+y*blocksX]+=secondsHoriz[x-coeffposition]*factor;
+					totalfactors+=factor;
+				}
+
+				if (x+coeffposition < blocksX)	{
+					secondsInSpace[x+y*blocksX]+=secondsHoriz[x+coeffposition]*factor;
+					totalfactors+=factor;
+				}
+			}
+
+			secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
+
 		}
+
 	}
 	free(secondsHoriz);
 
 
+	//Blur vertically
 	long * secondsVert;
 	secondsVert=malloc(sizeof(long)*blocksY);
 	for (x=0;x<blocksX;x++)	{
@@ -2902,12 +2960,45 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 			memcpy(&secondsVert[y],&secondsInSpace[x+y*blocksX],sizeof(long));
 		}
 
-		//now add everything waited per Pascal
-		for (y=0+5;y<blocksY-5;y++)	{
-			secondsInSpace[x+y*blocksX]=(secondsVert[y-1]+secondsVert[y]*2+secondsVert[y+1])/4;
-		}
-	}
 
+
+				for (y=0;y<blocksY;y++)	{
+			//treat the actual position separately
+			coeffposition = 0;
+			factor=PascalRad[radius][coeffposition];
+
+			//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
+
+			secondsInSpace[x+y*blocksX]=factor*secondsVert[y];
+			totalfactors=factor;
+
+			while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
+				coeffposition++;
+				factor=PascalRad[radius][coeffposition];
+
+				if (y>=coeffposition)	{	//don't do it if the pixel offset is lower than zero
+					secondsInSpace[x+y*blocksX]+=secondsVert[y-coeffposition]*factor;
+					totalfactors+=factor;
+				}
+
+				if (y+coeffposition < blocksY)	{
+					secondsInSpace[x+y*blocksX]+=secondsVert[y+coeffposition]*factor;
+					totalfactors+=factor;
+				}
+			}
+
+			//divide at the end
+			secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
+
+		}
+
+
+		//now add everything weighted per Pascal
+//		for (y=0+5;y<blocksY-5;y++)	{
+//			secondsInSpace[x+y*blocksX]=(secondsVert[y-1]+secondsVert[y]*2+secondsVert[y+1])/4;
+//		}
+	}
+	free(secondsVert);
 
 
 	fprintf(stdout, "Gaussian blur finished.\n");

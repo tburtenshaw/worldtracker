@@ -3463,11 +3463,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//This brings up a command console window
 
 
-	AllocConsole();
+	//AllocConsole();
     //freopen("conout$","w",stdout);
     //freopen("conout$","w",stderr);
-	freopen("stdout.txt","w",stdout);
-	freopen("stderr.txt","w",stderr);
+	//freopen("stdout.txt","w",stdout);
+	//freopen("stderr.txt","w",stderr);
 //*/
 
 
