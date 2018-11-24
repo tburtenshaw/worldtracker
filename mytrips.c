@@ -2792,14 +2792,16 @@ int CoordInNSWE(WORLDCOORD *coord, NSWE *nswe)	//is a coord within a nswe region
 	return 1;
 }
 
-void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int blocksY)
+void HeatMap(BM *bm, LOCATIONHISTORY *lh, OPTIONS *options, int blocksX, int blocksY)
 {
 	int x,y;	//the blocks
 
 	int blocknumber;	//the number of the block, its x+y*blocksX, it's negative if not in a block. We go from south to north and west to east.
 	int oldblocknumber;
-	NSWE blockNSWE;	//the square of space we're counting the stay duration
-	long *secondsInSpace;	//the array to store the stay durations
+	//NSWE blockNSWE;	//the square of space we're counting the stay duration
+	double *secondsInSpace;	//the array to store the stay durations
+
+	NSWE *viewpoint;
 
 	unsigned long earliesttimeinblock;
 
@@ -2813,6 +2815,9 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 	//return if problems
 	if (!loc) return;
 	if (!bm) return;
+	if (!options) return;
+
+	viewpoint = &options->nswe;
 
 
 
@@ -2823,8 +2828,8 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 
 
 	//Allocate memory for the array
-	secondsInSpace=malloc(sizeof(long)*blocksX*blocksY);
-	memset(secondsInSpace,0,sizeof(long)*blocksX*blocksY);
+	secondsInSpace=malloc(sizeof(double)*blocksX*blocksY);
+	memset(secondsInSpace,0,sizeof(double)*blocksX*blocksY);
 
 	xStep=(viewpoint->east-viewpoint->west)/blocksX;
 	yStep=(viewpoint->north-viewpoint->south)/blocksY;
@@ -2863,7 +2868,7 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 	}
 
 
-	long longeststay;
+	unsigned long longeststay;
 	double loglongeststay;
 	longeststay=0;
 	//print for debug
@@ -2881,7 +2886,7 @@ void HeatMap(BM *bm, LOCATIONHISTORY *lh, NSWE *viewpoint, int blocksX, int bloc
 	//optional gaussian blur here, (before logs are done).
 
 
-int PascalRad[16][16] = {
+const int PascalRad[42][42] = {	//these are actually every second
 {1,0},//0 (first two rows we don't use)
 {1,0},//1
 
@@ -2899,107 +2904,131 @@ int PascalRad[16][16] = {
 {2048, 1890, 1485, 990, 557, 262, 101, 32, 8, 1, 0}, //row 13
 {2048, 1901, 1521, 1045, 615, 307, 129, 45, 12, 2, 0}, //row 14
 {2048, 1911, 1553, 1096, 669, 352, 158, 60, 19, 5, 1, 0}, //row 15
-//{2048, 1920, 1581, 1141, 721, 396, 188, 77, 26, 7, 1, 0}, //row 16
+{2048, 1920, 1581, 1141, 721, 396, 188, 77, 26, 7, 1, 0}, //row 16
+{2048, 1927, 1606, 1183, 769, 439, 219, 95, 35, 11, 3, 0}, //row 17
+{2048, 1934, 1628, 1221, 814, 481, 251, 115, 46, 15, 4, 1, 0}, //row 18
+{2048, 1940, 1649, 1256, 856, 521, 282, 135, 57, 21, 6, 1, 0}, //row 19
+{2048, 1945, 1667, 1288, 896, 560, 313, 156, 69, 27, 9, 2, 0}, //row 20
+{2048, 1950, 1684, 1318, 933, 597, 344, 178, 83, 34, 12, 4, 1, 0}, //row 21
+{2048, 1954, 1699, 1345, 968, 633, 375, 201, 97, 42, 16, 5, 1, 0}, //row 22
+{2048, 1958, 1714, 1371, 1002, 668, 405, 223, 111, 50, 20, 7, 2, 0}, //row 23
+{2048, 1962, 1727, 1395, 1033, 701, 435, 246, 127, 59, 25, 9, 3, 1, 0}, //row 24
+{2048, 1966, 1739, 1417, 1062, 733, 464, 269, 143, 69, 30, 12, 4, 1, 0}, //row 25
+{2048, 1969, 1750, 1437, 1090, 763, 492, 292, 159, 79, 36, 15, 5, 1, 0}, //row 26
+{2048, 1972, 1760, 1457, 1117, 792, 520, 315, 176, 90, 42, 18, 7, 2, 0}, //row 27
+{2048, 1974, 1770, 1475, 1142, 821, 547, 338, 193, 101, 49, 22, 9, 3, 1, 0}, //row 28
+{2048, 1977, 1779, 1492, 1166, 848, 573, 360, 210, 113, 56, 26, 11, 4, 1, 0}, //row 29
+{2048, 1979, 1788, 1508, 1188, 874, 599, 382, 227, 125, 64, 30, 13, 5, 2, 0}, //row 30
+{2048, 1981, 1796, 1523, 1210, 899, 624, 404, 245, 138, 72, 35, 16, 6, 2, 0}, //row 31
+{2048, 1984, 1803, 1538, 1230, 923, 648, 426, 262, 150, 81, 40, 18, 8, 3, 1, 0}, //row 32
+{2048, 1985, 1810, 1552, 1250, 946, 672, 448, 280, 163, 89, 45, 21, 9, 4, 1, 0}, //row 33
+{2048, 1987, 1817, 1564, 1268, 968, 695, 469, 297, 177, 98, 51, 25, 11, 4, 1, 0}, //row 34
+{2048, 1989, 1823, 1577, 1286, 989, 717, 490, 315, 190, 108, 57, 28, 13, 5, 2, 0}, //row 35
+{2048, 1991, 1829, 1588, 1303, 1010, 739, 510, 332, 203, 117, 64, 32, 15, 7, 2, 1, 0}, //row 36
+{2048, 1992, 1835, 1600, 1320, 1030, 760, 530, 349, 217, 127, 70, 36, 18, 8, 3, 1, 0}, //row 37
+{2048, 1994, 1840, 1610, 1335, 1049, 780, 550, 366, 231, 137, 77, 41, 20, 9, 4, 1, 0}, //row 38
+{2048, 1995, 1845, 1620, 1350, 1067, 800, 569, 383, 244, 148, 84, 45, 23, 11, 5, 2, 0}, //row 39
+{2048, 1996, 1850, 1630, 1364, 1085, 820, 588, 400, 258, 158, 91, 50, 26, 12, 5, 2, 1, 0}, //row 40
+{2048, 1998, 1855, 1639, 1378, 1103, 839, 607, 417, 272, 168, 99, 55, 29, 14, 6, 3, 1, 0}, //row 41
+
 
 
 };
 
 	int radius;
-	radius = 1;
-	int factor;
-	int totalfactors;
+	radius = 0;
+	double factor;
+	double totalfactors;
 	int coeffposition;
 
-	//blur horizontal
-	long * secondsHoriz;
-	secondsHoriz=malloc(sizeof(long)*blocksX);
-	for (y=0;y<blocksY;y++)	{
-		//first copy the original line from the seconds array to a temp line
-		memcpy(secondsHoriz,&secondsInSpace[y*blocksX],blocksX*sizeof(long));
 
-		//then go through each pixel in the line
-		for (x=0;x<blocksX;x++)	{
-			//treat the actual position separately
-			coeffposition = 0;
-			factor=PascalRad[radius][coeffposition];
+	if (radius>2)	{	//no blur less than this.
+		//blur horizontal
+		double * secondsHoriz;
 
-			//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
+		secondsHoriz=malloc(sizeof(double)*blocksX);
+		for (y=0;y<blocksY;y++)	{
+			//first copy the original line from the seconds array to a temp line
+			memcpy(secondsHoriz,&secondsInSpace[y*blocksX],blocksX*sizeof(double));
 
-			secondsInSpace[x+y*blocksX]=factor*secondsHoriz[x];
-			totalfactors=factor;
-
-			while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
-				coeffposition++;
+			//then go through each pixel in the line
+			for (x=0;x<blocksX;x++)	{
+				//treat the actual position separately
+				coeffposition = 0;
 				factor=PascalRad[radius][coeffposition];
 
-				if (x>=coeffposition)	{	//don't do it if the pixel offset is lower than zero (this is the same as x-coeffpos>0);
-					secondsInSpace[x+y*blocksX]+=secondsHoriz[x-coeffposition]*factor;
-					totalfactors+=factor;
+				//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
+
+				secondsInSpace[x+y*blocksX]=factor*secondsHoriz[x];
+				totalfactors=factor;
+
+				while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
+					coeffposition++;
+					factor=PascalRad[radius][coeffposition];
+
+					if (x>=coeffposition)	{	//don't do it if the pixel offset is lower than zero (this is the same as x-coeffpos>0);
+						secondsInSpace[x+y*blocksX]+=secondsHoriz[x-coeffposition]*factor;
+						totalfactors+=factor;
+					}
+
+					if (x+coeffposition < blocksX)	{
+						secondsInSpace[x+y*blocksX]+=secondsHoriz[x+coeffposition]*factor;
+						totalfactors+=factor;
+					}
 				}
 
-				if (x+coeffposition < blocksX)	{
-					secondsInSpace[x+y*blocksX]+=secondsHoriz[x+coeffposition]*factor;
-					totalfactors+=factor;
-				}
+				secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
+
 			}
 
-			secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
-
 		}
-
-	}
-	free(secondsHoriz);
+		free(secondsHoriz);
 
 
-	//Blur vertically
-	long * secondsVert;
-	secondsVert=malloc(sizeof(long)*blocksY);
-	for (x=0;x<blocksX;x++)	{
-		//copying the line is more difficult vertically.
-		for (y=0;y<blocksY;y++)	{
-			memcpy(&secondsVert[y],&secondsInSpace[x+y*blocksX],sizeof(long));
-		}
+		//Blur vertically
+		double * secondsVert;
+		secondsVert=malloc(sizeof(double)*blocksY);
+		for (x=0;x<blocksX;x++)	{
+			//copying the line is more difficult vertically.
+			for (y=0;y<blocksY;y++)	{
+				memcpy(&secondsVert[y],&secondsInSpace[x+y*blocksX],sizeof(double));
+			}
 
 
 
 				for (y=0;y<blocksY;y++)	{
-			//treat the actual position separately
-			coeffposition = 0;
-			factor=PascalRad[radius][coeffposition];
+					//treat the actual position separately
+					coeffposition = 0;
+					factor=PascalRad[radius][coeffposition];
 
-			//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
+					//fprintf(stdout,"factor %i, rad %i, pos %i\n", factor,radius,coeffposition);
 
-			secondsInSpace[x+y*blocksX]=factor*secondsVert[y];
-			totalfactors=factor;
+					secondsInSpace[x+y*blocksX]=factor*secondsVert[y];
+					totalfactors=factor;
 
-			while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
-				coeffposition++;
-				factor=PascalRad[radius][coeffposition];
+					while (PascalRad[radius][coeffposition])	{//move out laterally left and rightwards
+						coeffposition++;
+						factor=PascalRad[radius][coeffposition];
 
-				if (y>=coeffposition)	{	//don't do it if the pixel offset is lower than zero
-					secondsInSpace[x+y*blocksX]+=secondsVert[y-coeffposition]*factor;
-					totalfactors+=factor;
+						if (y>=coeffposition)	{	//don't do it if the pixel offset is lower than zero
+							secondsInSpace[x+y*blocksX]+=secondsVert[y-coeffposition]*factor;
+							totalfactors+=factor;
+						}
+
+						if (y+coeffposition < blocksY)	{
+							secondsInSpace[x+y*blocksX]+=secondsVert[y+coeffposition]*factor;
+							totalfactors+=factor;
+						}
+					}
+
+				//divide at the end
+				secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
 				}
 
-				if (y+coeffposition < blocksY)	{
-					secondsInSpace[x+y*blocksX]+=secondsVert[y+coeffposition]*factor;
-					totalfactors+=factor;
-				}
-			}
-
-			//divide at the end
-			secondsInSpace[x+y*blocksX]=secondsInSpace[x+y*blocksX]/totalfactors;
 
 		}
-
-
-		//now add everything weighted per Pascal
-//		for (y=0+5;y<blocksY-5;y++)	{
-//			secondsInSpace[x+y*blocksX]=(secondsVert[y-1]+secondsVert[y]*2+secondsVert[y+1])/4;
-//		}
+		free(secondsVert);
 	}
-	free(secondsVert);
-
 
 	fprintf(stdout, "Gaussian blur finished.\n");
 	fprintf(stdout, "Starting display: blocks %i,%i. BM width %i, height %i.\n",blocksX,blocksY,bm->width, bm->height);
@@ -3019,18 +3048,10 @@ int PascalRad[16][16] = {
 			for (x=0;x<bm->width;x++)	{
 				blocknumber = (x*blocksX/bm->width) + (blocksY-1-(y*blocksY/bm->height))*blocksX;
 
-				if (secondsInSpace[blocknumber]>0)	{
-					//cFill.R=255*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
-					//cFill.G=125*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
-					//cFill.B=0;
-					//cFill.A=255*log10((double)secondsInSpace[blocknumber])/log10((double)longeststay);
-
-					heatmapvalue1024 = 1023*log10((double)secondsInSpace[blocknumber])/loglongeststay;
-					if (heatmapvalue1024>1023)	{
-						fprintf(stderr,"Over 1024");
-					}
-					cFill = colormap_extkindlmann[heatmapvalue1024];
-					//cFill = colormap_inferno[heatmapvalue1024];
+				if (secondsInSpace[blocknumber]>1)	{	//as log of something <1 is negative
+					heatmapvalue1024 = 1023*log10(secondsInSpace[blocknumber])/loglongeststay;
+					//cFill = colormap_extkindlmann[heatmapvalue1024];
+					cFill = colormap_inferno[heatmapvalue1024];
 					bitmapPixelSet(bm,x,y,&cFill);
 				}
 
@@ -3039,6 +3060,30 @@ int PascalRad[16][16] = {
 	}
 
 	free(secondsInSpace);
+
+	return;
+}
+
+void DrawBackground(BM *bm)
+{
+	int x,y;
+	COLOUR cGrey;
+	COLOUR cWhite;
+
+	int check;
+	cWhite.R=255;	cWhite.G=255;	cWhite.B=255; cWhite.A=255;
+	cGrey.R=192;	cGrey.G=192;	cGrey.B=192; cGrey.A=255;
+
+	for (y=0; y<bm->height; y++)	{
+		for (x=0; x<bm->width; x++)	{
+
+			check=((x/4)+(y/4))%2;	//dividing by four, we reduce the resolution by 4. Then every even numbered x+y is a different colour from the odd;
+
+			if (check)	bitmapPixelSet(bm,x,y,&cGrey);
+			else bitmapPixelSet(bm,x,y,&cWhite);
+		}
+	}
+
 
 	return;
 }

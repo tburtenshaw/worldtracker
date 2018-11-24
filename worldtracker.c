@@ -3038,13 +3038,14 @@ HBITMAP MakeHBitmapPreview(HDC hdc, LOCATIONHISTORY * lh, long queuechit)
 		bitmapDestroy(&previewBM);
 	}
 	bitmapInit(&previewBM, &optionsPreview, &locationHistory);
+//	DrawBackground(&previewBM);
 
 	PlotPaths(&previewBM, &locationHistory, &optionsPreview);
 
-
 	DrawListOfRegions(&previewBM, regionFirst);
 
-	HeatMap(&previewBM, &locationHistory, &optionsPreview.nswe, 0, 0);
+	HeatMap(&previewBM, &locationHistory, &optionsPreview, 0, 0);
+
 
 //Display the presets
 
@@ -3328,8 +3329,7 @@ int HandlePreviewKeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 	switch (wParam)	{
 
 		case VK_RETURN:
-			//HeatMap(&previewBM, &locationHistory, &optionsPreview.nswe, 5, 5);
-			//InvalidateRect(hwndPreview,NULL,0);
+			//Does nothing
 			break;
 
 		case VK_TAB:
